@@ -1,0 +1,43 @@
+{
+  "ean": "7896523200325",
+  "nome": "Cimegripe 20 cápsulas",
+  "principio_ativo": "paracetamol + clorfeniramina + fenilefrina",
+  "ncm": "30049069",
+  "is_cimed": true,
+  "preco_venda": 18.90,
+  "estoque_atual": 7,
+  "estoque_minimo_critico": 12,
+  "media_venda_diaria": 8.4,
+  "categoria_medicamento": "LISTA_POSITIVA",
+  "regras_por_regime": {
+    "SIMPLES_NACIONAL": {
+      "cfop": 5405,
+      "cst_icms": "60",
+      "csosn": "500",
+      "cst_pis_cofins": "05",
+      "natureza_receita_pis_cofins": "101",
+      "aliquota_base_cbs": 0.009,
+      "aliquota_base_ibs": 0.064
+    },
+    "LUCRO_PRESUMIDO": {
+      "cfop": 5405,
+      "cst_icms": "60",
+      "csosn": null,
+      "cst_pis_cofins": "05",
+      "natureza_receita_pis_cofins": "101",
+      "aliquota_base_cbs": 0.018,
+      "aliquota_base_ibs": 0.100
+    },
+    "LUCRO_REAL": {
+      "cfop": 5405,
+      "cst_icms": "60",
+      "csosn": null,
+      "cst_pis_cofins": "05",
+      "natureza_receita_pis_cofins": "101",
+      "aliquota_base_cbs": 0.024,
+      "aliquota_base_ibs": 0.118
+    }
+  },
+  "versao_regra": "2026.07",
+  "vigencia_inicio": "2026-07-01T00:00:00.000Z"
+}
