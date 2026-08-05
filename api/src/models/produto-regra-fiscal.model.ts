@@ -1,4 +1,4 @@
-import { Schema, model, models, type Model } from "mongoose";
+import { Schema, model, models, type Model, type Types } from "mongoose";
 
 export const REGIMES = [
   "SIMPLES_NACIONAL",
@@ -8,48 +8,29 @@ export const REGIMES = [
 
 export type RegimeTributario = (typeof REGIMES)[number];
 
-const RegraRegimeSchema = new Schema(
-  {
-    cfop: { type: Number, enum: [5102, 5405], required: true },
-    cst_icms: { type: String, required: true },
-    csosn: { type: String, default: null },
-    cst_pis_cofins: { type: String, required: true },
-    natureza_receita_pis_cofins: { type: String, default: null },
-    aliquota_base_cbs: { type: Number, min: 0, max: 1, required: true },
-    aliquota_base_ibs: { type: Number, min: 0, max: 1, required: true },
-  },
-  { _id: false },
-);
-
 const ProdutoRegraFiscalSchema = new Schema(
   {
-    ean: { type: String, required: true, unique: true, index: true },
+    ean: { type: String, match: /^[0-9]{8,14}$/, required: true, unique: true, index: true },
     nome: { type: String, required: true },
-    principio_ativo: { type: String, required: true },
-    ncm: { type: String, required: true },
-    is_cimed: { type: Boolean, required: true, default: false, index: true },
+    principio_ativo: { type: String, default: "" },
+    laboratorio: { type: String, default: "" },
+    categoria_fiscal_id: {
+      type: Schema.Types.ObjectId,
+      ref: "CategoriaFiscal",
+      required: true,
+      index: true,
+    },
+    lote: { type: String, required: true },
+    quantidade_entrada: { type: Number, min: 0, required: true },
+    valor_entrada_unitario: { type: Number, min: 0, required: true },
     preco_venda: { type: Number, min: 0, required: true },
     estoque_atual: { type: Number, min: 0, required: true },
     estoque_minimo_critico: { type: Number, min: 0, required: true },
     media_venda_diaria: { type: Number, min: 0, required: true },
-    categoria_medicamento: {
-      type: String,
-      enum: [
-        "LISTA_POSITIVA",
-        "LISTA_NEGATIVA",
-        "LISTA_NEUTRA",
-        "CORRELATO_SUPLEMENTO",
-      ],
-      required: true,
-      index: true,
-    },
-    regras_por_regime: {
-      SIMPLES_NACIONAL: { type: RegraRegimeSchema, required: true },
-      LUCRO_PRESUMIDO: { type: RegraRegimeSchema, required: true },
-      LUCRO_REAL: { type: RegraRegimeSchema, required: true },
-    },
-    versao_regra: { type: String, required: true },
-    vigencia_inicio: { type: Date, required: true },
+    data_fabricacao: { type: Date, required: true },
+    data_vencimento: { type: Date, required: true, index: true },
+    is_cimed: { type: Boolean, required: true, default: false, index: true },
+    ativo: { type: Boolean, required: true, default: true, index: true },
   },
   {
     collection: "produtos_regras_fiscais",
@@ -58,32 +39,32 @@ const ProdutoRegraFiscalSchema = new Schema(
   },
 );
 
+ProdutoRegraFiscalSchema.index({ categoria_fiscal_id: 1, ativo: 1 });
+ProdutoRegraFiscalSchema.index({ data_vencimento: 1, estoque_atual: 1 });
+ProdutoRegraFiscalSchema.path("data_vencimento").validate(function (value: Date) {
+  return !this.data_fabricacao || value > this.data_fabricacao;
+}, "A data de vencimento deve ser posterior à fabricação");
+
 export type ProdutoRegraFiscal = {
+  _id: Types.ObjectId;
   ean: string;
   nome: string;
-  is_cimed: boolean;
+  principio_ativo: string;
+  laboratorio: string;
+  categoria_fiscal_id: Types.ObjectId;
+  lote: string;
+  quantidade_entrada: number;
+  valor_entrada_unitario: number;
   preco_venda: number;
   estoque_atual: number;
   estoque_minimo_critico: number;
-  categoria_medicamento:
-    | "LISTA_POSITIVA"
-    | "LISTA_NEGATIVA"
-    | "LISTA_NEUTRA"
-    | "CORRELATO_SUPLEMENTO";
-  regras_por_regime: Record<
-    RegimeTributario,
-    {
-      cfop: 5102 | 5405;
-      cst_icms: string;
-      csosn: string | null;
-      cst_pis_cofins: string;
-      natureza_receita_pis_cofins: string | null;
-      aliquota_base_cbs: number;
-      aliquota_base_ibs: number;
-    }
-  >;
+  media_venda_diaria: number;
+  data_fabricacao: Date;
+  data_vencimento: Date;
+  is_cimed: boolean;
+  ativo: boolean;
 };
 
 export const ProdutoRegraFiscalModel =
   (models.ProdutoRegraFiscal ??
-    model("ProdutoRegraFiscal", ProdutoRegraFiscalSchema)) as unknown as Model<ProdutoRegraFiscal>;
+    model("ProdutoRegraFiscal", ProdutoRegraFiscalSchema)) as Model<ProdutoRegraFiscal>;

@@ -1,0 +1,9 @@
+[
+  { "codigo": "MEDICAMENTOS", "nome": "Medicamentos", "ncm": "30049069", "cest": "1300402", "classificacao": "LISTA_POSITIVA" },
+  { "codigo": "ANTIBIOTICOS", "nome": "Antibióticos", "ncm": "30042099", "cest": "1300200", "classificacao": "LISTA_POSITIVA" },
+  { "codigo": "HIGIENE", "nome": "Higiene pessoal", "ncm": "33049990", "cest": "2001500", "classificacao": "TRIBUTACAO_NORMAL" },
+  { "codigo": "MAQUIAGEM", "nome": "Maquiagens", "ncm": "33049910", "cest": "2001500", "classificacao": "TRIBUTACAO_NORMAL" },
+  { "codigo": "SUPLEMENTOS", "nome": "Suplementos e esporte", "ncm": "21069030", "cest": null, "classificacao": "TRIBUTACAO_NORMAL" },
+  { "codigo": "PERFUMARIA", "nome": "Perfumaria", "ncm": "33030020", "cest": "2000700", "classificacao": "TRIBUTACAO_NORMAL" },
+  { "codigo": "BALAS", "nome": "Balas e confeitos", "ncm": "17049020", "cest": "1700400", "classificacao": "MONOFASICO" }
+]

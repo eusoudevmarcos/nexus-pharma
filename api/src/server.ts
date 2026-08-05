@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { config } from "./config.js";
 import { postgres } from "./infra/postgres.js";
 import { vendasRoutes } from "./routes/vendas.routes.js";
+import { cadastrosRoutes } from "./routes/cadastros.routes.js";
 
 const app = Fastify({
   logger: {
@@ -14,6 +15,7 @@ const app = Fastify({
 
 await app.register(cors, { origin: config.WEB_ORIGIN });
 await app.register(vendasRoutes, { prefix: "/api/v1/vendas" });
+await app.register(cadastrosRoutes, { prefix: "/api/v1/cadastros" });
 
 app.get("/health", async () => {
   await Promise.all([

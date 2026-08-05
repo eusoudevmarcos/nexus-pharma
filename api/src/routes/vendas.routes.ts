@@ -46,7 +46,10 @@ export async function vendasRoutes(app: FastifyInstance) {
       }
       if (
         message.startsWith("ESTOQUE_INSUFICIENTE") ||
-        message.startsWith("REGRA_FISCAL_INCONSISTENTE")
+        message.startsWith("PRODUTO_VENCIDO") ||
+        message.startsWith("CATEGORIA_FISCAL_SEM_VIGENCIA") ||
+        message.startsWith("REGRA_FISCAL_INCOMPLETA") ||
+        message.startsWith("CSOSN_OBRIGATORIO")
       ) {
         return reply.status(409).send({ erro: message });
       }
@@ -55,4 +58,3 @@ export async function vendasRoutes(app: FastifyInstance) {
     }
   });
 }
-
