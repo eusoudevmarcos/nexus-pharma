@@ -645,8 +645,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-shell { background: radial-gradient(circle at 75% -5%, rgba(0, 52, 95, .11), transparent 32%), radial-gradient(circle at 45% 0%, rgba(246, 189, 0, .13), transparent 24%), var(--paper); }
 .sidebar { background: linear-gradient(165deg, #073555 0%, #001a30 100%); box-shadow: 0 24px 58px rgba(0, 24, 44, .3); }
 
-.brand { height: 124px; padding: 0; display: block; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 10px 28px rgba(0, 17, 31, .2); }
-.brand-lockup { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 46%; transform: scale(1.18); }
+.brand { min-height: 104px; padding: 16px; display: grid; place-items: center; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 10px 28px rgba(0, 17, 31, .2); }
+.brand-signature { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 12px; }
+.brand-signature .logo-mark { width: 54px; height: 54px; }
+.brand-name { display: grid; justify-items: center; line-height: 1; }
+.brand-name strong { color: #00345f; font-size: 27px; font-weight: 500; letter-spacing: -.055em; }
+.brand-name strong em { color: #f6bd00; font-style: normal; font-weight: 800; }
+.brand-name small { margin-top: 7px; color: #00345f; font-size: 11px; font-weight: 500; letter-spacing: .32em; text-transform: lowercase; }
 .brand-compact { display: none; }
 .logo-mark { width: 48px; height: 48px; display: block; object-fit: contain; }
 .brand span, .operator small { color: #b9c9d4; }
@@ -686,7 +691,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 @media (max-width: 1050px) {
   .brand { height: auto; padding: 8px; display: grid; place-items: center; overflow: visible; background: transparent; box-shadow: none; }
-  .brand-lockup { display: none; }
+  .brand-signature { display: none; }
   .brand-compact { display: block; }
   .logo-mark { width: 50px; height: 50px; }
 }

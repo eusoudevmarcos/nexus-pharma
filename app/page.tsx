@@ -108,7 +108,13 @@ export default function Home() {
   return <main className="app-shell">
     <aside className="sidebar">
       <div className="brand">
-        <img className="brand-lockup" src="/logo/nexus-logo-original.png" width="1200" height="1200" alt="Nexus pharma" />
+        <div className="brand-signature" aria-label="Nexus pharma">
+          <LogoMark />
+          <div className="brand-name">
+            <strong>Ne<em>x</em>us</strong>
+            <small>pharma</small>
+          </div>
+        </div>
         <span className="brand-compact"><LogoMark /></span>
       </div>
       <nav aria-label="Navegação principal">
