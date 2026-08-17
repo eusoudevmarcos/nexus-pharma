@@ -22,7 +22,7 @@ test("renderiza o dashboard Nexus Pharma", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Nexus Pharma \| Sell-out que vira decisão<\/title>/i);
+  assert.match(html, /<title>Nexus Pharma \| Gestão fiscal simples<\/title>/i);
   assert.match(html, /Economia tributária/i);
   assert.match(html, /Conferência contábil express/i);
   assert.match(html, /Alerta de compras/i);
@@ -46,4 +46,3 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
   assert.doesNotMatch(page, /SkeletonPreview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
-

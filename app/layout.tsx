@@ -15,23 +15,23 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://nexus-pharma.pages.dev"),
-  title: "Nexus Pharma | Sell-out que vira decisão",
+  title: "Nexus Pharma | Gestão fiscal simples",
   description:
-    "Inteligência fiscal, sell-out e reposição de estoque para a farmácia brasileira.",
+    "Produtos, estoque, validades e tributação em uma gestão simples para a farmácia brasileira.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
   openGraph: {
     title: "Nexus Pharma",
-    description: "Sell-out que vira decisão.",
-    images: [{ url: "/og.png", width: 1672, height: 941 }],
+    description: "Gestão fiscal simples, moderna e acessível.",
+    images: [{ url: "/og-v2.png", width: 1672, height: 941 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Nexus Pharma",
-    description: "Sell-out que vira decisão.",
-    images: ["/og.png"],
+    description: "Gestão fiscal simples, moderna e acessível.",
+    images: ["/og-v2.png"],
   },
 };
 
