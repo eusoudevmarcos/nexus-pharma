@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Roboto, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "./pwa-register";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const robotoSans = Roboto({
+  variable: "--font-roboto-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const robotoMono = Roboto_Mono({
+  variable: "--font-roboto-mono",
   subsets: ["latin"],
 });
 
@@ -25,13 +25,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Nexus Pharma",
     description: "Gestão fiscal simples, moderna e acessível.",
-    images: [{ url: "/og-v2.png", width: 1672, height: 941 }],
+    images: [{ url: "/og-v3.png", width: 1672, height: 941 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Nexus Pharma",
     description: "Gestão fiscal simples, moderna e acessível.",
-    images: ["/og-v2.png"],
+    images: ["/og-v3.png"],
   },
 };
 
@@ -43,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${robotoSans.variable} ${robotoMono.variable} antialiased`}
       >
         {children}
         <PwaRegister />

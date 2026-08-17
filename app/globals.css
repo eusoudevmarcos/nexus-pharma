@@ -507,3 +507,122 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .master-list { border-radius: 18px; }.detail-card { border-radius: 18px; }
   .detail-heading h2 { font-size: 24px; }
 }
+
+/* Paleta de alto contraste — referência amarelo, azul e preto */
+:root {
+  --ink: #08090b;
+  --paper: #f5f6fa;
+  --panel: #ffffff;
+  --line: #e2e4eb;
+  --muted: #59606d;
+  --lime: #ffea00;
+  --green: #4148d8;
+  --soft-green: #eef0ff;
+  --coral: #f26352;
+  --shadow-sm: 0 3px 14px rgba(24, 27, 45, .06);
+  --shadow-md: 0 18px 46px rgba(24, 27, 45, .12);
+}
+
+body { font-family: var(--font-roboto-sans), Arial, sans-serif; font-size: 16px; color: var(--ink); }
+code, kbd, .fiscal-tag, .tax-trace span { font-family: var(--font-roboto-mono), monospace; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline-color: rgba(65, 72, 216, .38); }
+
+.app-shell { background: radial-gradient(circle at 75% -5%, rgba(65,72,216,.1), transparent 32%), radial-gradient(circle at 45% 0%, rgba(255,234,0,.11), transparent 24%), var(--paper); }
+.sidebar { background: linear-gradient(165deg, #101116 0%, #020203 100%); box-shadow: 0 24px 58px rgba(4, 5, 8, .28); }
+.logo-mark i:first-child { background: var(--lime); }
+.logo-mark i:last-child { background: #4a51dc; }
+.brand span, .operator small { color: #a9acb7; }
+.nav-label { color: #747783; font-size: 11px; }
+.sidebar button { color: #b3b5bf; font-size: 15px; }
+.sidebar nav button:hover { background: rgba(65,72,216,.18); }
+.sidebar nav button.active { background: #4148d8; color: #fff; }
+.sidebar nav button.active .icon { background: var(--lime); color: #08090b; }
+.operator { background: rgba(255,255,255,.07); }
+.operator strong { font-size: 14px; }.operator small { font-size: 12px; }
+.avatar { background: var(--lime); color: #08090b; font-size: 13px; }
+
+.eyebrow, .label { color: #5e6470; font-size: 12px; }
+.page-copy h1, .topbar h1 { font-weight: 800; letter-spacing: -.045em; }
+.page-copy p { color: #59606d; font-size: 15px; }
+.status-pill strong { color: #17191f; font-size: 13px; }.status-pill small { color: #737987; font-size: 11px; }
+.pulse { background: #4148d8; box-shadow: 0 0 0 4px rgba(65,72,216,.14); }
+.regime-switch { background: #e7e8ee; }
+.regime-switch button { color: #626875; font-size: 12px; }
+.regime-switch button.active { color: #fff; background: #4148d8; }
+
+.economy-card { background: linear-gradient(135deg, #fff200 0%, #ffdc00 100%); color: #08090b; box-shadow: 0 18px 42px rgba(207, 179, 0, .2); }
+.economy-card .label { color: #484100; }
+.economy-card p { color: #4b4500; font-size: 15px; }
+.economy-footer { color: #4b4500; font-size: 13px; border-color: rgba(0,0,0,.2); }
+.economy-footer strong { color: #08090b; }
+.trend { background: #08090b; color: #fff200; font-size: 12px; }
+.action-card { background: linear-gradient(145deg, #4a51e2 0%, #3035b8 100%); box-shadow: 0 18px 42px rgba(65,72,216,.24); }
+.action-card .label { color: #e1e3ff; }
+.action-card p { color: #e2e4ff; font-size: 14px; }
+.action-card button { background: #fff; color: #11131b; font-size: 14px; }
+.action-card button:hover { background: var(--lime); }
+
+.metric > strong { font-size: 27px; }.metric div { color: #666d78; font-size: 13px; }.metric em { color: #4148d8; background: #eef0ff; }
+.panel-heading h2 { font-size: 22px; }.quiet, .primary-small, .save-button { font-size: 13px; }
+.primary-small, .save-button, .full-button { background: #4148d8; }
+.quiet:hover { border-color: #adb1db; background: #f4f5ff; }
+.count { background: #fff2b0; color: #1b1b16; font-size: 14px; }
+.muted { color: #626975; font-size: 14px; }
+.alert-item strong { font-size: 14px; }.alert-item small { color: #717784; font-size: 12px; }
+.product-avatar { background: #eef0ff; color: #3035b8; font-size: 12px; }
+.stock-data strong { color: #3035b8; }
+.fiscal-strip { color: #626975; font-size: 12px; }
+.fiscal-strip div { color: #242731; }.fiscal-strip .icon { color: #4148d8; }
+
+.table-head, .stock-grid-head, .wide-head { background: #101116; color: #f4f4f7; }
+.table-head { font-size: 11px; }.table-line { font-size: 13px; }
+.table-line small, .wide-line small, .stock-grid-row small { color: #737987; font-size: 11px; }
+.table-line code, .wide-line code { color: #3035b8; font-size: 13px; }
+.table-line:hover, .wide-line:hover, .stock-grid-row:hover { background: #f5f6ff; }
+.good-text { color: #3035b8; }.danger-text { color: #b43f32; }
+.stock-grid-head, .wide-head { font-size: 11px; }
+.stock-grid-row { font-size: 13px; }.stock-grid-row strong { font-size: 13px; }
+.wide-line { font-size: 12px; }
+.status { font-size: 11px; }.status.ok { background: #eef0ff; color: #3035b8; }.status.warn { background: #fff4ad; color: #5f5300; }
+.legal-note { color: #59606d; font-size: 12px; }
+
+.search-box { border-color: #d3d5dd; }
+.search-box:focus-within { border-color: #4148d8; box-shadow: 0 0 0 4px rgba(65,72,216,.12); }
+.search-box input { font-size: 15px; }.search-results strong { font-size: 14px; }.search-results small { font-size: 12px; }.search-results b { font-size: 14px; }
+.sale-head { color: #606673; font-size: 11px; }
+.cart-product strong { font-size: 14px; }.cart-product small, .fiscal-small { color: #727886; font-size: 11px; }
+.fiscal-tag { background: #eef0ff; color: #3035b8; font-size: 12px; }
+.quantity strong, .line-total { font-size: 14px; }
+.pdv-rule { color: #626975; font-size: 12px; }.pdv-rule .icon { color: #4148d8; }
+.checkout-lines p { color: #59606d; font-size: 14px; }.checkout-lines .tax-save { color: #3035b8; }
+.checkout-total > span { font-size: 12px; }.checkout-total small { color: #4148d8; font-size: 12px; }
+.finish-button { background: var(--lime); color: #08090b; font-size: 14px; }
+.security-note { color: #6b717d; font-size: 12px; }
+
+.stock-summary { background: #101116; }.stock-summary small { color: #c0c2ca; font-size: 12px; }
+.fiscal-cards span { font-size: 12px; }.fiscal-cards strong { font-size: 22px; }.fiscal-cards div.accent { background: var(--lime); }
+
+.master-title h2 { font-size: 23px; }.master-title > button { background: var(--lime); color: #08090b; }
+.filter-input { font-size: 13px; }
+.master-list > button.selected { background: #eef0ff; box-shadow: inset 4px 0 #4148d8; }
+.master-list > button strong { font-size: 14px; }.master-list > button small { color: #717784; font-size: 11px; }.master-list > button b { color: #4148d8; font-size: 12px; }
+.category-dot { background: var(--lime); }.category-dot:after { border-color: #4148d8; }
+.detail-heading h2 { font-size: 29px; }.detail-heading p { color: #5f6672; font-size: 13px; }
+.save-button:hover { background: #3035b8; }
+.tabs button { background: #eceef3; color: #565d69; font-size: 12px; }.tabs button.active { background: #4148d8; }
+.field > span { color: #4f5661; font-size: 12px; }.field input, .field select, .field textarea { font-size: 14px; }.field small { color: #6d7480; font-size: 11px; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: #4148d8; box-shadow: 0 0 0 4px rgba(65,72,216,.11); }
+.rate-input b { font-size: 12px; }
+.regime-context { background: #eef0ff; color: #4e5562; font-size: 12px; }.regime-context .icon, .inherit-banner .icon { background: var(--lime); color: #08090b; }
+.inherit-banner { background: #eef0ff; }.inherit-banner strong { font-size: 14px; }.inherit-banner small, .reform-note span { font-size: 12px; }
+.reform-note { background: #101116; }.reform-note strong { font-size: 15px; }
+.summary-cards span { font-size: 12px; }.summary-cards strong { font-size: 20px; }.summary-cards > div.accent { background: var(--lime); }
+.tax-trace span { background: #101116; color: #f0f1f4; font-size: 11px; }
+.toast { background: #101116; font-size: 14px; }.toast .icon { background: var(--lime); color: #08090b; }
+
+@media (max-width: 720px) {
+  .page-copy p { font-size: 14px; }
+  .economy-card p, .action-card p { font-size: 14px; }
+  .metric > strong { font-size: 25px; }
+  .summary-cards { grid-template-columns: 1fr; }
+}
