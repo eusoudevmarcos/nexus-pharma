@@ -698,3 +698,38 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .brand { display: none; }
   .sidebar nav button.active { background: #00345f; color: #fff; }
 }
+
+/* Assistente fiscal compacto */
+.tax-ai { position: fixed; right: 28px; bottom: 24px; z-index: 40; display: grid; justify-items: end; gap: 10px; }
+.tax-ai-trigger { min-height: 48px; padding: 0 18px; display: flex; align-items: center; gap: 9px; border: 0; border-radius: 999px; background: #002946; color: #fff; box-shadow: 0 15px 38px rgba(0, 32, 57, .28); font-size: 13px; font-weight: 800; }
+.tax-ai-trigger span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; background: #f6bd00; color: #00345f; font-size: 15px; }
+.tax-ai-trigger:hover { background: #003e6d; transform: translateY(-1px); }
+.tax-ai-panel { width: min(410px, calc(100vw - 32px)); max-height: min(610px, calc(100vh - 110px)); overflow: auto; padding: 20px; border: 1px solid #d7e2e9; border-radius: 22px; background: rgba(255,255,255,.98); box-shadow: 0 25px 70px rgba(0, 32, 57, .24); }
+.tax-ai-head { display: grid; grid-template-columns: 38px 1fr 30px; gap: 10px; align-items: center; }
+.tax-ai-spark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: #f6bd00; color: #00345f; font-size: 20px; }
+.tax-ai-head > span:nth-child(2) { display: grid; gap: 3px; }
+.tax-ai-head strong { color: #002946; font-size: 15px; }
+.tax-ai-head small { color: #6b7a85; font-size: 10px; }
+.tax-ai-head > button { width: 30px; height: 30px; border: 0; border-radius: 9px; background: #edf3f6; color: #526672; font-size: 20px; }
+.tax-ai-intro { margin: 16px 0 13px; color: #526672; font-size: 12px; line-height: 1.55; }
+.tax-ai-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.tax-ai-chips button { padding: 8px 10px; border: 1px solid #d6e1e7; border-radius: 999px; background: #f5f8fa; color: #00345f; font-size: 10px; font-weight: 700; }
+.tax-ai-chips button:hover { border-color: #f6bd00; background: #fff8d8; }
+.tax-ai-input { margin-top: 13px; padding: 5px; display: grid; grid-template-columns: 1fr 38px; gap: 5px; border: 1px solid #cbd9e1; border-radius: 14px; background: #fff; }
+.tax-ai-input:focus-within { border-color: #00345f; box-shadow: 0 0 0 4px rgba(0,52,95,.09); }
+.tax-ai-input input { min-width: 0; padding: 8px 9px; border: 0; outline: 0; color: #18303f; font-size: 12px; }
+.tax-ai-input button { border: 0; border-radius: 10px; background: #00345f; color: #fff; font-size: 18px; }
+.tax-ai-result { margin-top: 14px; padding: 15px; display: grid; gap: 7px; border-radius: 15px; background: #edf4f8; color: #163445; }
+.tax-ai-kicker { color: #5d7180; font-size: 9px; font-weight: 900; letter-spacing: .09em; }
+.tax-ai-result > strong { color: #00345f; font-size: 16px; }
+.tax-ai-result > p { margin: 0; color: #536a78; font-size: 11px; line-height: 1.5; }
+.tax-ai-saving { margin-top: 4px; padding-top: 10px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #d3e0e7; font-size: 10px; }
+.tax-ai-saving b { color: #00345f; text-align: right; }
+.tax-ai-apply { margin-top: 4px; padding: 10px 12px; border: 0; border-radius: 10px; background: #00345f; color: #fff; font-size: 11px; font-weight: 800; }
+.tax-ai-legal { margin: 13px 2px 0; color: #7a8790; font-size: 9px; line-height: 1.45; }
+
+@media (max-width: 720px) {
+  .tax-ai { right: 12px; bottom: 91px; }
+  .tax-ai-panel { max-height: calc(100vh - 180px); padding: 17px; border-radius: 18px; }
+  .tax-ai-trigger { min-height: 44px; padding-inline: 14px; }
+}
