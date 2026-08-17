@@ -30,10 +30,12 @@ test("renderiza o dashboard Nexus Pharma", async () => {
 });
 
 test("mantém os contratos operacionais e remove o preview inicial", async () => {
-  const [page, layout, packageJson] = await Promise.all([
+  const [page, layout, packageJson, schema, workspaceRoute] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /event\.key === "F2"/);
@@ -43,6 +45,24 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
   assert.match(page, /LUCRO_PRESUMIDO/);
   assert.match(page, /LUCRO_REAL/);
   assert.match(layout, /Nexus Pharma/);
+  assert.match(schema, /empresaMembros/);
+  assert.match(schema, /auditoria/);
+  assert.match(workspaceRoute, /getChatGPTUser/);
+  assert.match(workspaceRoute, /isolamentoPorEmpresa: true/);
   assert.doesNotMatch(page, /SkeletonPreview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+});
+
+test("protege o contexto da empresa sem identidade autenticada", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("auth-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+
+  const response = await worker.fetch(
+    new Request("http://localhost/api/workspace"),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+
+  assert.equal(response.status, 401);
 });

@@ -20,6 +20,14 @@ type Product = {
   fabricacao: string; vencimento: string; preco: number; vendas30d: number;
 };
 type CartItem = Product & { quantidade: number };
+type WorkspaceContext = {
+  usuario: { id: string; nome: string; email: string };
+  empresa: {
+    empresaId: string; nomeFantasia: string; filial: string; regimeTributario: string;
+    uf: string | null; municipio: string | null; papel: string;
+  };
+  seguranca: { isolamentoPorEmpresa: boolean; auditoriaAtiva: boolean };
+};
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", minimumFractionDigits: 2 });
@@ -74,6 +82,8 @@ function calc(product: Product, category: Category, regime: Regime) {
   return { cbs, ibs, icms, pisCofins, compensacaoCbs, tributo, lucro, margem: product.preco ? lucro / product.preco : 0 };
 }
 function daysTo(date: string) { return Math.ceil((new Date(`${date}T12:00:00`).getTime() - new Date("2026-08-05T12:00:00").getTime()) / 86400000); }
+function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase(); }
+function roleLabel(role: string) { return role === "PROPRIETARIO" ? "Proprietário" : role === "ADMINISTRADOR" ? "Administrador" : "Operador"; }
 function purchaseMetrics(product: Product, category: Category, regime: Regime) {
   const values = calc(product, category, regime);
   const dailySales = product.vendas30d / 30;
@@ -91,6 +101,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>([{ ...initialProducts[0], quantidade: 1 }, { ...initialProducts[2], quantidade: 2 }]);
   const [toast, setToast] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceContext | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -100,6 +111,19 @@ export default function Home() {
     };
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/workspace", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() as Promise<WorkspaceContext> : null)
+      .then((context) => {
+        if (!mounted || !context) return;
+        setWorkspace(context);
+        if (context.empresa.regimeTributario in regimes) setRegime(context.empresa.regimeTributario as Regime);
+      })
+      .catch(() => undefined);
+    return () => { mounted = false; };
   }, []);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 3200); };
@@ -123,10 +147,10 @@ export default function Home() {
         {[["overview", "overview", "Início"], ["pdv", "pdv", "Vender"], ["stock", "stock", "Estoque"], ["fiscal", "fiscal", "Fiscal"], ["products", "cadastros", "Produtos"], ["categories", "cadastros", "Categorias"]].map(([id, icon, label]) =>
           <button key={id} className={active === id ? "active" : ""} onClick={() => setActive(id)}><Icon name={icon} /> {label}</button>)}
       </nav>
-      <div className="side-bottom"><button><Icon name="settings" /> Configurações</button><div className="operator"><span className="avatar">MF</span><div><strong>Marcos Freitas</strong><small>Administrador</small></div></div></div>
+      <div className="side-bottom"><button><Icon name="settings" /> Configurações</button><div className="operator"><span className="avatar">{initials(workspace?.usuario.nome ?? "Marcos Freitas")}</span><div><strong>{workspace?.usuario.nome ?? "Marcos Freitas"}</strong><small>{roleLabel(workspace?.empresa.papel ?? "ADMINISTRADOR")}</small></div></div></div>
     </aside>
     <section className="workspace">
-      <header className="topbar"><div className="page-copy"><span className="eyebrow">FARMÁCIA MODELO • MATRIZ</span><h1>{titles[active]}</h1><p>{descriptions[active]}</p></div><div className="top-actions"><div className="status-pill"><span className="pulse" /><span><strong>Tudo atualizado</strong><small>Regras 2026.08</small></span></div><div className="regime-switch" aria-label="Regime tributário">{(Object.keys(regimes) as Regime[]).map((key) => <button key={key} className={regime === key ? "active" : ""} onClick={() => setRegime(key)}>{regimes[key].short}</button>)}</div></div></header>
+      <header className="topbar"><div className="page-copy"><span className="eyebrow">{(workspace?.empresa.nomeFantasia ?? "FARMÁCIA MODELO").toUpperCase()} • {(workspace?.empresa.filial ?? "MATRIZ").toUpperCase()}</span><h1>{titles[active]}</h1><p>{descriptions[active]}</p></div><div className="top-actions"><div className="status-pill"><span className="pulse" /><span><strong>{workspace ? "Empresa protegida" : "Tudo atualizado"}</strong><small>{workspace ? "Dados isolados e auditados" : "Regras 2026.08"}</small></span></div><div className="regime-switch" aria-label="Regime tributário">{(Object.keys(regimes) as Regime[]).map((key) => <button key={key} className={regime === key ? "active" : ""} onClick={() => setRegime(key)}>{regimes[key].short}</button>)}</div></div></header>
       {active === "overview" && <Dashboard products={products} categories={categories} regime={regime} go={setActive} />}
       {active === "pdv" && <Pdv products={products} categories={categories} regime={regime} query={query} setQuery={setQuery} cart={cart} setCart={setCart} searchRef={searchRef} notify={notify} />}
       {active === "stock" && <Stock products={products} categories={categories} />}
