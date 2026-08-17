@@ -645,8 +645,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-shell { background: radial-gradient(circle at 75% -5%, rgba(0, 52, 95, .11), transparent 32%), radial-gradient(circle at 45% 0%, rgba(246, 189, 0, .13), transparent 24%), var(--paper); }
 .sidebar { background: linear-gradient(165deg, #ffd447 0%, #f6bd00 72%, #e8a900 100%); box-shadow: 0 24px 58px rgba(130, 93, 0, .24); }
 
-.brand { height: 142px; padding: 0; display: grid; place-items: center; overflow: hidden; border-radius: 0; background: transparent; box-shadow: none; }
-.brand-original { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; mix-blend-mode: multiply; }
+.brand { height: 178px; margin: -24px 0 2px; padding: 0; display: grid; place-items: center; overflow: hidden; border-radius: 0; background: transparent; box-shadow: none; }
+.brand-original { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 48%; mix-blend-mode: multiply; }
 .brand-compact { display: none; }
 .logo-mark { width: 48px; height: 48px; display: block; object-fit: contain; }
 .brand span { color: #00345f; }
@@ -688,7 +688,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .finish-button, .master-title > button { background: #f6bd00; color: #071827; }
 
 @media (max-width: 1050px) {
-  .brand { height: auto; padding: 8px; display: grid; place-items: center; overflow: visible; background: transparent; box-shadow: none; }
+  .brand { height: auto; margin: 0; padding: 8px; display: grid; place-items: center; overflow: visible; background: transparent; box-shadow: none; }
   .brand-original { display: none; }
   .brand-compact { display: block; }
   .logo-mark { width: 50px; height: 50px; }

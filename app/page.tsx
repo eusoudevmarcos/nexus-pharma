@@ -112,7 +112,6 @@ export default function Home() {
         <span className="brand-compact"><LogoMark /></span>
       </div>
       <nav aria-label="Navegação principal">
-        <span className="nav-label">Menu principal</span>
         {[["overview", "overview", "Início"], ["pdv", "pdv", "Vender"], ["stock", "stock", "Estoque"], ["fiscal", "fiscal", "Fiscal"], ["products", "cadastros", "Produtos"], ["categories", "cadastros", "Categorias"]].map(([id, icon, label]) =>
           <button key={id} className={active === id ? "active" : ""} onClick={() => setActive(id)}><Icon name={icon} /> {label}</button>)}
       </nav>
