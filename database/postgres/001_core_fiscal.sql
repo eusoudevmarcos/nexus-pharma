@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS dre_provisionamento_mensal (
   UNIQUE (empresa_id, competencia)
 );
 
-CREATE TABLE IF NOT EXISTS evento_vmi (
+CREATE TABLE IF NOT EXISTS evento_reposicao (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   venda_id UUID NOT NULL REFERENCES venda_nota_fiscal(id),
   empresa_id UUID NOT NULL REFERENCES empresa_farmacia(id),
@@ -66,6 +66,5 @@ CREATE INDEX IF NOT EXISTS idx_venda_empresa_data
   ON venda_nota_fiscal (empresa_id, data_venda DESC);
 CREATE INDEX IF NOT EXISTS idx_dre_empresa_competencia
   ON dre_provisionamento_mensal (empresa_id, competencia DESC);
-CREATE INDEX IF NOT EXISTS idx_evento_vmi_pendente
-  ON evento_vmi (status, created_at) WHERE status = 'PENDENTE';
-
+CREATE INDEX IF NOT EXISTS idx_evento_reposicao_pendente
+  ON evento_reposicao (status, created_at) WHERE status = 'PENDENTE';

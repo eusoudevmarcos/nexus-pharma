@@ -202,7 +202,7 @@ export async function processarVenda(input: ProcessarVendaInput) {
       [input.empresaId, venda.data_venda, totais.bruto, totais.tributoTotal, totais.lucro],
     );
 
-    const alertasVmi: Array<{ ean: string; estoqueAtual: number }> = [];
+    const alertasReposicao: Array<{ ean: string; estoqueAtual: number; mediaVendaDiaria: number; sugestaoCompra: number }> = [];
     for (const linha of linhas) {
       const atualizado = await ProdutoRegraFiscalModel.findOneAndUpdate(
         { ean: linha.produto.ean, estoque_atual: { $gte: linha.quantidade }, ativo: true },
@@ -211,23 +211,28 @@ export async function processarVenda(input: ProcessarVendaInput) {
       ).lean<ProdutoRegraFiscal | null>();
       if (!atualizado) throw new Error(`ESTOQUE_INSUFICIENTE:${linha.produto.ean}`);
       estoqueDecrementado.push({ ean: linha.produto.ean, quantidade: linha.quantidade });
-      if (atualizado.is_cimed && atualizado.estoque_atual < atualizado.estoque_minimo_critico) {
-        alertasVmi.push({ ean: atualizado.ean, estoqueAtual: atualizado.estoque_atual });
+      if (atualizado.estoque_atual < atualizado.estoque_minimo_critico && atualizado.media_venda_diaria > 0) {
+        alertasReposicao.push({
+          ean: atualizado.ean,
+          estoqueAtual: atualizado.estoque_atual,
+          mediaVendaDiaria: atualizado.media_venda_diaria,
+          sugestaoCompra: Math.max(0, Math.ceil(atualizado.media_venda_diaria * 35 - atualizado.estoque_atual)),
+        });
       }
     }
 
-    for (const alerta of alertasVmi) {
+    for (const alerta of alertasReposicao) {
       await client.query(
-        `INSERT INTO evento_vmi (venda_id, empresa_id, ean, estoque_apos_venda, payload)
+        `INSERT INTO evento_reposicao (venda_id, empresa_id, ean, estoque_apos_venda, payload)
          VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (venda_id, ean) DO NOTHING`,
         [venda.id, input.empresaId, alerta.ean, alerta.estoqueAtual,
-          JSON.stringify({ tipo: "RUPTURA_ZERO_CIMED", canal: "CENTRAL_CIMED_SIMULADA", ...alerta })],
+          JSON.stringify({ tipo: "REPOSICAO_PRIORITARIA", ...alerta })],
       );
     }
 
     await client.query("COMMIT");
     committed = true;
-    return { vendaId: venda.id, idempotente: false, regimeTributario: empresa.regime_tributario, totais, alertasVmi };
+    return { vendaId: venda.id, idempotente: false, regimeTributario: empresa.regime_tributario, totais, alertasReposicao };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     if (!committed && estoqueDecrementado.length > 0) {

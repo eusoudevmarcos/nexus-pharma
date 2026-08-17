@@ -29,7 +29,6 @@ const ProdutoRegraFiscalSchema = new Schema(
     media_venda_diaria: { type: Number, min: 0, required: true },
     data_fabricacao: { type: Date, required: true },
     data_vencimento: { type: Date, required: true, index: true },
-    is_cimed: { type: Boolean, required: true, default: false, index: true },
     ativo: { type: Boolean, required: true, default: true, index: true },
   },
   {
@@ -61,7 +60,6 @@ export type ProdutoRegraFiscal = {
   media_venda_diaria: number;
   data_fabricacao: Date;
   data_vencimento: Date;
-  is_cimed: boolean;
   ativo: boolean;
 };
 

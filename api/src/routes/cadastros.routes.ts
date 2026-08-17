@@ -65,7 +65,6 @@ const produtoSchema = z.object({
   media_venda_diaria: z.number().min(0),
   data_fabricacao: z.coerce.date(),
   data_vencimento: z.coerce.date(),
-  is_cimed: z.boolean().default(false),
   ativo: z.boolean().default(true),
 }).refine((data) => data.data_vencimento > data.data_fabricacao, {
   message: "data_vencimento deve ser posterior à data_fabricacao",

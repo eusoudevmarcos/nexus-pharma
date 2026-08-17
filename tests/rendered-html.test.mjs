@@ -24,8 +24,8 @@ test("renderiza o dashboard Nexus Pharma", async () => {
   const html = await response.text();
   assert.match(html, /<title>Nexus Pharma \| Gestão fiscal simples<\/title>/i);
   assert.match(html, /Economia tributária/i);
-  assert.match(html, /Conferência contábil express/i);
-  assert.match(html, /Alerta de compras/i);
+  assert.match(html, /Giro e rentabilidade/i);
+  assert.match(html, /Inteligência de compras/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 

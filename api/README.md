@@ -10,7 +10,7 @@ e MongoDB para catálogo, regras fiscais e estoque.
    `database/postgres/002_auditoria_categoria_fiscal.sql` no PostgreSQL.
 3. Importe `database/mongo/categoria-medicamentos.exemplo.json` em
    `categorias_fiscais`; depois substitua o ID da categoria e importe
-   `database/mongo/produto-cimegripe.exemplo.json` em `produtos_regras_fiscais`.
+   `database/mongo/produto-exemplo.json` em `produtos_regras_fiscais`.
 4. Rode `npm install` e `npm run dev` dentro desta pasta.
 
 Os cadastros estão em `GET/POST/PUT /api/v1/cadastros/categorias` e

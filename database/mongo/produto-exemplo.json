@@ -1,0 +1,17 @@
+{
+  "ean": "7891000100011",
+  "nome": "Paracetamol 750 mg 20 comprimidos",
+  "principio_ativo": "paracetamol",
+  "laboratorio": "Medley",
+  "categoria_fiscal_id": "SUBSTITUA_PELO_OBJECT_ID_DA_CATEGORIA",
+  "lote": "PA260718",
+  "quantidade_entrada": 24,
+  "valor_entrada_unitario": 6.40,
+  "preco_venda": 12.90,
+  "estoque_atual": 7,
+  "estoque_minimo_critico": 12,
+  "media_venda_diaria": 2.9,
+  "data_fabricacao": "2026-05-10T00:00:00.000Z",
+  "data_vencimento": "2027-05-10T00:00:00.000Z",
+  "ativo": true
+}

@@ -17,7 +17,7 @@ type Category = {
 type Product = {
   ean: string; nome: string; laboratorio: string; principioAtivo: string; categoriaId: string;
   lote: string; quantidadeEntrada: number; custo: number; estoque: number; minimo: number;
-  fabricacao: string; vencimento: string; preco: number; cimed: boolean;
+  fabricacao: string; vencimento: string; preco: number; vendas30d: number;
 };
 type CartItem = Product & { quantidade: number };
 
@@ -51,10 +51,10 @@ const initialCategories: Category[] = [
 ];
 
 const initialProducts: Product[] = [
-  { ean: "7896523200325", nome: "Cimegripe 20 cápsulas", laboratorio: "CIMED", principioAtivo: "Paracetamol + clorfeniramina", categoriaId: "med", lote: "CG260718", quantidadeEntrada: 24, custo: 10.42, estoque: 7, minimo: 12, fabricacao: "2026-05-10", vencimento: "2027-05-10", preco: 18.9, cimed: true },
-  { ean: "7896523200578", nome: "Lavitan A-Z 60 comprimidos", laboratorio: "CIMED", principioAtivo: "Vitaminas e minerais", categoriaId: "sup", lote: "LV260331", quantidadeEntrada: 36, custo: 19.1, estoque: 18, minimo: 10, fabricacao: "2026-03-31", vencimento: "2027-03-31", preco: 34.5, cimed: true },
-  { ean: "7896004710893", nome: "Dipirona 500 mg 10 comprimidos", laboratorio: "GENÉRICO", principioAtivo: "Dipirona monoidratada", categoriaId: "med", lote: "DP250912", quantidadeEntrada: 48, custo: 3.85, estoque: 24, minimo: 8, fabricacao: "2025-09-12", vencimento: "2026-09-22", preco: 8.49, cimed: false },
-  { ean: "7896422507051", nome: "Protetor solar FPS 60 120 ml", laboratorio: "DERMA", principioAtivo: "Filtros UVA/UVB", categoriaId: "hig", lote: "PS260114", quantidadeEntrada: 12, custo: 31.2, estoque: 5, minimo: 7, fabricacao: "2026-01-14", vencimento: "2027-01-14", preco: 52.9, cimed: false },
+  { ean: "7891000100011", nome: "Paracetamol 750 mg 20 comprimidos", laboratorio: "Medley", principioAtivo: "Paracetamol", categoriaId: "med", lote: "PA260718", quantidadeEntrada: 24, custo: 6.4, estoque: 7, minimo: 12, fabricacao: "2026-05-10", vencimento: "2027-05-10", preco: 12.9, vendas30d: 86 },
+  { ean: "7891000100028", nome: "Multivitamínico A-Z 60 comprimidos", laboratorio: "Vitamed", principioAtivo: "Vitaminas e minerais", categoriaId: "sup", lote: "MV260331", quantidadeEntrada: 36, custo: 19.1, estoque: 18, minimo: 10, fabricacao: "2026-03-31", vencimento: "2027-03-31", preco: 34.5, vendas30d: 54 },
+  { ean: "7896004710893", nome: "Dipirona 500 mg 10 comprimidos", laboratorio: "Genérico", principioAtivo: "Dipirona monoidratada", categoriaId: "med", lote: "DP250912", quantidadeEntrada: 48, custo: 3.85, estoque: 24, minimo: 8, fabricacao: "2025-09-12", vencimento: "2026-09-22", preco: 8.49, vendas30d: 72 },
+  { ean: "7896422507051", nome: "Protetor solar FPS 60 120 ml", laboratorio: "Derma", principioAtivo: "Filtros UVA/UVB", categoriaId: "hig", lote: "PS260114", quantidadeEntrada: 12, custo: 31.2, estoque: 5, minimo: 7, fabricacao: "2026-01-14", vencimento: "2027-01-14", preco: 52.9, vendas30d: 38 },
 ];
 
 function LogoMark() { return <img className="logo-mark" src="/logo/nexus-icon.png" width="50" height="50" alt="" aria-hidden="true" />; }
@@ -74,6 +74,14 @@ function calc(product: Product, category: Category, regime: Regime) {
   return { cbs, ibs, icms, pisCofins, compensacaoCbs, tributo, lucro, margem: product.preco ? lucro / product.preco : 0 };
 }
 function daysTo(date: string) { return Math.ceil((new Date(`${date}T12:00:00`).getTime() - new Date("2026-08-05T12:00:00").getTime()) / 86400000); }
+function purchaseMetrics(product: Product, category: Category, regime: Regime) {
+  const values = calc(product, category, regime);
+  const dailySales = product.vendas30d / 30;
+  const coverageDays = dailySales > 0 ? Math.floor(product.estoque / dailySales) : 999;
+  const suggestedOrder = Math.max(0, Math.ceil(dailySales * 35 - product.estoque));
+  const priority = product.estoque <= product.minimo && product.vendas30d >= 50 ? "Comprar agora" : coverageDays <= 15 ? "Reposição alta" : product.estoque <= product.minimo ? "Repor" : "Acompanhar";
+  return { ...values, dailySales, coverageDays, suggestedOrder, priority };
+}
 
 export default function Home() {
   const [active, setActive] = useState("overview");
@@ -133,10 +141,13 @@ export default function Home() {
 function Dashboard({ products, categories, regime, go }: { products: Product[]; categories: Category[]; regime: Regime; go: (id: string) => void }) {
   const totals = products.reduce((a, p) => { const c = categories.find((x) => x.id === p.categoriaId)!; const v = calc(p, c, regime); return { venda: a.venda + p.preco * p.estoque, custo: a.custo + p.custo * p.estoque, tributo: a.tributo + v.tributo * p.estoque, lucro: a.lucro + v.lucro * p.estoque }; }, { venda: 0, custo: 0, tributo: 0, lucro: 0 });
   const expiring = products.filter((p) => daysTo(p.vencimento) <= 90).length;
+  const insights = products.map((product) => { const category = categories.find((item) => item.id === product.categoriaId)!; return { product, ...purchaseMetrics(product, category, regime) }; }).sort((a, b) => (b.product.vendas30d * b.margem) - (a.product.vendas30d * a.margem));
+  const sales30d = products.reduce((sum, product) => sum + product.vendas30d, 0);
+  const weightedMargin = insights.reduce((sum, item) => sum + item.margem * item.product.vendas30d, 0) / Math.max(1, sales30d);
   return <div className="dashboard">
     <section className="hero-grid"><article className="economy-card"><div className="card-top"><span className="label">ECONOMIA TRIBUTÁRIA • LUCRO DO ESTOQUE</span><span className="trend">Atualizado</span></div><div className="economy-value">{money.format(totals.lucro)}</div><p>Valor estimado que sobra após custos e impostos.</p><div className="economy-footer"><span>Margem estimada</span><strong>{percent.format(totals.lucro / totals.venda)}</strong></div></article><article className="action-card"><div><span className="label">ATALHO RÁPIDO</span><h2>Tributação<br />mais simples.</h2><p>Revise NCM e impostos por categoria, sem repetir informações.</p></div><button onClick={() => go("categories")}>Abrir categorias <Icon name="arrow" /></button></article></section>
-    <section className="metrics-row"><Metric label="VALOR EM ESTOQUE" value={money.format(totals.venda)} detail={`${products.reduce((s, p) => s + p.estoque, 0)} unidades`} /><Metric label="CUSTO DO ESTOQUE" value={money.format(totals.custo)} detail="valor de entrada" /><Metric label="TRIBUTOS PROJETADOS" value={money.format(totals.tributo)} detail={regimes[regime].title} /><Metric label="VENCEM EM 90 DIAS" value={String(expiring)} detail="bloqueio na saída ao vencer" /></section>
-    <section className="content-grid"><article className="panel"><div className="panel-heading"><div><span className="label">CONFERÊNCIA CONTÁBIL EXPRESS</span><h2>Memória de cálculo por produto</h2></div><button className="quiet" onClick={() => go("products")}>Ver cadastros</button></div><div className="data-table compact"><div className="table-head"><span>Produto</span><span>NCM herdado</span><span>Tributo/un.</span><span>Margem</span></div>{products.map((p) => { const c = categories.find((x) => x.id === p.categoriaId)!; const v = calc(p, c, regime); return <div className="table-line" key={p.ean}><span><strong>{p.nome}</strong><small>{c.nome}</small></span><code>{c.ncm}</code><strong>{money.format(v.tributo)}</strong><b className={v.margem < .15 ? "danger-text" : "good-text"}>{percent.format(v.margem)}</b></div>; })}</div></article><article className="panel"><div className="panel-heading"><div><span className="label">ALERTA DE COMPRAS</span><h2>Prioridades</h2></div><span className="count">{products.filter((p) => p.estoque <= p.minimo).length}</span></div><p className="muted">Reposição e vencimentos monitorados juntos.</p>{products.filter((p) => p.estoque <= p.minimo || daysTo(p.vencimento) <= 90).map((p) => <div className="alert-item" key={p.ean}><span className="product-avatar">{p.nome.slice(0, 2).toUpperCase()}</span><div><strong>{p.nome}</strong><small>{daysTo(p.vencimento) <= 90 ? `Vence em ${daysTo(p.vencimento)} dias` : "Estoque abaixo do mínimo"}</small></div><div className="stock-data"><strong>{p.estoque}</strong><small>un.</small></div></div>)}</article></section>
+    <section className="metrics-row"><Metric label="VALOR EM ESTOQUE" value={money.format(totals.venda)} detail={`${products.reduce((s, p) => s + p.estoque, 0)} unidades`} /><Metric label="VENDAS EM 30 DIAS" value={String(sales30d)} detail="unidades vendidas" /><Metric label="MARGEM MÉDIA" value={percent.format(weightedMargin)} detail="ponderada pelo giro" /><Metric label="REPOR AGORA" value={String(insights.filter((item) => item.suggestedOrder > 0 && item.coverageDays <= 15).length)} detail={`${expiring} vencem em 90 dias`} /></section>
+    <section className="content-grid"><article className="panel"><div className="panel-heading"><div><span className="label">GIRO E RENTABILIDADE</span><h2>Produtos que mais vendem e deixam margem</h2></div><button className="quiet" onClick={() => go("products")}>Ver cadastros</button></div><div className="data-table compact purchase-table"><div className="table-head"><span>Produto</span><span>Vendas 30d</span><span>Cobertura</span><span>Margem</span></div>{insights.map(({ product, coverageDays, margem }) => <div className="table-line" key={product.ean}><span><strong>{product.nome}</strong><small>{product.laboratorio}</small></span><strong>{product.vendas30d} un.</strong><span>{coverageDays >= 999 ? "Sem giro" : `${coverageDays} dias`}</span><b className={margem < .15 ? "danger-text" : "good-text"}>{percent.format(margem)}</b></div>)}</div></article><article className="panel"><div className="panel-heading"><div><span className="label">INTELIGÊNCIA DE COMPRAS</span><h2>O que pedir agora</h2></div><span className="count">{insights.filter((item) => item.suggestedOrder > 0).length}</span></div><p className="muted">Prioridade combina estoque, giro e margem líquida.</p>{insights.filter((item) => item.suggestedOrder > 0).slice(0, 4).map(({ product, priority, suggestedOrder, margem }) => <div className="alert-item" key={product.ean}><span className="product-avatar">{product.nome.slice(0, 2).toUpperCase()}</span><div><strong>{product.nome}</strong><small>{priority} • {product.vendas30d} vendas • margem {percent.format(margem)}</small></div><div className="stock-data"><strong>{suggestedOrder}</strong><small>pedir</small></div></div>)}</article></section>
     <div className="fiscal-strip"><div><Icon name="check" /> Regras fiscais centralizadas por categoria</div><span>ICMS / CST / CSOSN</span><span>PIS / COFINS</span><span>IBS / CBS</span><span>Histórico versionado</span></div>
   </div>;
 }
