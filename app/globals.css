@@ -626,3 +626,72 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .metric > strong { font-size: 25px; }
   .summary-cards { grid-template-columns: 1fr; }
 }
+
+/* Identidade Nexus Pharma — dourado e azul-marinho da marca oficial */
+:root {
+  --ink: #071827;
+  --paper: #f4f7f9;
+  --panel: #ffffff;
+  --line: #dce6ec;
+  --muted: #5b6c78;
+  --lime: #f6bd00;
+  --green: #00345f;
+  --soft-green: #eaf2f7;
+  --shadow-sm: 0 3px 14px rgba(0, 37, 67, .07);
+  --shadow-md: 0 18px 46px rgba(0, 37, 67, .14);
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline-color: rgba(0, 52, 95, .38); }
+.app-shell { background: radial-gradient(circle at 75% -5%, rgba(0, 52, 95, .11), transparent 32%), radial-gradient(circle at 45% 0%, rgba(246, 189, 0, .13), transparent 24%), var(--paper); }
+.sidebar { background: linear-gradient(165deg, #073555 0%, #001a30 100%); box-shadow: 0 24px 58px rgba(0, 24, 44, .3); }
+
+.brand { height: 124px; padding: 0; display: block; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 10px 28px rgba(0, 17, 31, .2); }
+.brand-lockup { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 46%; transform: scale(1.18); }
+.brand-compact { display: none; }
+.logo-mark { width: 48px; height: 48px; display: block; object-fit: contain; }
+.brand span, .operator small { color: #b9c9d4; }
+.nav-label { color: #88a4b7; }
+.sidebar button { color: #c6d4dd; }
+.sidebar nav button:hover { background: rgba(246, 189, 0, .12); color: #fff; }
+.sidebar nav button.active { background: #f6bd00; color: #071827; }
+.sidebar nav button.active .icon { background: #00345f; color: #fff; }
+.operator { background: rgba(255,255,255,.08); }
+.avatar { background: #f6bd00; color: #071827; }
+
+.pulse { background: #00345f; box-shadow: 0 0 0 4px rgba(0, 52, 95, .14); }
+.regime-switch { background: #e4ebef; }
+.regime-switch button.active { background: #00345f; }
+.economy-card { background: linear-gradient(135deg, #ffd447 0%, #f6bd00 100%); color: #071827; box-shadow: 0 18px 42px rgba(190, 139, 0, .2); }
+.economy-card .label, .economy-card p, .economy-footer { color: #584300; }
+.economy-footer strong { color: #071827; }
+.trend { background: #00345f; color: #fff; }
+.action-card { background: linear-gradient(145deg, #075083 0%, #002946 100%); box-shadow: 0 18px 42px rgba(0, 52, 95, .25); }
+.action-card .label, .action-card p { color: #dceaf2; }
+.action-card button { color: #071827; }
+.action-card button:hover { background: #f6bd00; }
+
+.metric em, .fiscal-strip .icon, .pdv-rule .icon { color: #00345f; background: #eaf2f7; }
+.primary-small, .save-button, .full-button { background: #00345f; }
+.quiet:hover { border-color: #9bb4c2; background: #f2f7fa; }
+.product-avatar, .fiscal-tag, .status.ok, .regime-context, .inherit-banner { background: #eaf2f7; color: #00345f; }
+.stock-data strong, .good-text, .table-line code, .wide-line code, .master-list > button b, .checkout-lines .tax-save, .checkout-total small { color: #00345f; }
+.table-head, .stock-grid-head, .wide-head, .stock-summary, .reform-note, .tax-trace span, .toast { background: #002946; }
+.table-line:hover, .wide-line:hover, .stock-grid-row:hover { background: #f2f7fa; }
+.search-box:focus-within, .field input:focus, .field select:focus, .field textarea:focus { border-color: #00345f; box-shadow: 0 0 0 4px rgba(0, 52, 95, .11); }
+.master-list > button.selected { background: #eaf2f7; box-shadow: inset 4px 0 #00345f; }
+.category-dot:after { border-color: #00345f; }
+.save-button:hover { background: #002946; }
+.tabs button.active { background: #00345f; }
+.finish-button, .master-title > button { background: #f6bd00; color: #071827; }
+
+@media (max-width: 1050px) {
+  .brand { height: auto; padding: 8px; display: grid; place-items: center; overflow: visible; background: transparent; box-shadow: none; }
+  .brand-lockup { display: none; }
+  .brand-compact { display: block; }
+  .logo-mark { width: 50px; height: 50px; }
+}
+
+@media (max-width: 720px) {
+  .brand { display: none; }
+  .sidebar nav button.active { background: #f6bd00; color: #071827; }
+}

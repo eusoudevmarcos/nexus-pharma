@@ -19,19 +19,19 @@ export const metadata: Metadata = {
   description:
     "Produtos, estoque, validades e tributação em uma gestão simples para a farmácia brasileira.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/logo/nexus-icon.png",
+    shortcut: "/logo/nexus-icon.png",
   },
   openGraph: {
     title: "Nexus Pharma",
     description: "Gestão fiscal simples, moderna e acessível.",
-    images: [{ url: "/og-v3.png", width: 1672, height: 941 }],
+    images: [{ url: "/og-v4.png", width: 1672, height: 941 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Nexus Pharma",
     description: "Gestão fiscal simples, moderna e acessível.",
-    images: ["/og-v3.png"],
+    images: ["/og-v4.png"],
   },
 };
 

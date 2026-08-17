@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 
 type Regime = "SIMPLES_NACIONAL" | "LUCRO_PRESUMIDO" | "LUCRO_REAL";
 type Rule = {
@@ -55,7 +56,7 @@ const initialProducts: Product[] = [
   { ean: "7896422507051", nome: "Protetor solar FPS 60 120 ml", laboratorio: "DERMA", principioAtivo: "Filtros UVA/UVB", categoriaId: "hig", lote: "PS260114", quantidadeEntrada: 12, custo: 31.2, estoque: 5, minimo: 7, fabricacao: "2026-01-14", vencimento: "2027-01-14", preco: 52.9, cimed: false },
 ];
 
-function LogoMark() { return <span className="logo-mark" aria-hidden="true"><i /><i /></span>; }
+function LogoMark() { return <Image className="logo-mark" src="/logo/nexus-icon.png" width={50} height={50} alt="" aria-hidden="true" />; }
 function Icon({ name }: { name: string }) {
   const glyphs: Record<string, string> = { overview: "⌂", pdv: "▣", stock: "≋", fiscal: "◎", cadastros: "▤", settings: "⚙", search: "⌕", check: "✓", plus: "+", minus: "−", arrow: "→" };
   return <span className={`icon icon-${name}`} aria-hidden="true">{glyphs[name]}</span>;
@@ -105,7 +106,10 @@ export default function Home() {
 
   return <main className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><LogoMark /><div><strong>NEXUS</strong><span>PHARMA</span></div></div>
+      <div className="brand">
+        <Image className="brand-lockup" src="/logo/nexus-logo-original.png" width={1200} height={1200} alt="Nexus pharma" priority />
+        <span className="brand-compact"><LogoMark /></span>
+      </div>
       <nav aria-label="Navegação principal">
         <span className="nav-label">Menu principal</span>
         {[["overview", "overview", "Início"], ["pdv", "pdv", "Vender"], ["stock", "stock", "Estoque"], ["fiscal", "fiscal", "Fiscal"], ["products", "cadastros", "Produtos"], ["categories", "cadastros", "Categorias"]].map(([id, icon, label]) =>
