@@ -109,7 +109,6 @@ export default function Home() {
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-signature" aria-label="Nexus pharma">
-          <LogoMark />
           <div className="brand-name">
             <strong>Ne<em>x</em>us</strong>
             <small>pharma</small>
