@@ -14,24 +14,24 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://nexus-pharma.pages.dev"),
+  metadataBase: new URL("https://nexus-pharma-mvp.espa-o-de-tr-7009.chatgpt.site"),
   title: "Nexus Pharma | Gestão fiscal simples",
   description:
     "Produtos, estoque, validades e tributação em uma gestão simples para a farmácia brasileira.",
   icons: {
-    icon: "/logo/nexus-icon.png",
-    shortcut: "/logo/nexus-icon.png",
+    icon: "/logo/Icon%20Nexus%20pharma.png",
+    shortcut: "/logo/Icon%20Nexus%20pharma.png",
   },
   openGraph: {
     title: "Nexus Pharma",
     description: "Gestão fiscal simples, moderna e acessível.",
-    images: [{ url: "/og-v4.png", width: 1672, height: 941 }],
+    images: [{ url: "/og-v5.png", width: 1730, height: 909 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Nexus Pharma",
     description: "Gestão fiscal simples, moderna e acessível.",
-    images: ["/og-v4.png"],
+    images: ["/og-v5.png"],
   },
 };
 

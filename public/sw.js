@@ -1,5 +1,5 @@
-const CACHE_NAME = "nexus-pharma-shell-v2";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/logo/nexus-icon.png", "/logo/nexus-logo-original.png"];
+const CACHE_NAME = "nexus-pharma-shell-v3";
+const APP_SHELL = ["/", "/manifest.webmanifest", "/logo/Icon%20Nexus%20pharma.png", "/logo/Logo%20Nexus%20pharma.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

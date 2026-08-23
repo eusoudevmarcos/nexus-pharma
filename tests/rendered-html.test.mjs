@@ -30,13 +30,14 @@ test("renderiza o dashboard Nexus Pharma", async () => {
 });
 
 test("mantém os contratos operacionais e remove o preview inicial", async () => {
-  const [page, layout, packageJson, schema, workspaceRoute, catalogRoute] = await Promise.all([
+  const [page, layout, packageJson, schema, workspaceRoute, catalogRoute, manifest] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/catalogo/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/manifest.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /event\.key === "F2"/);
@@ -46,6 +47,9 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
   assert.match(page, /LUCRO_PRESUMIDO/);
   assert.match(page, /LUCRO_REAL/);
   assert.match(layout, /Nexus Pharma/);
+  assert.match(layout, /og-v5\.png/);
+  assert.match(page, /Logo%20Nexus%20pharma\.png/);
+  assert.match(manifest, /Icon%20Nexus%20pharma\.png/);
   assert.match(schema, /empresaMembros/);
   assert.match(schema, /auditoria/);
   assert.match(schema, /regrasFiscais/);

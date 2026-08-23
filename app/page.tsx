@@ -23,7 +23,7 @@ const regimes: Record<Regime, { short: string; title: string }> = {
   LUCRO_REAL: { short: "Real", title: "Lucro Real" },
 };
 
-function LogoMark() { return <img className="logo-mark" src="/logo/nexus-icon.png" width="50" height="50" alt="" aria-hidden="true" />; }
+function LogoMark() { return <img className="logo-mark" src="/logo/Icon%20Nexus%20pharma.png" width="2000" height="970" alt="" aria-hidden="true" />; }
 function Icon({ name }: { name: string }) {
   const glyphs: Record<string, string> = { overview: "⌂", pdv: "▣", stock: "≋", fiscal: "◎", cadastros: "▤", settings: "⚙", search: "⌕", check: "✓", plus: "+", minus: "−", arrow: "→" };
   return <span className={`icon icon-${name}`} aria-hidden="true">{glyphs[name]}</span>;
@@ -118,7 +118,7 @@ export default function Home() {
   return <main className="app-shell">
     <aside className="sidebar">
       <div className="brand">
-        <img className="brand-original" src="/logo/nexus-logo-original.png" width="1200" height="1200" alt="Nexus pharma" />
+        <img className="brand-original" src="/logo/Logo%20Nexus%20pharma.png" width="2000" height="1500" alt="Nexus Pharma" />
         <span className="brand-compact"><LogoMark /></span>
       </div>
       <nav aria-label="Navegação principal">

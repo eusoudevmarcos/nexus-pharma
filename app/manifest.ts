@@ -13,8 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "pt-BR",
     icons: [
       {
-        src: "/logo/nexus-icon.png",
-        sizes: "1254x1254",
+        src: "/logo/Icon%20Nexus%20pharma.png",
+        sizes: "2000x970",
         type: "image/png",
         purpose: "any",
       },
