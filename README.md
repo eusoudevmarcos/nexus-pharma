@@ -5,6 +5,7 @@ Plataforma SaaS de inteligência fiscal, estoque, vendas e gestão para farmáci
 ## Estrutura atual
 
 - `app/`: demonstração visual existente, publicada de forma privada.
+- `web/`: site institucional e porta de entrada Next.js preparados para Vercel.
 - `api/`: API Fastify preparada para Render.
 - `api/prisma/`: modelo PostgreSQL, migration inicial e seed.
 - `docs/architecture.md`: desenho de Vercel, Render, perfis e segurança.
@@ -14,9 +15,9 @@ A persistência de produção foi consolidada em PostgreSQL + Prisma. O modelo c
 
 ## Próximas etapas
 
-1. Criar `web/`, o site institucional e o portal Next.js para Vercel.
-2. Integrar login e seleção de empresa com a API.
-3. Construir as áreas do cliente, helpdesk, financeiro, gestores e desenvolvedores.
-4. Conectar o repositório ao Render e à Vercel e configurar os domínios.
+1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.
+2. Conectar `web/` à Vercel e informar as variáveis de ambiente.
+3. Evoluir o portal autenticado com seleção de empresa e áreas por perfil.
+4. Construir as áreas do cliente, helpdesk, financeiro, gestores e desenvolvedores.
 
-Consulte [api/README.md](api/README.md) para desenvolvimento da API e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.
+Consulte [api/README.md](api/README.md) para a API, [web/README.md](web/README.md) para o frontend e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.

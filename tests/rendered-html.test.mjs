@@ -156,3 +156,36 @@ test("mantém a fundação SaaS pronta para PostgreSQL, Prisma e Render", async 
   assert.match(operations, /financeiro\/assinaturas/);
   assert.match(operations, /desenvolvimento\/releases/);
 });
+
+test("mantém o site institucional pronto para Vercel e login seguro", async () => {
+  const [home, layout, brand, styles, login, logout, vercel, webPackage] =
+    await Promise.all([
+      readFile(new URL("../web/app/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../web/app/layout.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../web/components/brand.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../web/app/globals.css", import.meta.url), "utf8"),
+      readFile(
+        new URL("../web/app/api/session/login/route.ts", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../web/app/api/session/logout/route.ts", import.meta.url),
+        "utf8",
+      ),
+      readFile(new URL("../web/vercel.json", import.meta.url), "utf8"),
+      readFile(new URL("../web/package.json", import.meta.url), "utf8"),
+    ]);
+
+  assert.match(home, /INTELIGÊNCIA FISCAL PARA FARMÁCIAS/);
+  assert.match(home, /Reposição &amp; margem/);
+  assert.match(layout, /@fontsource-variable\/roboto/);
+  assert.match(layout, /logo\/icon-nexus-pharma\.png/);
+  assert.match(brand, /logo-nexus-horizontal\.png/);
+  assert.match(styles, /\.brand img[\s\S]*background: transparent/);
+  assert.match(login, /httpOnly: true/);
+  assert.match(login, /sameSite: "lax"/);
+  assert.match(login, /nexus_refresh/);
+  assert.match(logout, /cookies\.delete\("nexus_access"\)/);
+  assert.match(vercel, /nextjs/);
+  assert.match(webPackage, /"next": "16\.2\.6"/);
+});
