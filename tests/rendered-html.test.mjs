@@ -30,12 +30,13 @@ test("renderiza o dashboard Nexus Pharma", async () => {
 });
 
 test("mantém os contratos operacionais e remove o preview inicial", async () => {
-  const [page, layout, packageJson, schema, workspaceRoute] = await Promise.all([
+  const [page, layout, packageJson, schema, workspaceRoute, catalogRoute] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/catalogo/route.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /event\.key === "F2"/);
@@ -47,8 +48,13 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
   assert.match(layout, /Nexus Pharma/);
   assert.match(schema, /empresaMembros/);
   assert.match(schema, /auditoria/);
+  assert.match(schema, /regrasFiscais/);
+  assert.match(schema, /produtos/);
   assert.match(workspaceRoute, /getChatGPTUser/);
   assert.match(workspaceRoute, /isolamentoPorEmpresa: true/);
+  assert.match(catalogRoute, /CATEGORIA_FISCAL_SALVA/);
+  assert.match(catalogRoute, /PRODUTO_SALVO/);
+  assert.match(page, /method: "PUT"/);
   assert.doesNotMatch(page, /SkeletonPreview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
@@ -65,4 +71,11 @@ test("protege o contexto da empresa sem identidade autenticada", async () => {
   );
 
   assert.equal(response.status, 401);
+
+  const catalogResponse = await worker.fetch(
+    new Request("http://localhost/api/catalogo"),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(catalogResponse.status, 401);
 });
