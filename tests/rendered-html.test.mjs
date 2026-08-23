@@ -11,7 +11,9 @@ async function render() {
     new Request("http://localhost/", {
       headers: { accept: "text/html" },
     }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    {
+      ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+    },
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
@@ -30,7 +32,16 @@ test("renderiza o dashboard Nexus Pharma", async () => {
 });
 
 test("mantém os contratos operacionais e remove o preview inicial", async () => {
-  const [page, layout, packageJson, schema, workspaceRoute, catalogRoute, manifest] = await Promise.all([
+  const [
+    page,
+    layout,
+    packageJson,
+    schema,
+    workspaceRoute,
+    catalogRoute,
+    manifest,
+    styles,
+  ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -38,6 +49,7 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/catalogo/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/manifest.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /event\.key === "F2"/);
@@ -49,6 +61,10 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
   assert.match(layout, /Nexus Pharma/);
   assert.match(layout, /og-v5\.png/);
   assert.match(page, /Logo%20Nexus%20pharma\.png/);
+  assert.match(
+    styles,
+    /\.brand\s*\{\s*height:\s*170px;[\s\S]*?background:\s*transparent;/,
+  );
   assert.match(manifest, /Icon%20Nexus%20pharma\.png/);
   assert.match(schema, /empresaMembros/);
   assert.match(schema, /auditoria/);
@@ -59,6 +75,9 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
   assert.match(catalogRoute, /CATEGORIA_FISCAL_SALVA/);
   assert.match(catalogRoute, /PRODUTO_SALVO/);
   assert.match(page, /method: "PUT"/);
+  assert.match(page, /aria-label="Cadastrar novo produto"/);
+  assert.match(page, /aria-label="Cadastrar nova categoria"/);
+  assert.match(page, /rulesFor\(\)/);
   assert.doesNotMatch(page, /SkeletonPreview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
@@ -70,7 +89,9 @@ test("protege o contexto da empresa sem identidade autenticada", async () => {
 
   const response = await worker.fetch(
     new Request("http://localhost/api/workspace"),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    {
+      ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+    },
     { waitUntil() {}, passThroughOnException() {} },
   );
 
@@ -78,7 +99,9 @@ test("protege o contexto da empresa sem identidade autenticada", async () => {
 
   const catalogResponse = await worker.fetch(
     new Request("http://localhost/api/catalogo"),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    {
+      ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+    },
     { waitUntil() {}, passThroughOnException() {} },
   );
   assert.equal(catalogResponse.status, 401);
