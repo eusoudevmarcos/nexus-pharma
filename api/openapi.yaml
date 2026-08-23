@@ -1,0 +1,194 @@
+openapi: 3.1.0
+info:
+  title: Nexus Pharma API
+  version: 1.0.0
+  description: API multiempresa para operação fiscal, estoque, vendas e gestão do SaaS.
+servers:
+  - url: http://localhost:3333
+    description: Desenvolvimento
+tags:
+  - name: Auth
+  - name: Comercial
+  - name: Cadastros
+  - name: Fiscal
+  - name: Vendas
+  - name: Suporte
+  - name: Interno
+paths:
+  /health:
+    get:
+      summary: Verifica API e PostgreSQL
+      responses:
+        "200":
+          description: Serviço disponível
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Autentica um usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        "200": { description: Tokens, usuário e empresas disponíveis }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotaciona a sessão
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200": { description: Novo par de tokens }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Usuário autenticado e empresas }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/planos:
+    get:
+      tags: [Comercial]
+      summary: Lista planos comerciais ativos
+      responses:
+        "200": { description: Planos ordenados para o site institucional }
+  /api/v1/cadastros/categorias:
+    get:
+      tags: [Cadastros]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "200": { description: Categorias e regras fiscais da empresa }
+    post:
+      tags: [Cadastros]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "201": { description: Categoria criada }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /api/v1/cadastros/categorias/{id}:
+    put:
+      tags: [Cadastros]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: Categoria atualizada e auditada }
+  /api/v1/cadastros/produtos:
+    get:
+      tags: [Cadastros]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "200": { description: Produtos, categorias e lotes }
+    post:
+      tags: [Cadastros]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "201": { description: Produto e lote inicial criados }
+  /api/v1/cadastros/produtos/{id}:
+    put:
+      tags: [Cadastros]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: Produto atualizado e auditado }
+  /api/v1/fiscal/analises:
+    get:
+      tags: [Fiscal]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "200": { description: Histórico, evidências e revisões }
+    post:
+      tags: [Fiscal]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "201": { description: Solicitação de classificação registrada }
+  /api/v1/fiscal/analises/{id}/revisao:
+    put:
+      tags: [Fiscal]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: Resultado e revisão humana registrados }
+  /api/v1/fiscal/analises/{id}/evidencias:
+    post:
+      tags: [Fiscal]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "201": { description: Fonte legal vinculada à análise }
+  /api/v1/vendas/processar:
+    post:
+      tags: [Vendas]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "201": { description: Venda processada, estoque e provisão atualizados }
+        "409": { description: Estoque, lote ou regra fiscal impede a venda }
+  /api/v1/suporte/tickets:
+    get:
+      tags: [Suporte]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "200": { description: Tickets da empresa }
+    post:
+      tags: [Suporte]
+      security: [{ bearerAuth: [], companyHeader: [] }]
+      responses:
+        "201": { description: Ticket criado }
+  /api/v1/financeiro/assinaturas:
+    get:
+      tags: [Interno]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Assinaturas e últimas faturas }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v1/desenvolvimento/releases:
+    get:
+      tags: [Interno]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Releases, aprovações e clientes liberados }
+    post:
+      tags: [Interno]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: Release criada }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    companyHeader:
+      type: apiKey
+      in: header
+      name: x-company-id
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Corpo ou parâmetro inválido
+    Unauthorized:
+      description: Credencial ausente, inválida ou expirada
+    Forbidden:
+      description: Perfil sem permissão para a operação

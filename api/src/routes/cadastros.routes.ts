@@ -1,155 +1,415 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { isValidObjectId } from "mongoose";
 import { z } from "zod";
+import type { Prisma } from "../generated/prisma/client.js";
+import { prisma } from "../infra/prisma.js";
 import {
-  CategoriaFiscalModel,
-  CLASSIFICACOES_FISCAIS,
-  type CategoriaFiscal,
-} from "../models/categoria-fiscal.model.js";
-import { ProdutoRegraFiscalModel, REGIMES, type RegimeTributario } from "../models/produto-regra-fiscal.model.js";
+  authenticate,
+  requireTenantRoles,
+  tenantContext,
+} from "../security/auth.js";
 
-const percentual = z.number().min(0).max(1);
-const regraSchema = z.object({
-  cfop: z.number().int().min(1000).max(9999),
+const regimes = ["SIMPLES_NACIONAL", "LUCRO_PRESUMIDO", "LUCRO_REAL"] as const;
+const classifications = [
+  "LISTA_POSITIVA",
+  "LISTA_NEGATIVA",
+  "LISTA_NEUTRA",
+  "MONOFASICO",
+  "TRIBUTACAO_NORMAL",
+] as const;
+const rate = z.number().min(0).max(1);
+const toJson = (value: unknown) =>
+  JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+
+const fiscalRuleSchema = z.object({
+  cfop: z.string().regex(/^[0-9]{4}$/),
   cst_icms: z.string().min(2).max(3),
-  csosn: z.string().length(3).nullable(),
-  aliquota_icms: percentual.default(0),
+  csosn: z
+    .string()
+    .regex(/^[0-9]{3}$/)
+    .nullable(),
+  aliquota_icms: rate.default(0),
   mva: z.number().min(0).default(0),
-  cst_pis: z.string().length(2),
-  cst_cofins: z.string().length(2),
-  natureza_receita_pis_cofins: z.string().max(20).nullable(),
-  aliquota_pis: percentual.default(0),
-  aliquota_cofins: percentual.default(0),
+  cst_pis: z.string().regex(/^[0-9]{2}$/),
+  cst_cofins: z.string().regex(/^[0-9]{2}$/),
+  natureza_receita: z.string().max(20).nullable().default(null),
+  aliquota_pis: rate.default(0),
+  aliquota_cofins: rate.default(0),
   cst_ibs_cbs: z.string().min(2).max(5),
-  classificacao_tributaria: z.string().min(1).max(30),
-  aliquota_cbs: percentual,
-  aliquota_ibs: percentual,
-  reducao_cbs: percentual.default(0),
-  reducao_ibs: percentual.default(0),
-  compensar_cbs_pis_cofins: z.boolean().default(true),
+  classificacao_tributaria: z.string().min(1).max(60),
+  aliquota_cbs: rate.default(0),
+  aliquota_ibs: rate.default(0),
+  reducao_cbs: rate.default(0),
+  reducao_ibs: rate.default(0),
+  compensar_cbs_pis_cofins: z.boolean().default(false),
+  metadata: z.record(z.unknown()).default({}),
 });
 
-const categoriaSchema = z.object({
-  codigo: z.string().min(2).max(50),
-  nome: z.string().min(2).max(120),
-  descricao: z.string().max(500).default(""),
-  ncm: z.string().regex(/^[0-9]{8}$/),
-  cest: z.string().regex(/^[0-9]{7}$/).nullable().default(null),
-  classificacao: z.enum(CLASSIFICACOES_FISCAIS),
-  regras_por_regime: z.object({
-    SIMPLES_NACIONAL: regraSchema,
-    LUCRO_PRESUMIDO: regraSchema,
-    LUCRO_REAL: regraSchema,
-  }),
-  versao_regra: z.string().min(1).max(30),
-  vigencia_inicio: z.coerce.date(),
-  vigencia_fim: z.coerce.date().nullable().default(null),
-  ativa: z.boolean().default(true),
-}).refine((data) => !data.vigencia_fim || data.vigencia_fim >= data.vigencia_inicio, {
-  message: "vigencia_fim deve ser posterior à vigencia_inicio",
-  path: ["vigencia_fim"],
-});
+const categorySchema = z
+  .object({
+    codigo: z.string().min(2).max(50),
+    nome: z.string().min(2).max(120),
+    descricao: z.string().max(500).default(""),
+    ncm: z.string().regex(/^[0-9]{8}$/),
+    cest: z
+      .string()
+      .regex(/^[0-9]{7}$/)
+      .nullable()
+      .default(null),
+    classificacao: z.enum(classifications),
+    versao_regra: z.string().min(1).max(30),
+    vigencia_inicio: z.coerce.date(),
+    vigencia_fim: z.coerce.date().nullable().default(null),
+    status: z
+      .enum(["DRAFT", "UNDER_REVIEW", "APPROVED", "EXPIRED"])
+      .default("DRAFT"),
+    referencias: z.array(z.record(z.unknown())).default([]),
+    ativa: z.boolean().default(true),
+    regras_por_regime: z.object({
+      SIMPLES_NACIONAL: fiscalRuleSchema,
+      LUCRO_PRESUMIDO: fiscalRuleSchema,
+      LUCRO_REAL: fiscalRuleSchema,
+    }),
+  })
+  .refine(
+    (data) => !data.vigencia_fim || data.vigencia_fim >= data.vigencia_inicio,
+    {
+      message: "vigencia_fim deve ser posterior à vigencia_inicio",
+      path: ["vigencia_fim"],
+    },
+  );
 
-const produtoSchema = z.object({
+const lotSchema = z
+  .object({
+    codigo: z.string().min(1).max(60),
+    quantidade: z.number().min(0),
+    custo_unitario: z.number().min(0),
+    data_fabricacao: z.coerce.date(),
+    data_vencimento: z.coerce.date(),
+  })
+  .refine((data) => data.data_vencimento > data.data_fabricacao, {
+    message: "data_vencimento deve ser posterior à data_fabricacao",
+    path: ["data_vencimento"],
+  });
+
+const productSchema = z.object({
   ean: z.string().regex(/^[0-9]{8,14}$/),
   nome: z.string().min(2).max(180),
   principio_ativo: z.string().max(180).default(""),
   laboratorio: z.string().max(120).default(""),
-  categoria_fiscal_id: z.string().refine(isValidObjectId, "Categoria inválida"),
-  lote: z.string().min(1).max(60),
-  quantidade_entrada: z.number().min(0),
+  categoria_fiscal_id: z.string().uuid(),
   valor_entrada_unitario: z.number().min(0),
   preco_venda: z.number().min(0),
-  estoque_atual: z.number().min(0),
-  estoque_minimo_critico: z.number().min(0),
-  media_venda_diaria: z.number().min(0),
-  data_fabricacao: z.coerce.date(),
-  data_vencimento: z.coerce.date(),
+  estoque_atual: z.number().min(0).default(0),
+  estoque_minimo_critico: z.number().min(0).default(0),
+  media_venda_diaria: z.number().min(0).default(0),
   ativo: z.boolean().default(true),
-}).refine((data) => data.data_vencimento > data.data_fabricacao, {
-  message: "data_vencimento deve ser posterior à data_fabricacao",
-  path: ["data_vencimento"],
+  lote_inicial: lotSchema.optional(),
 });
 
-function erroValidacao(reply: FastifyReply, error: z.ZodError) {
-  return reply.status(400).send({ erro: "CADASTRO_INVALIDO", detalhes: error.flatten() });
+function validationError(reply: FastifyReply, error: z.ZodError) {
+  return reply
+    .status(400)
+    .send({ erro: "CADASTRO_INVALIDO", detalhes: error.flatten() });
+}
+
+function mapRule(rule: z.infer<typeof fiscalRuleSchema>) {
+  return {
+    cfop: rule.cfop,
+    cstIcms: rule.cst_icms,
+    csosn: rule.csosn,
+    icmsRate: rule.aliquota_icms,
+    mvaRate: rule.mva,
+    cstPis: rule.cst_pis,
+    cstCofins: rule.cst_cofins,
+    revenueNature: rule.natureza_receita,
+    pisRate: rule.aliquota_pis,
+    cofinsRate: rule.aliquota_cofins,
+    cstIbsCbs: rule.cst_ibs_cbs,
+    taxClassification: rule.classificacao_tributaria,
+    cbsRate: rule.aliquota_cbs,
+    ibsRate: rule.aliquota_ibs,
+    cbsReduction: rule.reducao_cbs,
+    ibsReduction: rule.reducao_ibs,
+    offsetCbsPisCofins: rule.compensar_cbs_pis_cofins,
+    metadata: toJson(rule.metadata),
+  };
 }
 
 export async function cadastrosRoutes(app: FastifyInstance) {
-  app.get("/categorias", async () => CategoriaFiscalModel.find().sort({ nome: 1 }).lean());
+  const tenantGuards = [authenticate, tenantContext];
+  const writeGuards = [
+    authenticate,
+    tenantContext,
+    requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"]),
+  ];
 
-  app.post("/categorias", async (request, reply) => {
-    const parsed = categoriaSchema.safeParse(request.body);
-    if (!parsed.success) return erroValidacao(reply, parsed.error);
-    if (parsed.data.regras_por_regime.SIMPLES_NACIONAL.csosn === null) {
-      return reply.status(400).send({ erro: "CSOSN_OBRIGATORIO_NO_SIMPLES" });
-    }
-    const categoria = await CategoriaFiscalModel.create(parsed.data);
-    return reply.status(201).send(categoria);
-  });
+  app.get("/categorias", { preHandler: tenantGuards }, async (request) =>
+    prisma.fiscalCategory.findMany({
+      where: { companyId: request.tenant!.companyId },
+      include: {
+        rules: { orderBy: { regime: "asc" } },
+        _count: { select: { products: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
+  );
 
-  app.put<{ Params: { id: string } }>("/categorias/:id", async (request, reply) => {
-    if (!isValidObjectId(request.params.id)) return reply.status(400).send({ erro: "ID_INVALIDO" });
-    const parsed = categoriaSchema.safeParse(request.body);
-    if (!parsed.success) return erroValidacao(reply, parsed.error);
-    if (parsed.data.regras_por_regime.SIMPLES_NACIONAL.csosn === null) {
-      return reply.status(400).send({ erro: "CSOSN_OBRIGATORIO_NO_SIMPLES" });
-    }
-    const categoria = await CategoriaFiscalModel.findByIdAndUpdate(request.params.id, parsed.data, {
-      new: true, runValidators: true,
+  app.post(
+    "/categorias",
+    { preHandler: writeGuards },
+    async (request, reply) => {
+      const parsed = categorySchema.safeParse(request.body);
+      if (!parsed.success) return validationError(reply, parsed.error);
+      if (!parsed.data.regras_por_regime.SIMPLES_NACIONAL.csosn) {
+        return reply.status(400).send({ erro: "CSOSN_OBRIGATORIO_NO_SIMPLES" });
+      }
+
+      const category = await prisma.$transaction(async (tx) => {
+        const created = await tx.fiscalCategory.create({
+          data: {
+            companyId: request.tenant!.companyId,
+            code: parsed.data.codigo,
+            name: parsed.data.nome,
+            description: parsed.data.descricao,
+            ncm: parsed.data.ncm,
+            cest: parsed.data.cest,
+            classification: parsed.data.classificacao,
+            ruleVersion: parsed.data.versao_regra,
+            validFrom: parsed.data.vigencia_inicio,
+            validUntil: parsed.data.vigencia_fim,
+            status: parsed.data.status,
+            sourceReferences: toJson(parsed.data.referencias),
+            active: parsed.data.ativa,
+            rules: {
+              create: regimes.map((regime) => ({
+                regime,
+                ...mapRule(parsed.data.regras_por_regime[regime]),
+              })),
+            },
+          },
+          include: { rules: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            companyId: request.tenant!.companyId,
+            userId: request.user.sub,
+            action: "CREATE",
+            entity: "FISCAL_CATEGORY",
+            entityId: created.id,
+            after: toJson(created),
+          },
+        });
+        return created;
+      });
+      return reply.status(201).send(category);
+    },
+  );
+
+  app.put<{ Params: { id: string } }>(
+    "/categorias/:id",
+    { preHandler: writeGuards },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = categorySchema.safeParse(request.body);
+      if (!id.success) return reply.status(400).send({ erro: "ID_INVALIDO" });
+      if (!parsed.success) return validationError(reply, parsed.error);
+      if (!parsed.data.regras_por_regime.SIMPLES_NACIONAL.csosn) {
+        return reply.status(400).send({ erro: "CSOSN_OBRIGATORIO_NO_SIMPLES" });
+      }
+
+      const existing = await prisma.fiscalCategory.findFirst({
+        where: { id: id.data, companyId: request.tenant!.companyId },
+      });
+      if (!existing)
+        return reply.status(404).send({ erro: "CATEGORIA_NAO_ENCONTRADA" });
+      const category = await prisma.$transaction(async (tx) => {
+        const updated = await tx.fiscalCategory.update({
+          where: { id: id.data },
+          data: {
+            code: parsed.data.codigo,
+            name: parsed.data.nome,
+            description: parsed.data.descricao,
+            ncm: parsed.data.ncm,
+            cest: parsed.data.cest,
+            classification: parsed.data.classificacao,
+            ruleVersion: parsed.data.versao_regra,
+            validFrom: parsed.data.vigencia_inicio,
+            validUntil: parsed.data.vigencia_fim,
+            status: parsed.data.status,
+            sourceReferences: toJson(parsed.data.referencias),
+            active: parsed.data.ativa,
+          },
+        });
+        for (const regime of regimes) {
+          const rule = mapRule(parsed.data.regras_por_regime[regime]);
+          await tx.fiscalRule.upsert({
+            where: { categoryId_regime: { categoryId: id.data, regime } },
+            create: { categoryId: id.data, regime, ...rule },
+            update: rule,
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            companyId: request.tenant!.companyId,
+            userId: request.user.sub,
+            action: "UPDATE",
+            entity: "FISCAL_CATEGORY",
+            entityId: updated.id,
+            before: toJson(existing),
+            after: toJson(updated),
+          },
+        });
+        return tx.fiscalCategory.findUnique({
+          where: { id: updated.id },
+          include: { rules: true },
+        });
+      });
+      return reply.send(category);
+    },
+  );
+
+  app.get("/produtos", { preHandler: tenantGuards }, async (request) =>
+    prisma.product.findMany({
+      where: { companyId: request.tenant!.companyId },
+      include: {
+        category: { include: { rules: true } },
+        lots: { orderBy: { expiresAt: "asc" } },
+      },
+      orderBy: { name: "asc" },
+    }),
+  );
+
+  app.post("/produtos", { preHandler: writeGuards }, async (request, reply) => {
+    const parsed = productSchema.safeParse(request.body);
+    if (!parsed.success) return validationError(reply, parsed.error);
+    const category = await prisma.fiscalCategory.findFirst({
+      where: {
+        id: parsed.data.categoria_fiscal_id,
+        companyId: request.tenant!.companyId,
+        active: true,
+      },
     });
-    return categoria ? reply.send(categoria) : reply.status(404).send({ erro: "CATEGORIA_NAO_ENCONTRADA" });
-  });
+    if (!category)
+      return reply.status(409).send({ erro: "CATEGORIA_FISCAL_INVALIDA" });
 
-  app.get<{ Querystring: { regime?: RegimeTributario } }>("/produtos", async (request, reply) => {
-    const regime = request.query.regime ?? "SIMPLES_NACIONAL";
-    if (!REGIMES.includes(regime)) return reply.status(400).send({ erro: "REGIME_INVALIDO" });
-    const produtos = await ProdutoRegraFiscalModel.find().sort({ nome: 1 }).lean();
-    const ids = [...new Set(produtos.map((produto) => produto.categoria_fiscal_id.toString()))];
-    const categorias = await CategoriaFiscalModel.find({ _id: { $in: ids } }).lean();
-    const mapa = new Map(categorias.map((categoria) => [categoria._id.toString(), categoria as CategoriaFiscal]));
-    return produtos.map((produto) => {
-      const categoria = mapa.get(produto.categoria_fiscal_id.toString());
-      const regra = categoria?.regras_por_regime[regime];
-      const valor = produto.preco_venda;
-      const cbs = regra ? valor * regra.aliquota_cbs * (1 - regra.reducao_cbs) : 0;
-      const ibs = regra ? valor * regra.aliquota_ibs * (1 - regra.reducao_ibs) : 0;
-      const pisCofins = regra ? valor * (regra.aliquota_pis + regra.aliquota_cofins) : 0;
-      const compensacaoCbs = regra?.compensar_cbs_pis_cofins ? Math.min(cbs, pisCofins) : 0;
-      const tributoTotal = regra ? valor * regra.aliquota_icms + pisCofins + cbs + ibs - compensacaoCbs : 0;
-      return {
-        ...produto,
-        categoria: categoria ? { id: categoria._id, nome: categoria.nome, ncm: categoria.ncm, classificacao: categoria.classificacao, versao_regra: categoria.versao_regra } : null,
-        calculados: {
-          valor_entrada_total: produto.quantidade_entrada * produto.valor_entrada_unitario,
-          cbs_total: cbs,
-          ibs_total: ibs,
-          valor_tributo_total: tributoTotal,
-          lucro_unitario: valor - produto.valor_entrada_unitario - tributoTotal,
-          margem_lucro: valor ? (valor - produto.valor_entrada_unitario - tributoTotal) / valor : 0,
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          companyId: request.tenant!.companyId,
+          categoryId: category.id,
+          ean: parsed.data.ean,
+          name: parsed.data.nome,
+          activeIngredient: parsed.data.principio_ativo,
+          laboratory: parsed.data.laboratorio,
+          currentCost: parsed.data.valor_entrada_unitario,
+          salePrice: parsed.data.preco_venda,
+          stockQuantity:
+            parsed.data.lote_inicial?.quantidade ?? parsed.data.estoque_atual,
+          minimumStock: parsed.data.estoque_minimo_critico,
+          dailySalesAverage: parsed.data.media_venda_diaria,
         },
-      };
+      });
+      if (parsed.data.lote_inicial) {
+        const lot = await tx.inventoryLot.create({
+          data: {
+            productId: created.id,
+            code: parsed.data.lote_inicial.codigo,
+            manufacturedAt: parsed.data.lote_inicial.data_fabricacao,
+            expiresAt: parsed.data.lote_inicial.data_vencimento,
+            quantity: parsed.data.lote_inicial.quantidade,
+            unitCost: parsed.data.lote_inicial.custo_unitario,
+          },
+        });
+        if (parsed.data.lote_inicial.quantidade > 0) {
+          await tx.stockMovement.create({
+            data: {
+              companyId: request.tenant!.companyId,
+              productId: created.id,
+              lotId: lot.id,
+              type: "ENTRY",
+              quantity: parsed.data.lote_inicial.quantidade,
+              unitCost: parsed.data.lote_inicial.custo_unitario,
+              originType: "INITIAL_REGISTRATION",
+            },
+          });
+        }
+      }
+      await tx.auditLog.create({
+        data: {
+          companyId: request.tenant!.companyId,
+          userId: request.user.sub,
+          action: "CREATE",
+          entity: "PRODUCT",
+          entityId: created.id,
+          after: toJson(created),
+        },
+      });
+      return tx.product.findUnique({
+        where: { id: created.id },
+        include: { category: true, lots: true },
+      });
     });
+    return reply.status(201).send(product);
   });
 
-  app.post("/produtos", async (request, reply) => {
-    const parsed = produtoSchema.safeParse(request.body);
-    if (!parsed.success) return erroValidacao(reply, parsed.error);
-    const categoria = await CategoriaFiscalModel.findOne({ _id: parsed.data.categoria_fiscal_id, ativa: true });
-    if (!categoria) return reply.status(409).send({ erro: "CATEGORIA_FISCAL_INVALIDA" });
-    const produto = await ProdutoRegraFiscalModel.create(parsed.data);
-    return reply.status(201).send(produto);
-  });
+  app.put<{ Params: { id: string } }>(
+    "/produtos/:id",
+    { preHandler: writeGuards },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = productSchema
+        .omit({ lote_inicial: true })
+        .safeParse(request.body);
+      if (!id.success) return reply.status(400).send({ erro: "ID_INVALIDO" });
+      if (!parsed.success) return validationError(reply, parsed.error);
+      const [existing, category] = await Promise.all([
+        prisma.product.findFirst({
+          where: { id: id.data, companyId: request.tenant!.companyId },
+        }),
+        prisma.fiscalCategory.findFirst({
+          where: {
+            id: parsed.data.categoria_fiscal_id,
+            companyId: request.tenant!.companyId,
+            active: true,
+          },
+        }),
+      ]);
+      if (!existing)
+        return reply.status(404).send({ erro: "PRODUTO_NAO_ENCONTRADO" });
+      if (!category)
+        return reply.status(409).send({ erro: "CATEGORIA_FISCAL_INVALIDA" });
 
-  app.put<{ Params: { id: string } }>("/produtos/:id", async (request, reply) => {
-    if (!isValidObjectId(request.params.id)) return reply.status(400).send({ erro: "ID_INVALIDO" });
-    const parsed = produtoSchema.safeParse(request.body);
-    if (!parsed.success) return erroValidacao(reply, parsed.error);
-    const categoria = await CategoriaFiscalModel.findOne({ _id: parsed.data.categoria_fiscal_id, ativa: true });
-    if (!categoria) return reply.status(409).send({ erro: "CATEGORIA_FISCAL_INVALIDA" });
-    const produto = await ProdutoRegraFiscalModel.findByIdAndUpdate(request.params.id, parsed.data, {
-      new: true, runValidators: true,
-    });
-    return produto ? reply.send(produto) : reply.status(404).send({ erro: "PRODUTO_NAO_ENCONTRADO" });
-  });
+      const product = await prisma.$transaction(async (tx) => {
+        const updated = await tx.product.update({
+          where: { id: existing.id },
+          data: {
+            categoryId: category.id,
+            ean: parsed.data.ean,
+            name: parsed.data.nome,
+            activeIngredient: parsed.data.principio_ativo,
+            laboratory: parsed.data.laboratorio,
+            currentCost: parsed.data.valor_entrada_unitario,
+            salePrice: parsed.data.preco_venda,
+            stockQuantity: parsed.data.estoque_atual,
+            minimumStock: parsed.data.estoque_minimo_critico,
+            dailySalesAverage: parsed.data.media_venda_diaria,
+            active: parsed.data.ativo,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            companyId: request.tenant!.companyId,
+            userId: request.user.sub,
+            action: "UPDATE",
+            entity: "PRODUCT",
+            entityId: updated.id,
+            before: toJson(existing),
+            after: toJson(updated),
+          },
+        });
+        return updated;
+      });
+      return reply.send(product);
+    },
+  );
 }

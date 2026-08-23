@@ -106,3 +106,53 @@ test("protege o contexto da empresa sem identidade autenticada", async () => {
   );
   assert.equal(catalogResponse.status, 401);
 });
+
+test("mantém a fundação SaaS pronta para PostgreSQL, Prisma e Render", async () => {
+  const [schema, migration, apiPackage, renderBlueprint, auth, operations] =
+    await Promise.all([
+      readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+      readFile(
+        new URL(
+          "../api/prisma/migrations/20260823170000_init_saas/migration.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+      readFile(new URL("../api/package.json", import.meta.url), "utf8"),
+      readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+      readFile(new URL("../api/src/security/auth.ts", import.meta.url), "utf8"),
+      readFile(
+        new URL("../api/src/routes/operations.routes.ts", import.meta.url),
+        "utf8",
+      ),
+    ]);
+
+  for (const model of [
+    "User",
+    "AuthSession",
+    "Company",
+    "Plan",
+    "Subscription",
+    "FiscalCategory",
+    "Product",
+    "Sale",
+    "TaxAnalysis",
+    "SupportTicket",
+    "Release",
+    "AuditLog",
+  ]) {
+    assert.match(schema, new RegExp(`model ${model} \\{`));
+  }
+  assert.match(schema, /provider = "postgresql"/);
+  assert.match(migration, /subscriptions_one_current_per_company_uidx/);
+  assert.match(apiPackage, /"prisma:migrate:deploy"/);
+  assert.doesNotMatch(apiPackage, /mongoose/);
+  assert.match(
+    renderBlueprint,
+    /preDeployCommand: npm run prisma:migrate:deploy/,
+  );
+  assert.match(renderBlueprint, /property: connectionString/);
+  assert.match(auth, /x-company-id/);
+  assert.match(operations, /financeiro\/assinaturas/);
+  assert.match(operations, /desenvolvimento\/releases/);
+});

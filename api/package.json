@@ -5,22 +5,34 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js"
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "postinstall": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "prisma:format": "prisma format",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed"
   },
   "dependencies": {
     "@fastify/cors": "^10.1.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/jwt": "^10.2.2",
+    "@fastify/rate-limit": "^11.2.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^16.6.1",
     "fastify": "^5.4.0",
-    "mongoose": "^8.16.4",
     "pg": "^8.16.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "@types/pg": "^8.15.4",
+    "prisma": "^7.9.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   }
 }
-

@@ -1,247 +1,315 @@
-import type { PoolClient } from "pg";
-import { postgres } from "../infra/postgres.js";
-import {
-  CategoriaFiscalModel,
-  regraVigente,
-  type CategoriaFiscal,
-  type RegraFiscalCategoria,
-} from "../models/categoria-fiscal.model.js";
-import {
-  ProdutoRegraFiscalModel,
-  type ProdutoRegraFiscal,
-  type RegimeTributario,
-} from "../models/produto-regra-fiscal.model.js";
+import { prisma } from "../infra/prisma.js";
 
 export type ProcessarVendaInput = {
   empresaId: string;
+  usuarioId: string;
+  requestId: string;
   idempotencyKey: string;
   modeloNota: "55" | "65";
   itens: Array<{ ean: string; quantidade: number }>;
 };
 
-type LinhaCalculada = {
-  produto: ProdutoRegraFiscal;
-  categoria: CategoriaFiscal;
-  regra: RegraFiscalCategoria;
-  quantidade: number;
-  valor: number;
-  custo: number;
-  icms: number;
-  pis: number;
-  cofins: number;
-  cbs: number;
-  ibs: number;
-  tributoTotal: number;
-  lucro: number;
-};
-
 const roundMoney = (value: number) =>
   Math.round((value + Number.EPSILON) * 100) / 100;
 
-async function findExistingSale(
-  client: PoolClient,
-  empresaId: string,
-  idempotencyKey: string,
-) {
-  const result = await client.query(
-    `SELECT id, valor_bruto, valor_imposto_provisionado_cbs,
-            valor_imposto_provisionado_ibs, valor_tributo_total,
-            valor_custo_total, lucro_liquido
-       FROM venda_nota_fiscal
-      WHERE empresa_id = $1 AND idempotency_key = $2`,
-    [empresaId, idempotencyKey],
-  );
-  return result.rows[0] as Record<string, string> | undefined;
-}
-
-function calcularLinha(
-  produto: ProdutoRegraFiscal,
-  categoria: CategoriaFiscal,
-  regra: RegraFiscalCategoria,
-  quantidade: number,
-): LinhaCalculada {
-  const valor = roundMoney(produto.preco_venda * quantidade);
-  const custo = roundMoney(produto.valor_entrada_unitario * quantidade);
-  const icms = roundMoney(valor * regra.aliquota_icms);
-  const pis = roundMoney(valor * regra.aliquota_pis);
-  const cofins = roundMoney(valor * regra.aliquota_cofins);
-  const cbs = roundMoney(valor * regra.aliquota_cbs * (1 - regra.reducao_cbs));
-  const ibs = roundMoney(valor * regra.aliquota_ibs * (1 - regra.reducao_ibs));
-  const compensacaoCbs = regra.compensar_cbs_pis_cofins ? Math.min(cbs, pis + cofins) : 0;
-  const tributoTotal = roundMoney(icms + pis + cofins + cbs + ibs - compensacaoCbs);
-
-  return {
-    produto,
-    categoria,
-    regra,
-    quantidade,
-    valor,
-    custo,
-    icms,
-    pis,
-    cofins,
-    cbs,
-    ibs,
-    tributoTotal,
-    lucro: roundMoney(valor - custo - tributoTotal),
-  };
-}
-
 export async function processarVenda(input: ProcessarVendaInput) {
-  const client = await postgres.connect();
-  const estoqueDecrementado: Array<{ ean: string; quantidade: number }> = [];
-  let committed = false;
-  try {
-    await client.query("BEGIN");
+  return prisma.$transaction(
+    async (tx) => {
+      const existing = await tx.sale.findUnique({
+        where: {
+          companyId_idempotencyKey: {
+            companyId: input.empresaId,
+            idempotencyKey: input.idempotencyKey,
+          },
+        },
+        include: { items: true },
+      });
+      if (existing)
+        return { vendaId: existing.id, idempotente: true, totais: existing };
 
-    const existing = await findExistingSale(client, input.empresaId, input.idempotencyKey);
-    if (existing) {
-      await client.query("COMMIT");
-      committed = true;
-      return { vendaId: existing.id, idempotente: true, totais: existing };
-    }
+      const company = await tx.company.findUnique({
+        where: { id: input.empresaId },
+      });
+      if (!company) throw new Error("EMPRESA_NAO_ENCONTRADA");
 
-    const empresaResult = await client.query<{ regime_tributario: RegimeTributario }>(
-      `SELECT regime_tributario FROM empresa_farmacia WHERE id = $1 FOR SHARE`,
-      [input.empresaId],
-    );
-    const empresa = empresaResult.rows[0];
-    if (!empresa) throw new Error("EMPRESA_NAO_ENCONTRADA");
+      const eans = input.itens.map((item) => item.ean);
+      const products = await tx.product.findMany({
+        where: { companyId: input.empresaId, ean: { in: eans }, active: true },
+        include: {
+          category: { include: { rules: true } },
+          lots: {
+            where: { quantity: { gt: 0 } },
+            orderBy: { expiresAt: "asc" },
+          },
+        },
+      });
+      const byEan = new Map(products.map((product) => [product.ean, product]));
+      const now = new Date();
 
-    const eans = input.itens.map((item) => item.ean);
-    const produtos = (await ProdutoRegraFiscalModel.find({
-      ean: { $in: eans },
-      ativo: true,
-    }).lean()) as ProdutoRegraFiscal[];
-    const porEan = new Map(produtos.map((produto) => [produto.ean, produto]));
-    const categoriaIds = [...new Set(produtos.map((produto) => produto.categoria_fiscal_id.toString()))];
-    const categorias = (await CategoriaFiscalModel.find({
-      _id: { $in: categoriaIds },
-      ativa: true,
-    }).lean()) as CategoriaFiscal[];
-    const porCategoria = new Map(categorias.map((categoria) => [categoria._id.toString(), categoria]));
+      const lines = input.itens.map((item) => {
+        const product = byEan.get(item.ean);
+        if (!product) throw new Error(`PRODUTO_NAO_ENCONTRADO:${item.ean}`);
+        const category = product.category;
+        if (
+          !category.active ||
+          category.status !== "APPROVED" ||
+          category.validFrom > now ||
+          (category.validUntil && category.validUntil < now)
+        ) {
+          throw new Error(`CATEGORIA_FISCAL_SEM_VIGENCIA:${item.ean}`);
+        }
+        const rule = category.rules.find(
+          (candidate) => candidate.regime === company.taxRegime,
+        );
+        if (!rule) throw new Error(`REGRA_FISCAL_INCOMPLETA:${item.ean}`);
+        if (company.taxRegime === "SIMPLES_NACIONAL" && !rule.csosn)
+          throw new Error(`CSOSN_OBRIGATORIO:${item.ean}`);
+        if (Number(product.stockQuantity) < item.quantidade)
+          throw new Error(`ESTOQUE_INSUFICIENTE:${item.ean}`);
+        const usableLots = product.lots.filter((lot) => lot.expiresAt > now);
+        if (
+          product.lots.length &&
+          usableLots.reduce((sum, lot) => sum + Number(lot.quantity), 0) <
+            item.quantidade
+        ) {
+          throw new Error(`LOTE_VALIDO_INSUFICIENTE:${item.ean}`);
+        }
 
-    const linhas: LinhaCalculada[] = input.itens.map((item) => {
-      const produto = porEan.get(item.ean);
-      if (!produto) throw new Error(`PRODUTO_NAO_ENCONTRADO:${item.ean}`);
-      if (produto.data_vencimento <= new Date()) throw new Error(`PRODUTO_VENCIDO:${item.ean}`);
+        const unitPrice = Number(product.salePrice);
+        const unitCost = Number(product.currentCost);
+        const gross = roundMoney(unitPrice * item.quantidade);
+        const cost = roundMoney(unitCost * item.quantidade);
+        const icms = roundMoney(gross * Number(rule.icmsRate));
+        const pis = roundMoney(gross * Number(rule.pisRate));
+        const cofins = roundMoney(gross * Number(rule.cofinsRate));
+        const cbs = roundMoney(
+          gross * Number(rule.cbsRate) * (1 - Number(rule.cbsReduction)),
+        );
+        const ibs = roundMoney(
+          gross * Number(rule.ibsRate) * (1 - Number(rule.ibsReduction)),
+        );
+        const cbsOffset = rule.offsetCbsPisCofins
+          ? Math.min(cbs, pis + cofins)
+          : 0;
+        const tax = roundMoney(icms + pis + cofins + cbs + ibs - cbsOffset);
+        return {
+          product,
+          category,
+          rule,
+          quantity: item.quantidade,
+          unitPrice,
+          unitCost,
+          gross,
+          cost,
+          icms,
+          pis,
+          cofins,
+          cbs,
+          ibs,
+          tax,
+          profit: roundMoney(gross - cost - tax),
+          usableLots,
+        };
+      });
 
-      const categoria = porCategoria.get(produto.categoria_fiscal_id.toString());
-      if (!categoria || !regraVigente(categoria)) {
-        throw new Error(`CATEGORIA_FISCAL_SEM_VIGENCIA:${item.ean}`);
-      }
-      const regra = categoria.regras_por_regime[empresa.regime_tributario];
-      if (!regra) throw new Error(`REGRA_FISCAL_INCOMPLETA:${item.ean}`);
-      if (empresa.regime_tributario === "SIMPLES_NACIONAL" && !regra.csosn) {
-        throw new Error(`CSOSN_OBRIGATORIO:${item.ean}`);
-      }
-
-      return calcularLinha(produto, categoria, regra, item.quantidade);
-    });
-
-    const totais = linhas.reduce(
-      (acc, linha) => ({
-        bruto: roundMoney(acc.bruto + linha.valor),
-        custo: roundMoney(acc.custo + linha.custo),
-        icms: roundMoney(acc.icms + linha.icms),
-        pis: roundMoney(acc.pis + linha.pis),
-        cofins: roundMoney(acc.cofins + linha.cofins),
-        cbs: roundMoney(acc.cbs + linha.cbs),
-        ibs: roundMoney(acc.ibs + linha.ibs),
-        tributoTotal: roundMoney(acc.tributoTotal + linha.tributoTotal),
-        lucro: roundMoney(acc.lucro + linha.lucro),
-      }),
-      { bruto: 0, custo: 0, icms: 0, pis: 0, cofins: 0, cbs: 0, ibs: 0, tributoTotal: 0, lucro: 0 },
-    );
-
-    const vendaResult = await client.query<{ id: string; data_venda: Date }>(
-      `INSERT INTO venda_nota_fiscal (
-         empresa_id, idempotency_key, modelo_nota, valor_bruto,
-         valor_imposto_provisionado_cbs, valor_imposto_provisionado_ibs,
-         valor_tributo_total, valor_custo_total, lucro_liquido,
-         valor_economia_tributaria, faturamento_segregado_isento
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,0)
-       RETURNING id, data_venda`,
-      [input.empresaId, input.idempotencyKey, input.modeloNota, totais.bruto,
-        totais.cbs, totais.ibs, totais.tributoTotal, totais.custo, totais.lucro],
-    );
-    const venda = vendaResult.rows[0]!;
-
-    for (const linha of linhas) {
-      await client.query(
-        `INSERT INTO venda_item_fiscal (
-          venda_id, ean, produto_nome, categoria_codigo, categoria_nome,
-          ncm, quantidade, valor_unitario, valor_custo_unitario,
-          cfop, cst_icms, csosn, cst_pis, cst_cofins,
-          natureza_receita, cst_ibs_cbs, classificacao_tributaria,
-          valor_icms, valor_pis, valor_cofins, valor_cbs, valor_ibs,
-          valor_tributo_total, valor_lucro, versao_regra
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
-        [venda.id, linha.produto.ean, linha.produto.nome, linha.categoria.codigo,
-          linha.categoria.nome, linha.categoria.ncm, linha.quantidade,
-          linha.produto.preco_venda, linha.produto.valor_entrada_unitario,
-          linha.regra.cfop, linha.regra.cst_icms, linha.regra.csosn,
-          linha.regra.cst_pis, linha.regra.cst_cofins,
-          linha.regra.natureza_receita_pis_cofins, linha.regra.cst_ibs_cbs,
-          linha.regra.classificacao_tributaria, linha.icms, linha.pis,
-          linha.cofins, linha.cbs, linha.ibs, linha.tributoTotal,
-          linha.lucro, linha.categoria.versao_regra],
+      const totals = lines.reduce(
+        (sum, line) => ({
+          gross: roundMoney(sum.gross + line.gross),
+          cost: roundMoney(sum.cost + line.cost),
+          icms: roundMoney(sum.icms + line.icms),
+          pis: roundMoney(sum.pis + line.pis),
+          cofins: roundMoney(sum.cofins + line.cofins),
+          cbs: roundMoney(sum.cbs + line.cbs),
+          ibs: roundMoney(sum.ibs + line.ibs),
+          tax: roundMoney(sum.tax + line.tax),
+          profit: roundMoney(sum.profit + line.profit),
+        }),
+        {
+          gross: 0,
+          cost: 0,
+          icms: 0,
+          pis: 0,
+          cofins: 0,
+          cbs: 0,
+          ibs: 0,
+          tax: 0,
+          profit: 0,
+        },
       );
-    }
 
-    await client.query(
-      `INSERT INTO dre_provisionamento_mensal (
-         empresa_id, competencia, receita_bruta_total,
-         faturamento_segregado_isento, imposto_total_devido, lucro_liquido_real
-       ) VALUES ($1, date_trunc('month', $2::timestamptz)::date, $3, 0, $4, $5)
-       ON CONFLICT (empresa_id, competencia) DO UPDATE SET
-         receita_bruta_total = dre_provisionamento_mensal.receita_bruta_total + EXCLUDED.receita_bruta_total,
-         imposto_total_devido = dre_provisionamento_mensal.imposto_total_devido + EXCLUDED.imposto_total_devido,
-         lucro_liquido_real = dre_provisionamento_mensal.lucro_liquido_real + EXCLUDED.lucro_liquido_real,
-         updated_at = now()`,
-      [input.empresaId, venda.data_venda, totais.bruto, totais.tributoTotal, totais.lucro],
-    );
+      const sale = await tx.sale.create({
+        data: {
+          companyId: input.empresaId,
+          idempotencyKey: input.idempotencyKey,
+          invoiceModel: input.modeloNota === "55" ? "NF55" : "NFC65",
+          status: "COMPLETED",
+          grossAmount: totals.gross,
+          costAmount: totals.cost,
+          icmsAmount: totals.icms,
+          pisAmount: totals.pis,
+          cofinsAmount: totals.cofins,
+          cbsAmount: totals.cbs,
+          ibsAmount: totals.ibs,
+          taxAmount: totals.tax,
+          netProfit: totals.profit,
+          items: {
+            create: lines.map((line) => ({
+              productId: line.product.id,
+              ean: line.product.ean,
+              productName: line.product.name,
+              categoryCode: line.category.code,
+              categoryName: line.category.name,
+              ncm: line.category.ncm,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              unitCost: line.unitCost,
+              cfop: line.rule.cfop,
+              cstIcms: line.rule.cstIcms,
+              csosn: line.rule.csosn,
+              cstPis: line.rule.cstPis,
+              cstCofins: line.rule.cstCofins,
+              revenueNature: line.rule.revenueNature,
+              cstIbsCbs: line.rule.cstIbsCbs,
+              taxClassification: line.rule.taxClassification,
+              icmsAmount: line.icms,
+              pisAmount: line.pis,
+              cofinsAmount: line.cofins,
+              cbsAmount: line.cbs,
+              ibsAmount: line.ibs,
+              taxAmount: line.tax,
+              profitAmount: line.profit,
+              ruleVersion: line.category.ruleVersion,
+              fiscalSnapshot: {
+                category_id: line.category.id,
+                regime: company.taxRegime,
+                source_references: line.category.sourceReferences,
+                rates: {
+                  icms: Number(line.rule.icmsRate),
+                  pis: Number(line.rule.pisRate),
+                  cofins: Number(line.rule.cofinsRate),
+                  cbs: Number(line.rule.cbsRate),
+                  ibs: Number(line.rule.ibsRate),
+                },
+              },
+            })),
+          },
+        },
+      });
 
-    const alertasReposicao: Array<{ ean: string; estoqueAtual: number; mediaVendaDiaria: number; sugestaoCompra: number }> = [];
-    for (const linha of linhas) {
-      const atualizado = await ProdutoRegraFiscalModel.findOneAndUpdate(
-        { ean: linha.produto.ean, estoque_atual: { $gte: linha.quantidade }, ativo: true },
-        { $inc: { estoque_atual: -linha.quantidade } },
-        { new: true },
-      ).lean<ProdutoRegraFiscal | null>();
-      if (!atualizado) throw new Error(`ESTOQUE_INSUFICIENTE:${linha.produto.ean}`);
-      estoqueDecrementado.push({ ean: linha.produto.ean, quantidade: linha.quantidade });
-      if (atualizado.estoque_atual < atualizado.estoque_minimo_critico && atualizado.media_venda_diaria > 0) {
-        alertasReposicao.push({
-          ean: atualizado.ean,
-          estoqueAtual: atualizado.estoque_atual,
-          mediaVendaDiaria: atualizado.media_venda_diaria,
-          sugestaoCompra: Math.max(0, Math.ceil(atualizado.media_venda_diaria * 35 - atualizado.estoque_atual)),
+      const reorderAlerts = [];
+      for (const line of lines) {
+        const changed = await tx.product.updateMany({
+          where: {
+            id: line.product.id,
+            companyId: input.empresaId,
+            stockQuantity: { gte: line.quantity },
+          },
+          data: { stockQuantity: { decrement: line.quantity } },
         });
+        if (changed.count !== 1)
+          throw new Error(`ESTOQUE_INSUFICIENTE:${line.product.ean}`);
+
+        let remaining = line.quantity;
+        for (const lot of line.usableLots) {
+          if (remaining <= 0) break;
+          const amount = Math.min(remaining, Number(lot.quantity));
+          const lotChanged = await tx.inventoryLot.updateMany({
+            where: { id: lot.id, quantity: { gte: amount } },
+            data: { quantity: { decrement: amount } },
+          });
+          if (lotChanged.count !== 1)
+            throw new Error(`ESTOQUE_INSUFICIENTE:${line.product.ean}`);
+          await tx.stockMovement.create({
+            data: {
+              companyId: input.empresaId,
+              productId: line.product.id,
+              lotId: lot.id,
+              type: "SALE",
+              quantity: -amount,
+              unitCost: line.unitCost,
+              originType: "SALE",
+              originId: sale.id,
+            },
+          });
+          remaining -= amount;
+        }
+        if (!line.usableLots.length) {
+          await tx.stockMovement.create({
+            data: {
+              companyId: input.empresaId,
+              productId: line.product.id,
+              type: "SALE",
+              quantity: -line.quantity,
+              unitCost: line.unitCost,
+              originType: "SALE",
+              originId: sale.id,
+            },
+          });
+        }
+
+        const stockAfter = Number(line.product.stockQuantity) - line.quantity;
+        if (
+          stockAfter < Number(line.product.minimumStock) &&
+          Number(line.product.dailySalesAverage) > 0
+        ) {
+          const suggested = Math.max(
+            0,
+            Math.ceil(Number(line.product.dailySalesAverage) * 35 - stockAfter),
+          );
+          const alert = await tx.reorderAlert.create({
+            data: {
+              companyId: input.empresaId,
+              productId: line.product.id,
+              stockAtTrigger: stockAfter,
+              suggestedQuantity: suggested,
+              estimatedMargin: line.unitPrice ? line.profit / line.gross : 0,
+              reason: "Estoque abaixo do mínimo com giro de vendas ativo.",
+            },
+          });
+          reorderAlerts.push(alert);
+        }
       }
-    }
 
-    for (const alerta of alertasReposicao) {
-      await client.query(
-        `INSERT INTO evento_reposicao (venda_id, empresa_id, ean, estoque_apos_venda, payload)
-         VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (venda_id, ean) DO NOTHING`,
-        [venda.id, input.empresaId, alerta.ean, alerta.estoqueAtual,
-          JSON.stringify({ tipo: "REPOSICAO_PRIORITARIA", ...alerta })],
+      const period = new Date(
+        Date.UTC(sale.soldAt.getUTCFullYear(), sale.soldAt.getUTCMonth(), 1),
       );
-    }
+      await tx.monthlyProvision.upsert({
+        where: { companyId_period: { companyId: input.empresaId, period } },
+        create: {
+          companyId: input.empresaId,
+          period,
+          grossRevenue: totals.gross,
+          taxAmount: totals.tax,
+          costAmount: totals.cost,
+          netProfit: totals.profit,
+        },
+        update: {
+          grossRevenue: { increment: totals.gross },
+          taxAmount: { increment: totals.tax },
+          costAmount: { increment: totals.cost },
+          netProfit: { increment: totals.profit },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId: input.empresaId,
+          userId: input.usuarioId,
+          action: "PROCESS",
+          entity: "SALE",
+          entityId: sale.id,
+          requestId: input.requestId,
+          after: { totals, item_count: lines.length },
+        },
+      });
 
-    await client.query("COMMIT");
-    committed = true;
-    return { vendaId: venda.id, idempotente: false, regimeTributario: empresa.regime_tributario, totais, alertasReposicao };
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    if (!committed && estoqueDecrementado.length > 0) {
-      await Promise.all(estoqueDecrementado.map((item) =>
-        ProdutoRegraFiscalModel.updateOne({ ean: item.ean }, { $inc: { estoque_atual: item.quantidade } }),
-      )).catch((compensationError) => console.error("[ESTOQUE:COMPENSACAO_FALHOU]", compensationError));
-    }
-    throw error;
-  } finally {
-    client.release();
-  }
+      return {
+        vendaId: sale.id,
+        idempotente: false,
+        regimeTributario: company.taxRegime,
+        totais: totals,
+        alertasReposicao: reorderAlerts,
+      };
+    },
+    { isolationLevel: "Serializable", timeout: 15_000 },
+  );
 }

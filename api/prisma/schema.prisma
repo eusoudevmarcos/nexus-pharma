@@ -1,0 +1,759 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SystemRole {
+  CUSTOMER
+  INTERNAL_ADMIN
+  DEVELOPER
+  HELPDESK
+  FINANCE
+  COMMERCIAL
+}
+
+enum AccountStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum TokenPurpose {
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+}
+
+enum CompanyStatus {
+  LEAD
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  MANAGER
+  FINANCE
+  PHARMACIST
+  OPERATOR
+  VIEWER
+}
+
+enum TaxRegime {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+}
+
+enum FiscalClassification {
+  LISTA_POSITIVA
+  LISTA_NEGATIVA
+  LISTA_NEUTRA
+  MONOFASICO
+  TRIBUTACAO_NORMAL
+}
+
+enum FiscalRuleStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED
+  EXPIRED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketArea {
+  SUPPORT
+  FISCAL
+  FINANCE
+  COMMERCIAL
+  TECHNICAL
+}
+
+enum ReleaseStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+  ROLLED_BACK
+}
+
+enum ApprovalArea {
+  PRODUCT
+  TECHNICAL
+  SUPPORT
+  FINANCE
+  COMPLIANCE
+}
+
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InventoryMovementType {
+  ENTRY
+  SALE
+  ADJUSTMENT
+  LOSS
+  RETURN
+  TRANSFER
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceModel {
+  NF55
+  NFC65
+}
+
+enum ReorderAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  ORDERED
+  DISMISSED
+}
+
+enum TaxAnalysisStatus {
+  PENDING
+  PROCESSING
+  NEEDS_REVIEW
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+model User {
+  id                String            @id @default(uuid()) @db.Uuid
+  email             String            @unique @db.VarChar(254)
+  passwordHash      String?           @map("password_hash") @db.VarChar(255)
+  name              String            @db.VarChar(160)
+  systemRole        SystemRole        @default(CUSTOMER) @map("system_role")
+  status            AccountStatus     @default(INVITED)
+  lastLoginAt       DateTime?         @map("last_login_at") @db.Timestamptz(3)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships       Membership[]
+  authSessions      AuthSession[]
+  oneTimeTokens     OneTimeToken[]
+  invitationsSent   Invitation[]      @relation("InvitationCreator")
+  ticketsCreated    SupportTicket[]   @relation("TicketCreator")
+  ticketsAssigned   SupportTicket[]   @relation("TicketAssignee")
+  ticketMessages    TicketMessage[]
+  releasesCreated   Release[]         @relation("ReleaseCreator")
+  releaseApprovals  ReleaseApproval[]
+  releasesEnabled   CustomerRelease[] @relation("ReleaseEnabler")
+  apiCredentials    ApiCredential[]
+  analysesRequested TaxAnalysis[]     @relation("AnalysisRequester")
+  analysesReviewed  TaxAnalysis[]     @relation("AnalysisReviewer")
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+model AuthSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(255)
+  userAgent        String?   @map("user_agent") @db.VarChar(500)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("auth_sessions")
+}
+
+model OneTimeToken {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  purpose   TokenPurpose
+  tokenHash String       @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime     @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime?    @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@map("one_time_tokens")
+}
+
+model Company {
+  id                String             @id @default(uuid()) @db.Uuid
+  cnpj              String?            @unique @db.Char(14)
+  legalName         String             @map("legal_name") @db.VarChar(180)
+  tradeName         String             @map("trade_name") @db.VarChar(180)
+  branchName        String             @default("Matriz") @map("branch_name") @db.VarChar(120)
+  taxRegime         TaxRegime          @default(SIMPLES_NACIONAL) @map("tax_regime")
+  state             String?            @db.Char(2)
+  city              String?            @db.VarChar(120)
+  status            CompanyStatus      @default(ONBOARDING)
+  onboardingStep    Int                @default(1) @map("onboarding_step")
+  settings          Json               @default("{}")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships       Membership[]
+  invitations       Invitation[]
+  subscriptions     Subscription[]
+  fiscalCategories  FiscalCategory[]
+  products          Product[]
+  stockMovements    StockMovement[]
+  sales             Sale[]
+  monthlyProvisions MonthlyProvision[]
+  reorderAlerts     ReorderAlert[]
+  taxAnalyses       TaxAnalysis[]
+  supportTickets    SupportTicket[]
+  customerReleases  CustomerRelease[]
+  apiCredentials    ApiCredential[]
+  auditLogs         AuditLog[]
+
+  @@index([status])
+  @@map("companies")
+}
+
+model Membership {
+  id        String     @id @default(uuid()) @db.Uuid
+  companyId String     @map("company_id") @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  role      TenantRole @default(OPERATOR)
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([userId, active])
+  @@map("memberships")
+}
+
+model Invitation {
+  id          String     @id @default(uuid()) @db.Uuid
+  companyId   String     @map("company_id") @db.Uuid
+  email       String     @db.VarChar(254)
+  role        TenantRole
+  tokenHash   String     @unique @map("token_hash") @db.VarChar(255)
+  invitedById String     @map("invited_by_id") @db.Uuid
+  expiresAt   DateTime   @map("expires_at") @db.Timestamptz(3)
+  acceptedAt  DateTime?  @map("accepted_at") @db.Timestamptz(3)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedBy   User       @relation("InvitationCreator", fields: [invitedById], references: [id])
+
+  @@index([companyId, email])
+  @@map("invitations")
+}
+
+model Plan {
+  id            String         @id @default(uuid()) @db.Uuid
+  code          String         @unique @db.VarChar(50)
+  name          String         @db.VarChar(100)
+  description   String         @default("") @db.VarChar(500)
+  monthlyPrice  Decimal        @map("monthly_price") @db.Decimal(12, 2)
+  yearlyPrice   Decimal        @map("yearly_price") @db.Decimal(12, 2)
+  limits        Json           @default("{}")
+  features      Json           @default("[]")
+  active        Boolean        @default(true)
+  position      Int            @default(0)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  subscriptions Subscription[]
+
+  @@index([active, position])
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  companyId          String             @map("company_id") @db.Uuid
+  planId             String             @map("plan_id") @db.Uuid
+  status             SubscriptionStatus @default(TRIALING)
+  interval           BillingInterval    @default(MONTHLY)
+  provider           String?            @db.VarChar(40)
+  providerCustomerId String?            @map("provider_customer_id") @db.VarChar(120)
+  providerContractId String?            @unique @map("provider_contract_id") @db.VarChar(120)
+  trialEndsAt        DateTime?          @map("trial_ends_at") @db.Timestamptz(3)
+  currentPeriodStart DateTime?          @map("current_period_start") @db.Timestamptz(3)
+  currentPeriodEnd   DateTime?          @map("current_period_end") @db.Timestamptz(3)
+  cancelledAt        DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan               Plan               @relation(fields: [planId], references: [id])
+  invoices           Invoice[]
+
+  @@index([companyId, status])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id                String        @id @default(uuid()) @db.Uuid
+  subscriptionId    String        @map("subscription_id") @db.Uuid
+  status            InvoiceStatus @default(DRAFT)
+  amount            Decimal       @db.Decimal(12, 2)
+  dueAt             DateTime      @map("due_at") @db.Timestamptz(3)
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz(3)
+  providerReference String?       @unique @map("provider_reference") @db.VarChar(120)
+  metadata          Json          @default("{}")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  subscription      Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueAt])
+  @@map("invoices")
+}
+
+model FiscalCategory {
+  id               String               @id @default(uuid()) @db.Uuid
+  companyId        String               @map("company_id") @db.Uuid
+  code             String               @db.VarChar(50)
+  name             String               @db.VarChar(120)
+  description      String               @default("") @db.VarChar(500)
+  ncm              String               @db.Char(8)
+  cest             String?              @db.Char(7)
+  classification   FiscalClassification
+  ruleVersion      String               @map("rule_version") @db.VarChar(30)
+  validFrom        DateTime             @map("valid_from") @db.Date
+  validUntil       DateTime?            @map("valid_until") @db.Date
+  status           FiscalRuleStatus     @default(DRAFT)
+  sourceReferences Json                 @default("[]") @map("source_references")
+  active           Boolean              @default(true)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rules            FiscalRule[]
+  products         Product[]
+  analyses         TaxAnalysis[]
+
+  @@unique([companyId, code])
+  @@index([companyId, ncm, active])
+  @@map("fiscal_categories")
+}
+
+model FiscalRule {
+  id                 String         @id @default(uuid()) @db.Uuid
+  categoryId         String         @map("category_id") @db.Uuid
+  regime             TaxRegime
+  cfop               String         @db.Char(4)
+  cstIcms            String         @map("cst_icms") @db.VarChar(3)
+  csosn              String?        @db.Char(3)
+  icmsRate           Decimal        @default(0) @map("icms_rate") @db.Decimal(9, 6)
+  mvaRate            Decimal        @default(0) @map("mva_rate") @db.Decimal(9, 6)
+  cstPis             String         @map("cst_pis") @db.Char(2)
+  cstCofins          String         @map("cst_cofins") @db.Char(2)
+  revenueNature      String?        @map("revenue_nature") @db.VarChar(20)
+  pisRate            Decimal        @default(0) @map("pis_rate") @db.Decimal(9, 6)
+  cofinsRate         Decimal        @default(0) @map("cofins_rate") @db.Decimal(9, 6)
+  cstIbsCbs          String         @map("cst_ibs_cbs") @db.VarChar(5)
+  taxClassification  String         @map("tax_classification") @db.VarChar(60)
+  cbsRate            Decimal        @default(0) @map("cbs_rate") @db.Decimal(9, 6)
+  ibsRate            Decimal        @default(0) @map("ibs_rate") @db.Decimal(9, 6)
+  cbsReduction       Decimal        @default(0) @map("cbs_reduction") @db.Decimal(9, 6)
+  ibsReduction       Decimal        @default(0) @map("ibs_reduction") @db.Decimal(9, 6)
+  offsetCbsPisCofins Boolean        @default(false) @map("offset_cbs_pis_cofins")
+  metadata           Json           @default("{}")
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  category           FiscalCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, regime])
+  @@map("fiscal_rules")
+}
+
+model Product {
+  id                String          @id @default(uuid()) @db.Uuid
+  companyId         String          @map("company_id") @db.Uuid
+  categoryId        String          @map("category_id") @db.Uuid
+  ean               String          @db.VarChar(14)
+  name              String          @db.VarChar(180)
+  activeIngredient  String          @default("") @map("active_ingredient") @db.VarChar(180)
+  laboratory        String          @default("") @db.VarChar(120)
+  currentCost       Decimal         @default(0) @map("current_cost") @db.Decimal(15, 4)
+  salePrice         Decimal         @default(0) @map("sale_price") @db.Decimal(15, 2)
+  stockQuantity     Decimal         @default(0) @map("stock_quantity") @db.Decimal(15, 3)
+  minimumStock      Decimal         @default(0) @map("minimum_stock") @db.Decimal(15, 3)
+  dailySalesAverage Decimal         @default(0) @map("daily_sales_average") @db.Decimal(15, 4)
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category          FiscalCategory  @relation(fields: [categoryId], references: [id])
+  lots              InventoryLot[]
+  stockMovements    StockMovement[]
+  saleItems         SaleItem[]
+  reorderAlerts     ReorderAlert[]
+  analyses          TaxAnalysis[]
+
+  @@unique([companyId, ean])
+  @@index([companyId, name])
+  @@index([companyId, categoryId, active])
+  @@map("products")
+}
+
+model InventoryLot {
+  id             String          @id @default(uuid()) @db.Uuid
+  productId      String          @map("product_id") @db.Uuid
+  code           String          @db.VarChar(60)
+  manufacturedAt DateTime        @map("manufactured_at") @db.Date
+  expiresAt      DateTime        @map("expires_at") @db.Date
+  quantity       Decimal         @default(0) @db.Decimal(15, 3)
+  unitCost       Decimal         @map("unit_cost") @db.Decimal(15, 4)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockMovements StockMovement[]
+
+  @@unique([productId, code])
+  @@index([expiresAt, quantity])
+  @@map("inventory_lots")
+}
+
+model StockMovement {
+  id         String                @id @default(uuid()) @db.Uuid
+  companyId  String                @map("company_id") @db.Uuid
+  productId  String                @map("product_id") @db.Uuid
+  lotId      String?               @map("lot_id") @db.Uuid
+  type       InventoryMovementType
+  quantity   Decimal               @db.Decimal(15, 3)
+  unitCost   Decimal?              @map("unit_cost") @db.Decimal(15, 4)
+  originType String?               @map("origin_type") @db.VarChar(40)
+  originId   String?               @map("origin_id") @db.VarChar(80)
+  notes      String?               @db.VarChar(500)
+  occurredAt DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  company    Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product    Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lot        InventoryLot?         @relation(fields: [lotId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, occurredAt])
+  @@index([productId, occurredAt])
+  @@map("stock_movements")
+}
+
+model Sale {
+  id             String       @id @default(uuid()) @db.Uuid
+  companyId      String       @map("company_id") @db.Uuid
+  idempotencyKey String       @map("idempotency_key") @db.Uuid
+  invoiceModel   InvoiceModel @default(NFC65) @map("invoice_model")
+  status         SaleStatus   @default(PENDING)
+  grossAmount    Decimal      @map("gross_amount") @db.Decimal(15, 2)
+  costAmount     Decimal      @map("cost_amount") @db.Decimal(15, 2)
+  icmsAmount     Decimal      @default(0) @map("icms_amount") @db.Decimal(15, 2)
+  pisAmount      Decimal      @default(0) @map("pis_amount") @db.Decimal(15, 2)
+  cofinsAmount   Decimal      @default(0) @map("cofins_amount") @db.Decimal(15, 2)
+  cbsAmount      Decimal      @default(0) @map("cbs_amount") @db.Decimal(15, 2)
+  ibsAmount      Decimal      @default(0) @map("ibs_amount") @db.Decimal(15, 2)
+  taxAmount      Decimal      @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  netProfit      Decimal      @default(0) @map("net_profit") @db.Decimal(15, 2)
+  soldAt         DateTime     @default(now()) @map("sold_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items          SaleItem[]
+
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, soldAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  saleId            String   @map("sale_id") @db.Uuid
+  productId         String?  @map("product_id") @db.Uuid
+  ean               String   @db.VarChar(14)
+  productName       String   @map("product_name") @db.VarChar(180)
+  categoryCode      String   @map("category_code") @db.VarChar(50)
+  categoryName      String   @map("category_name") @db.VarChar(120)
+  ncm               String   @db.Char(8)
+  quantity          Decimal  @db.Decimal(15, 3)
+  unitPrice         Decimal  @map("unit_price") @db.Decimal(15, 2)
+  unitCost          Decimal  @map("unit_cost") @db.Decimal(15, 4)
+  cfop              String   @db.Char(4)
+  cstIcms           String   @map("cst_icms") @db.VarChar(3)
+  csosn             String?  @db.Char(3)
+  cstPis            String   @map("cst_pis") @db.Char(2)
+  cstCofins         String   @map("cst_cofins") @db.Char(2)
+  revenueNature     String?  @map("revenue_nature") @db.VarChar(20)
+  cstIbsCbs         String   @map("cst_ibs_cbs") @db.VarChar(5)
+  taxClassification String   @map("tax_classification") @db.VarChar(60)
+  icmsAmount        Decimal  @default(0) @map("icms_amount") @db.Decimal(15, 2)
+  pisAmount         Decimal  @default(0) @map("pis_amount") @db.Decimal(15, 2)
+  cofinsAmount      Decimal  @default(0) @map("cofins_amount") @db.Decimal(15, 2)
+  cbsAmount         Decimal  @default(0) @map("cbs_amount") @db.Decimal(15, 2)
+  ibsAmount         Decimal  @default(0) @map("ibs_amount") @db.Decimal(15, 2)
+  taxAmount         Decimal  @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  profitAmount      Decimal  @default(0) @map("profit_amount") @db.Decimal(15, 2)
+  ruleVersion       String   @map("rule_version") @db.VarChar(30)
+  fiscalSnapshot    Json     @default("{}") @map("fiscal_snapshot")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  sale              Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product           Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([ncm])
+  @@map("sale_items")
+}
+
+model MonthlyProvision {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  period        DateTime @db.Date
+  grossRevenue  Decimal  @default(0) @map("gross_revenue") @db.Decimal(15, 2)
+  exemptRevenue Decimal  @default(0) @map("exempt_revenue") @db.Decimal(15, 2)
+  taxAmount     Decimal  @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  costAmount    Decimal  @default(0) @map("cost_amount") @db.Decimal(15, 2)
+  netProfit     Decimal  @default(0) @map("net_profit") @db.Decimal(15, 2)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, period])
+  @@index([companyId, period])
+  @@map("monthly_provisions")
+}
+
+model ReorderAlert {
+  id                String             @id @default(uuid()) @db.Uuid
+  companyId         String             @map("company_id") @db.Uuid
+  productId         String             @map("product_id") @db.Uuid
+  status            ReorderAlertStatus @default(OPEN)
+  stockAtTrigger    Decimal            @map("stock_at_trigger") @db.Decimal(15, 3)
+  suggestedQuantity Decimal            @map("suggested_quantity") @db.Decimal(15, 3)
+  estimatedMargin   Decimal?           @map("estimated_margin") @db.Decimal(9, 6)
+  reason            String             @db.VarChar(300)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt        DateTime?          @map("resolved_at") @db.Timestamptz(3)
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, createdAt])
+  @@map("reorder_alerts")
+}
+
+model TaxAnalysis {
+  id                      String            @id @default(uuid()) @db.Uuid
+  companyId               String            @map("company_id") @db.Uuid
+  productId               String?           @map("product_id") @db.Uuid
+  categoryId              String?           @map("category_id") @db.Uuid
+  requestedById           String            @map("requested_by_id") @db.Uuid
+  reviewedById            String?           @map("reviewed_by_id") @db.Uuid
+  status                  TaxAnalysisStatus @default(PENDING)
+  originState             String?           @map("origin_state") @db.Char(2)
+  destinationState        String?           @map("destination_state") @db.Char(2)
+  operationType           String?           @map("operation_type") @db.VarChar(60)
+  productComposition      Json              @default("{}") @map("product_composition")
+  currentClassification   Json              @default("{}") @map("current_classification")
+  suggestedClassification Json              @default("{}") @map("suggested_classification")
+  legalReasoning          String?           @map("legal_reasoning") @db.Text
+  confidence              Decimal?          @db.Decimal(5, 4)
+  estimatedSavings        Decimal?          @map("estimated_savings") @db.Decimal(15, 2)
+  reviewNotes             String?           @map("review_notes") @db.Text
+  modelVersion            String?           @map("model_version") @db.VarChar(80)
+  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company                 Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product                 Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  category                FiscalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  requestedBy             User              @relation("AnalysisRequester", fields: [requestedById], references: [id])
+  reviewedBy              User?             @relation("AnalysisReviewer", fields: [reviewedById], references: [id])
+  evidence                TaxEvidence[]
+
+  @@index([companyId, status, createdAt])
+  @@map("tax_analyses")
+}
+
+model TaxEvidence {
+  id            String      @id @default(uuid()) @db.Uuid
+  analysisId    String      @map("analysis_id") @db.Uuid
+  sourceType    String      @map("source_type") @db.VarChar(40)
+  title         String      @db.VarChar(250)
+  sourceUrl     String?     @map("source_url") @db.VarChar(1000)
+  jurisdiction  String?     @db.VarChar(80)
+  publishedAt   DateTime?   @map("published_at") @db.Date
+  effectiveFrom DateTime?   @map("effective_from") @db.Date
+  excerptHash   String?     @map("excerpt_hash") @db.VarChar(128)
+  metadata      Json        @default("{}")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  analysis      TaxAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@map("tax_evidence")
+}
+
+model SupportTicket {
+  id           String          @id @default(uuid()) @db.Uuid
+  code         String          @unique @db.VarChar(24)
+  companyId    String?         @map("company_id") @db.Uuid
+  createdById  String          @map("created_by_id") @db.Uuid
+  assignedToId String?         @map("assigned_to_id") @db.Uuid
+  area         TicketArea      @default(SUPPORT)
+  priority     TicketPriority  @default(NORMAL)
+  status       TicketStatus    @default(OPEN)
+  subject      String          @db.VarChar(180)
+  description  String          @db.Text
+  slaDueAt     DateTime?       @map("sla_due_at") @db.Timestamptz(3)
+  resolvedAt   DateTime?       @map("resolved_at") @db.Timestamptz(3)
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company      Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdBy    User            @relation("TicketCreator", fields: [createdById], references: [id])
+  assignedTo   User?           @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  messages     TicketMessage[]
+
+  @@index([area, status, priority, createdAt])
+  @@index([companyId, status])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id           String        @id @default(uuid()) @db.Uuid
+  ticketId     String        @map("ticket_id") @db.Uuid
+  authorId     String        @map("author_id") @db.Uuid
+  body         String        @db.Text
+  internalOnly Boolean       @default(false) @map("internal_only")
+  attachments  Json          @default("[]")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author       User          @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model Release {
+  id             String            @id @default(uuid()) @db.Uuid
+  version        String            @unique @db.VarChar(40)
+  title          String            @db.VarChar(160)
+  notes          String            @db.Text
+  status         ReleaseStatus     @default(DRAFT)
+  environment    String            @default("production") @db.VarChar(40)
+  createdById    String            @map("created_by_id") @db.Uuid
+  publishedAt    DateTime?         @map("published_at") @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy      User              @relation("ReleaseCreator", fields: [createdById], references: [id])
+  approvals      ReleaseApproval[]
+  customerAccess CustomerRelease[]
+
+  @@index([status, createdAt])
+  @@map("releases")
+}
+
+model ReleaseApproval {
+  id         String           @id @default(uuid()) @db.Uuid
+  releaseId  String           @map("release_id") @db.Uuid
+  approverId String           @map("approver_id") @db.Uuid
+  area       ApprovalArea
+  decision   ApprovalDecision @default(PENDING)
+  notes      String?          @db.Text
+  decidedAt  DateTime?        @map("decided_at") @db.Timestamptz(3)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  release    Release          @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  approver   User             @relation(fields: [approverId], references: [id])
+
+  @@unique([releaseId, area])
+  @@map("release_approvals")
+}
+
+model CustomerRelease {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  releaseId   String    @map("release_id") @db.Uuid
+  enabledById String    @map("enabled_by_id") @db.Uuid
+  enabledAt   DateTime  @default(now()) @map("enabled_at") @db.Timestamptz(3)
+  disabledAt  DateTime? @map("disabled_at") @db.Timestamptz(3)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  release     Release   @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  enabledBy   User      @relation("ReleaseEnabler", fields: [enabledById], references: [id])
+
+  @@unique([companyId, releaseId])
+  @@index([companyId, enabledAt])
+  @@map("customer_releases")
+}
+
+model ApiCredential {
+  id         String    @id @default(uuid()) @db.Uuid
+  companyId  String?   @map("company_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String    @db.VarChar(100)
+  keyPrefix  String    @map("key_prefix") @db.VarChar(20)
+  keyHash    String    @unique @map("key_hash") @db.VarChar(255)
+  scopes     Json      @default("[]")
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(3)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  company    Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, revokedAt])
+  @@map("api_credentials")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String?  @map("company_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String   @db.VarChar(80)
+  entity    String   @db.VarChar(80)
+  entityId  String?  @map("entity_id") @db.VarChar(80)
+  requestId String?  @map("request_id") @db.VarChar(80)
+  ipAddress String?  @map("ip_address") @db.VarChar(64)
+  before    Json?
+  after     Json?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}

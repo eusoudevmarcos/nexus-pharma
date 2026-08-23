@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: nexus-pharma-api
+    runtime: node
+    plan: free
+    region: virginia
+    rootDir: api
+    autoDeploy: false
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npm run prisma:migrate:deploy && npm run prisma:seed
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nexus-pharma-db
+          property: connectionString
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: "30"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: WEB_ORIGIN
+        sync: false
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: nexus-pharma-db
+    plan: free
+    region: virginia
+    databaseName: nexus_pharma
+    user: nexus_pharma
+    ipAllowList: []

@@ -1,28 +1,22 @@
 # Nexus Pharma
 
-MVP de inteligência fiscal, sell-out e reposição de estoque para farmácias.
+Plataforma SaaS de inteligência fiscal, estoque, vendas e gestão para farmácias.
 
-- `app/`: interface web responsiva com dashboard, PDV, estoque e conferência.
-- `api/`: núcleo Fastify + TypeScript, PostgreSQL e MongoDB.
-- `database/`: schema relacional e documento fiscal de exemplo.
+## Estrutura atual
 
-O front-end demonstra os fluxos com dados locais e fila offline no navegador.
-O serviço em `api/` contém a implementação tipada do processamento de vendas e
-recebe as credenciais do Render e MongoDB Atlas por variáveis de ambiente.
+- `app/`: demonstração visual existente, publicada de forma privada.
+- `api/`: API Fastify preparada para Render.
+- `api/prisma/`: modelo PostgreSQL, migration inicial e seed.
+- `docs/architecture.md`: desenho de Vercel, Render, perfis e segurança.
+- `render.yaml`: infraestrutura declarativa para API e banco.
 
-As regras tributárias ficam em categorias fiscais versionadas. Produtos guardam
-apenas nomenclatura, lote, entrada, estoque, fabricação, vencimento, custo e preço,
-herdando NCM, ICMS, PIS/COFINS e IBS/CBS da categoria vigente. Em 2026, os exemplos
-consideram as alíquotas-teste e a compensação parametrizável de CBS com PIS/COFINS;
-o Simples Nacional permanece com IBS/CBS zerados no perfil demonstrativo.
+A persistência de produção foi consolidada em PostgreSQL + Prisma. O modelo cobre empresas, usuários, permissões, planos, assinaturas, financeiro, helpdesk, releases, catálogo fiscal, lotes, vendas, alertas, análises da IA e auditoria.
 
-## Interface
+## Próximas etapas
 
-```bash
-npm install
-npm run dev
-```
+1. Criar `web/`, o site institucional e o portal Next.js para Vercel.
+2. Integrar login e seleção de empresa com a API.
+3. Construir as áreas do cliente, helpdesk, financeiro, gestores e desenvolvedores.
+4. Conectar o repositório ao Render e à Vercel e configurar os domínios.
 
-## API
-
-Consulte [`api/README.md`](api/README.md).
+Consulte [api/README.md](api/README.md) para desenvolvimento da API e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.

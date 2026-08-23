@@ -39,6 +39,7 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 **/dist/
+/api/src/generated/prisma/
 /.wrangler/
 /outputs/
 /work/

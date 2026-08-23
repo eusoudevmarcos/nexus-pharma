@@ -1,24 +1,49 @@
 # Nexus Pharma API
 
-Núcleo modular em Fastify + TypeScript, com PostgreSQL para vendas/DRE/auditoria
-e MongoDB para catálogo, regras fiscais e estoque.
+API multiempresa em Fastify + TypeScript, com PostgreSQL e Prisma.
 
-## Execução local
+## Preparação local
 
-1. Copie `.env.example` para `.env` e preencha as conexões.
-2. Execute, em ordem, `database/postgres/001_core_fiscal.sql` e
-   `database/postgres/002_auditoria_categoria_fiscal.sql` no PostgreSQL.
-3. Importe `database/mongo/categoria-medicamentos.exemplo.json` em
-   `categorias_fiscais`; depois substitua o ID da categoria e importe
-   `database/mongo/produto-exemplo.json` em `produtos_regras_fiscais`.
-4. Rode `npm install` e `npm run dev` dentro desta pasta.
+1. Copie `.env.example` para `.env` e preencha `DATABASE_URL` e `JWT_SECRET`.
+2. Execute `npm install`.
+3. Crie o banco local e rode `npm run prisma:migrate:deploy`.
+4. Opcionalmente configure `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` e rode `npm run prisma:seed`.
+5. Inicie com `npm run dev`.
 
-Os cadastros estão em `GET/POST/PUT /api/v1/cadastros/categorias` e
-`GET/POST/PUT /api/v1/cadastros/produtos`. O processamento da saída está em
-`POST /api/v1/vendas/processar`. Envie sempre uma
-`idempotency_key` UUID gerada no PDV; ela impede venda duplicada quando uma fila
-offline for sincronizada novamente.
+## Comandos
 
-> O cálculo é um provisionamento gerencial parametrizado. Enquadramento fiscal,
-> CST/CSOSN, natureza da receita e vigências devem ser homologados pela
-> contabilidade responsável antes de uso em produção.
+- `npm run prisma:validate`: valida o modelo.
+- `npm run prisma:generate`: gera o cliente tipado.
+- `npm run prisma:migrate:dev -- --name nome_da_mudanca`: cria migration em desenvolvimento.
+- `npm run prisma:migrate:deploy`: aplica migrations pendentes sem resetar dados.
+- `npm run prisma:seed`: cria ou atualiza os planos e o administrador opcional.
+- `npm run build`: gera o Prisma Client e compila a API.
+
+## Contrato de acesso
+
+Após `POST /api/v1/auth/login`, envie:
+
+```text
+Authorization: Bearer <access_token>
+x-company-id: <uuid-da-empresa>
+```
+
+Rotas principais:
+
+- `GET /health`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/planos`
+- `GET/POST/PUT /api/v1/cadastros/categorias`
+- `GET/POST/PUT /api/v1/cadastros/produtos`
+- `GET/POST/PUT /api/v1/fiscal/analises`
+- `POST /api/v1/vendas/processar`
+- `GET/POST /api/v1/suporte/tickets`
+- `GET /api/v1/financeiro/assinaturas`
+- `GET/POST /api/v1/desenvolvimento/releases`
+
+O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
+
+## Render
+
+O `render.yaml` da raiz provisiona API e PostgreSQL. O plano gratuito está configurado apenas para preparação inicial; antes de uso comercial, escolha um plano com retenção, backups e capacidade adequados.
