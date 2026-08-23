@@ -647,13 +647,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-shell { background: radial-gradient(circle at 75% -5%, rgba(0, 52, 95, .11), transparent 32%), radial-gradient(circle at 45% 0%, rgba(246, 189, 0, .13), transparent 24%), var(--paper); }
 .sidebar { border: 1px solid rgba(0, 52, 95, .08); background: linear-gradient(165deg, #edf4f7 0%, var(--mist) 70%, #c7dae4 100%); box-shadow: 0 24px 58px rgba(36, 75, 98, .18); }
 
-.brand { height: 170px; margin: -18px 0 6px; padding: 9px 18px 0; display: grid; place-items: center; overflow: hidden; border-radius: 0; background: transparent; box-shadow: none; }
-.brand-lockup { width: 100%; height: 100%; display: grid; grid-template-rows: 86px 34px 18px; place-items: center; align-content: center; color: #00345f; }
-.brand-lockup .logo-mark { width: 164px; height: 86px; margin-bottom: -4px; object-fit: contain; mix-blend-mode: normal; }
-.brand-word { display: flex; align-items: baseline; justify-content: center; gap: 0; color: #00345f; font-size: 31px; font-weight: 500; line-height: 1; letter-spacing: -.035em; }
-.brand-word > span { color: inherit; font-size: inherit; letter-spacing: inherit; }
-.brand-word .brand-x { color: #e6aa00; font-weight: 800; }
-.brand-pharma { color: #42677c !important; font-size: 11px !important; font-weight: 550; line-height: 1; letter-spacing: .42em !important; text-indent: .42em; }
+.brand { height: 190px; margin: -20px 0 2px; padding: 0 6px; display: grid; place-items: center; overflow: hidden; border-radius: 0; background: transparent; box-shadow: none; }
+.brand-original { width: 100%; max-width: 214px; height: 100%; display: block; object-fit: contain; object-position: center; }
 .brand-compact { display: none; }
 .logo-mark { width: 58px; height: 40px; display: block; object-fit: contain; mix-blend-mode: normal; }
 .brand span { color: #00345f; }
@@ -696,7 +691,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 @media (max-width: 1050px) {
   .brand { height: auto; margin: 0; padding: 8px; display: grid; place-items: center; overflow: visible; background: transparent; box-shadow: none; }
-  .brand-lockup { display: none; }
+  .brand-original { display: none; }
   .brand-compact { display: block; }
   .logo-mark { width: 58px; height: 42px; }
 }
