@@ -630,29 +630,36 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Identidade Nexus Pharma — dourado e azul-marinho da marca oficial */
 :root {
   --ink: #071827;
-  --paper: #f4f7f9;
+  --paper: #f2f6f8;
   --panel: #ffffff;
-  --line: #dce6ec;
+  --line: #d3e0e7;
   --muted: #5b6c78;
   --lime: #f6bd00;
   --green: #00345f;
-  --soft-green: #eaf2f7;
+  --soft-green: #e2edf2;
+  --mist: #d8e6ed;
+  --steel: #7896a7;
   --shadow-sm: 0 3px 14px rgba(0, 37, 67, .07);
   --shadow-md: 0 18px 46px rgba(0, 37, 67, .14);
 }
 
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline-color: rgba(0, 52, 95, .38); }
 .app-shell { background: radial-gradient(circle at 75% -5%, rgba(0, 52, 95, .11), transparent 32%), radial-gradient(circle at 45% 0%, rgba(246, 189, 0, .13), transparent 24%), var(--paper); }
-.sidebar { background: linear-gradient(165deg, #ffd447 0%, #f6bd00 72%, #e8a900 100%); box-shadow: 0 24px 58px rgba(130, 93, 0, .24); }
+.sidebar { border: 1px solid rgba(0, 52, 95, .08); background: linear-gradient(165deg, #edf4f7 0%, var(--mist) 70%, #c7dae4 100%); box-shadow: 0 24px 58px rgba(36, 75, 98, .18); }
 
-.brand { height: 170px; margin: -18px 0 6px; padding: 8px 18px 0; display: grid; place-items: center; overflow: hidden; border-radius: 0; background: transparent; box-shadow: none; }
-.brand-original { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; }
+.brand { height: 170px; margin: -18px 0 6px; padding: 9px 18px 0; display: grid; place-items: center; overflow: hidden; border-radius: 0; background: transparent; box-shadow: none; }
+.brand-lockup { width: 100%; height: 100%; display: grid; grid-template-rows: 86px 34px 18px; place-items: center; align-content: center; color: #00345f; }
+.brand-lockup .logo-mark { width: 164px; height: 86px; margin-bottom: -4px; object-fit: contain; mix-blend-mode: normal; }
+.brand-word { display: flex; align-items: baseline; justify-content: center; gap: 0; color: #00345f; font-size: 31px; font-weight: 500; line-height: 1; letter-spacing: -.035em; }
+.brand-word > span { color: inherit; font-size: inherit; letter-spacing: inherit; }
+.brand-word .brand-x { color: #e6aa00; font-weight: 800; }
+.brand-pharma { color: #42677c !important; font-size: 11px !important; font-weight: 550; line-height: 1; letter-spacing: .42em !important; text-indent: .42em; }
 .brand-compact { display: none; }
-.logo-mark { width: 58px; height: 34px; display: block; object-fit: contain; mix-blend-mode: multiply; }
+.logo-mark { width: 58px; height: 40px; display: block; object-fit: contain; mix-blend-mode: normal; }
 .brand span { color: #00345f; }
-.nav-label { color: rgba(0, 41, 70, .72); }
+.nav-label { color: #5e7f91; }
 .sidebar button { color: #00345f; }
-.sidebar nav button:hover { background: rgba(0, 52, 95, .1); color: #002946; }
+.sidebar nav button:hover { background: rgba(120, 150, 167, .2); color: #002946; }
 .sidebar nav button.active { background: #00345f; color: #fff; box-shadow: 0 10px 24px rgba(0, 41, 70, .22); }
 .sidebar nav button.active .icon { background: #f6bd00; color: #00345f; }
 .side-bottom > button { color: #00345f; }
@@ -673,15 +680,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .action-card button { color: #071827; }
 .action-card button:hover { background: #f6bd00; }
 
-.metric em, .fiscal-strip .icon, .pdv-rule .icon { color: #00345f; background: #eaf2f7; }
+.metric em, .fiscal-strip .icon, .pdv-rule .icon { color: #00345f; background: #dfeaf0; }
 .primary-small, .save-button, .full-button { background: #00345f; }
 .quiet:hover { border-color: #9bb4c2; background: #f2f7fa; }
-.product-avatar, .fiscal-tag, .status.ok, .regime-context, .inherit-banner { background: #eaf2f7; color: #00345f; }
+.product-avatar, .fiscal-tag, .status.ok, .regime-context, .inherit-banner { background: #dfeaf0; color: #00345f; }
 .stock-data strong, .good-text, .table-line code, .wide-line code, .master-list > button b, .checkout-lines .tax-save, .checkout-total small { color: #00345f; }
 .table-head, .stock-grid-head, .wide-head, .stock-summary, .reform-note, .tax-trace span, .toast { background: #002946; }
 .table-line:hover, .wide-line:hover, .stock-grid-row:hover { background: #f2f7fa; }
 .search-box:focus-within, .field input:focus, .field select:focus, .field textarea:focus { border-color: #00345f; box-shadow: 0 0 0 4px rgba(0, 52, 95, .11); }
-.master-list > button.selected { background: #eaf2f7; box-shadow: inset 4px 0 #00345f; }
+.master-list > button.selected { background: #dfeaf0; box-shadow: inset 4px 0 #00345f; }
 .category-dot:after { border-color: #00345f; }
 .save-button:hover { background: #002946; }
 .tabs button.active { background: #00345f; }
@@ -689,9 +696,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 @media (max-width: 1050px) {
   .brand { height: auto; margin: 0; padding: 8px; display: grid; place-items: center; overflow: visible; background: transparent; box-shadow: none; }
-  .brand-original { display: none; }
+  .brand-lockup { display: none; }
   .brand-compact { display: block; }
-  .logo-mark { width: 58px; height: 34px; }
+  .logo-mark { width: 58px; height: 42px; }
 }
 
 @media (max-width: 720px) {

@@ -60,12 +60,15 @@ test("mantém os contratos operacionais e remove o preview inicial", async () =>
   assert.match(page, /LUCRO_REAL/);
   assert.match(layout, /Nexus Pharma/);
   assert.match(layout, /og-v5\.png/);
-  assert.match(page, /Logo%20Nexus%20pharma\.png/);
+  assert.match(page, /logo\/nexus-icon\.png/);
+  assert.match(page, /className="brand-lockup"/);
+  assert.match(page, /className="brand-x"/);
   assert.match(
     styles,
     /\.brand\s*\{\s*height:\s*170px;[\s\S]*?background:\s*transparent;/,
   );
-  assert.match(manifest, /Icon%20Nexus%20pharma\.png/);
+  assert.match(styles, /--mist:\s*#d8e6ed/);
+  assert.match(manifest, /logo\/nexus-icon\.png/);
   assert.match(schema, /empresaMembros/);
   assert.match(schema, /auditoria/);
   assert.match(schema, /regrasFiscais/);

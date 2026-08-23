@@ -8,13 +8,13 @@ export default function manifest(): MetadataRoute.Manifest {
       "Inteligência fiscal, sell-out e reposição para farmácias.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f4f7f9",
+    background_color: "#d8e6ed",
     theme_color: "#00345f",
     lang: "pt-BR",
     icons: [
       {
-        src: "/logo/Icon%20Nexus%20pharma.png",
-        sizes: "2000x970",
+        src: "/logo/nexus-icon.png",
+        sizes: "1254x1254",
         type: "image/png",
         purpose: "any",
       },

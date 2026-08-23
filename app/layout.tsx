@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   description:
     "Produtos, estoque, validades e tributação em uma gestão simples para a farmácia brasileira.",
   icons: {
-    icon: "/logo/Icon%20Nexus%20pharma.png",
-    shortcut: "/logo/Icon%20Nexus%20pharma.png",
+    icon: "/logo/nexus-icon.png",
+    shortcut: "/logo/nexus-icon.png",
   },
   openGraph: {
     title: "Nexus Pharma",
