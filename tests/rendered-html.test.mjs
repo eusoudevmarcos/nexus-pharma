@@ -215,5 +215,31 @@ test("entrega o portal multiempresa com relatórios separados por perfil", async
   assert.match(management, /Gestão do negócio/);
   assert.match(operation, /Estoque e vendas/);
   assert.match(fiscal, /Motor fiscal/);
-  assert.match(users, /Perfis da empresa/);
+  assert.match(users, /UserAdministration/);
+});
+
+test("protege convites e alterações de acesso com trilha de auditoria", async () => {
+  const [routes, server, administration, acceptance, inviteProxy, logout] = await Promise.all([
+    readFile(new URL("../api/src/routes/users.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/usuarios/user-administration.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/convite/invitation-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/api/portal/users/invite/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/api/session/logout/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(server, /prefix: "\/api\/v1\/usuarios"/);
+  assert.match(routes, /createHash\("sha256"\)/);
+  assert.match(routes, /randomBytes\(36\)/);
+  assert.match(routes, /72 \* 60 \* 60 \* 1000/);
+  assert.match(routes, /ULTIMO_PROPRIETARIO/);
+  assert.match(routes, /AUTO_SUSPENSAO_NAO_PERMITIDA/);
+  assert.match(routes, /MEMBERSHIP_UPDATED/);
+  assert.match(routes, /INVITATION_ACCEPTED/);
+  assert.match(administration, /Gerar convite seguro/);
+  assert.match(administration, /Suspender/);
+  assert.match(acceptance, /Aceitar convite/);
+  assert.match(inviteProxy, /inviteUrl/);
+  assert.doesNotMatch(inviteProxy, /token: body\.token/);
+  assert.match(logout, /cookies\.delete\("nexus_company"\)/);
 });

@@ -39,10 +39,14 @@ Rotas principais:
 - `GET/POST/PUT /api/v1/fiscal/analises`
 - `POST /api/v1/vendas/processar`
 - `GET/POST /api/v1/suporte/tickets`
+- `GET /api/v1/relatorios/{gestao,operacao,fiscal,usuarios}`
+- `GET/POST /api/v1/usuarios/convites`
+- `POST /api/v1/usuarios/convites/aceitar`
+- `PATCH /api/v1/usuarios/membros/:id`
 - `GET /api/v1/financeiro/assinaturas`
 - `GET/POST /api/v1/desenvolvimento/releases`
 
-O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
+O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. Convites de acesso usam token único armazenado como hash, expiram em 72 horas e toda mudança de perfil é auditada. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
 
 ## Render
 

@@ -13,14 +13,14 @@ Plataforma SaaS de inteligência fiscal, estoque, vendas e gestão para farmáci
 
 A persistência de produção foi consolidada em PostgreSQL + Prisma. O modelo cobre empresas, usuários, permissões, planos, assinaturas, financeiro, helpdesk, releases, catálogo fiscal, lotes, vendas, alertas, análises da IA e auditoria.
 
-O portal autenticado já possui seleção segura de empresa, navegação por perfil e painéis separados de Gestão, Operação, Motor Fiscal e Usuários. Os indicadores são calculados pela API diretamente sobre vendas, estoque, lotes, análises tributárias e logs de auditoria, sempre isolados por empresa.
+O portal autenticado já possui seleção segura de empresa, navegação por perfil e painéis separados de Gestão, Operação, Motor Fiscal e Usuários. A administração de equipe permite convite com validade e uso único, aceite de conta, alteração de perfil e suspensão auditada. Os indicadores são calculados pela API diretamente sobre vendas, estoque, lotes, análises tributárias e logs de auditoria, sempre isolados por empresa.
 
 ## Próximas etapas
 
 1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.
 2. Conectar `web/` à Vercel e informar as variáveis de ambiente.
-3. Implementar convites e manutenção de usuários dentro do painel administrativo.
-4. Construir os painéis internos de helpdesk, financeiro e desenvolvedores.
-5. Integrar provedor de e-mail, cobrança e monitoramento de produção.
+3. Construir os painéis internos de helpdesk, financeiro e desenvolvedores.
+4. Integrar provedor de e-mail transacional para entrega automática dos convites.
+5. Integrar cobrança, observabilidade e monitoramento de produção.
 
 Consulte [api/README.md](api/README.md) para a API, [web/README.md](web/README.md) para o frontend e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.
