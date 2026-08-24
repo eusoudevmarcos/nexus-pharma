@@ -1,0 +1,12 @@
+import type { Metadata } from "next";
+import { internalFetch, requireInternal } from "@/lib/portal";
+import { currency, date, EmptyReport, MetricCard, number } from "../../report-ui";
+
+export const metadata: Metadata = { title: "Financeiro interno" };
+type Report = { indicators: { activeSubscriptions: number; trials: number; monthlyRecurringRevenue: number; openAmount: number; openInvoices: number; overdueAmount: number; overdueInvoices: number }; invoices: Array<{ id: string; status: string; amount: number; dueAt: string; subscription: { company: { tradeName: string }; plan: { name: string } } }> };
+
+export default async function FinancePage() {
+  await requireInternal(["FINANCE"]);
+  const report = await internalFetch<Report>("/api/v1/interno/financeiro");
+  return <section className="report-page"><div className="report-heading"><div><span>RECEITA E COBRANÇA</span><h1>Financeiro</h1><p>Assinaturas, receita recorrente, vencimentos e inadimplência.</p></div><div className="report-period">Visão consolidada</div></div>{!report ? <EmptyReport text="Conecte a API para carregar o financeiro."/> : <><div className="report-metrics"><MetricCard label="Receita recorrente" value={currency(report.indicators.monthlyRecurringRevenue)} note={`${report.indicators.activeSubscriptions} assinaturas ativas`} tone="success"/><MetricCard label="Em avaliação" value={number(report.indicators.trials)} note="Empresas no período de teste"/><MetricCard label="A receber" value={currency(report.indicators.openAmount)} note={`${report.indicators.openInvoices} faturas`}/><MetricCard label="Em atraso" value={currency(report.indicators.overdueAmount)} note={`${report.indicators.overdueInvoices} faturas vencidas`} tone={report.indicators.overdueInvoices ? "warning" : "default"}/></div><article className="report-panel full"><div className="panel-title"><div><span>COBRANÇAS</span><h2>Faturas recentes</h2></div></div>{report.invoices.length ? <div className="finance-list">{report.invoices.map((invoice) => <div className="internal-row" key={invoice.id}><div><strong>{invoice.subscription.company.tradeName}</strong><small>Plano {invoice.subscription.plan.name}</small></div><span className={`status-pill ${invoice.status.toLowerCase()}`}>{invoice.status}</span><span>Vencimento<br/><b>{date(invoice.dueAt)}</b></span><strong>{currency(invoice.amount)}</strong></div>)}</div> : <EmptyReport/>}</article></>}</section>;
+}

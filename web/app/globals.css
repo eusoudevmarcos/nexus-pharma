@@ -346,6 +346,36 @@ body:has(.portal-app) > main { overflow: visible; }
 .invitation-success > span { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; color: var(--navy-deep); background: var(--yellow); font-weight: 900; }
 .invitation-success h2 { margin: 18px 0 4px; color: var(--navy-dark); }
 .invitation-success p { margin: 0 0 24px; color: var(--muted); }
+.internal-sidebar { background: linear-gradient(180deg, #062f4a, #021e30 72%); }
+.internal-app .portal-company span { color: #8ed9c0; }
+.internal-app .portal-sidebar nav a[aria-current="page"] { background: #dcecf1; color: var(--navy-deep); box-shadow: none; }
+.internal-app .portal-sidebar nav a[aria-current="page"] > span { color: var(--navy); }
+.internal-list, .finance-list, .release-list { margin-top: 20px; }
+.internal-row { min-height: 76px; display: grid; gap: 14px; align-items: center; border-top: 1px solid #e7edef; }
+.internal-row:first-child, .release-row:first-child { border-top: 0; }
+.internal-row > div { min-width: 0; display: grid; }
+.internal-row strong { color: var(--ink); font-size: .77rem; }
+.internal-row small { color: #78858d; font-size: .61rem; }
+.internal-row select, .internal-row input { width: 100%; height: 39px; padding: 0 10px; border: 1px solid #cbd8dd; border-radius: 11px; outline: none; color: var(--ink); background: white; font-size: .65rem; }
+.internal-row select:focus, .internal-row input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(6,58,92,.08); }
+.internal-row > button { min-height: 38px; padding: 0 11px; border: 0; border-radius: 10px; background: var(--navy); color: white; cursor: pointer; font-size: .63rem; font-weight: 800; }
+.internal-row > button:disabled { opacity: .4; cursor: default; }
+.ticket-row { grid-template-columns: 12px minmax(230px, 1fr) 145px 150px 65px; }
+.priority-dot { width: 9px; height: 9px; border-radius: 50%; background: #8d9aa1; }
+.priority-dot.high { background: #e5a900; }
+.priority-dot.urgent { background: #d44848; box-shadow: 0 0 0 4px #ffeded; }
+.finance-list .internal-row { grid-template-columns: minmax(230px, 1fr) 110px 145px 130px; }
+.finance-list .internal-row > span:not(.status-pill) { color: #728088; font-size: .62rem; }
+.finance-list .internal-row > span b { color: var(--ink); }
+.company-row { grid-template-columns: minmax(240px, 1fr) 120px 135px 70px 65px; }
+.company-row > div:nth-child(2) span, .company-row label { color: #7a878e; font-size: .58rem; }
+.company-row > div:nth-child(2) b { color: var(--navy); font-size: .7rem; }
+.company-row label { display: grid; gap: 3px; }
+.release-row { min-height: 82px; display: grid; grid-template-columns: 105px minmax(250px, 1fr) 100px 105px; gap: 15px; align-items: center; border-top: 1px solid #e7edef; }
+.release-row > div { display: grid; }
+.release-row strong { color: var(--ink); font-size: .78rem; }
+.release-row small { color: #78858d; font-size: .61rem; }
+.release-row > div:not(:first-of-type) b { color: var(--navy); }
 
 .site-footer { padding-top: 72px; color: #d6e2e8; background: var(--navy-deep); }
 .footer-grid { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 55px; padding-bottom: 60px; }
@@ -393,6 +423,12 @@ body:has(.portal-app) > main { overflow: visible; }
   .invite-panel form .button { grid-column: 1 / -1; }
   .member-row { grid-template-columns: 44px minmax(180px, 1fr) 160px; }
   .member-actions { grid-column: 2 / -1; display: flex; }
+  .ticket-row { grid-template-columns: 12px minmax(180px, 1fr) 140px; padding-block: 12px; }
+  .ticket-row select:nth-of-type(2), .ticket-row button { grid-column: 2 / -1; }
+  .finance-list .internal-row { grid-template-columns: 1fr 100px 125px; }
+  .finance-list .internal-row > strong { grid-column: 2 / -1; }
+  .company-row { padding-block: 12px; grid-template-columns: 1fr 120px 120px; }
+  .company-row label, .company-row button { grid-column: 2 / -1; }
 }
 
 @media (max-width: 640px) {
@@ -460,6 +496,9 @@ body:has(.portal-app) > main { overflow: visible; }
   .member-role, .member-actions { grid-column: 2; }
   .member-actions { display: flex; flex-wrap: wrap; }
   .invitation-card { padding: 28px 22px; }
+  .ticket-row, .finance-list .internal-row, .company-row, .release-row { padding-block: 15px; grid-template-columns: 1fr; }
+  .ticket-row > *, .ticket-row select:nth-of-type(2), .ticket-row button, .finance-list .internal-row > strong, .company-row label, .company-row button { grid-column: auto; }
+  .priority-dot { display: none; }
   .footer-grid { grid-template-columns: 1fr; gap: 34px; }
   .footer-bottom { padding-block: 22px; align-items: flex-start; flex-direction: column; justify-content: center; }
 }

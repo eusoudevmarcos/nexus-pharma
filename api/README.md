@@ -43,6 +43,10 @@ Rotas principais:
 - `GET/POST /api/v1/usuarios/convites`
 - `POST /api/v1/usuarios/convites/aceitar`
 - `PATCH /api/v1/usuarios/membros/:id`
+- `GET/PATCH /api/v1/interno/suporte`
+- `GET /api/v1/interno/financeiro`
+- `GET/PATCH /api/v1/interno/comercial`
+- `GET /api/v1/interno/desenvolvimento`
 - `GET /api/v1/financeiro/assinaturas`
 - `GET/POST /api/v1/desenvolvimento/releases`
 

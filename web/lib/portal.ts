@@ -18,6 +18,8 @@ export type PortalProfile = {
   memberships: CompanyMembership[];
 };
 
+export const internalRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"];
+
 export const getPortalSession = cache(async () => {
   const store = await cookies();
   const token = store.get("nexus_access")?.value ?? null;
@@ -50,6 +52,23 @@ export function defaultArea(role: string) {
   return "/portal/gestao";
 }
 
+export function defaultInternalArea(role: string) {
+  if (role === "HELPDESK") return "/portal/interno/suporte";
+  if (role === "FINANCE") return "/portal/interno/financeiro";
+  if (role === "COMMERCIAL") return "/portal/interno/comercial";
+  return "/portal/interno/desenvolvimento";
+}
+
+export async function requireInternal(roles?: string[]) {
+  const session = await getPortalSession();
+  if (!session.token) redirect("/entrar");
+  if (!session.profile || !internalRoles.includes(session.profile.systemRole)) redirect("/portal");
+  if (roles && session.profile.systemRole !== "INTERNAL_ADMIN" && !roles.includes(session.profile.systemRole)) {
+    redirect(defaultInternalArea(session.profile.systemRole));
+  }
+  return { ...session, profile: session.profile };
+}
+
 export async function portalFetch<T>(path: string): Promise<T | null> {
   const session = await requireCompany();
   if (!apiUrl()) return null;
@@ -58,6 +77,16 @@ export async function portalFetch<T>(path: string): Promise<T | null> {
       authorization: `Bearer ${session.token}`,
       "x-company-id": session.membership.company.id,
     },
+    cache: "no-store",
+  }).catch(() => null);
+  return response?.ok ? ((await response.json()) as T) : null;
+}
+
+export async function internalFetch<T>(path: string): Promise<T | null> {
+  const session = await requireInternal();
+  if (!apiUrl()) return null;
+  const response = await fetch(`${apiUrl()}${path}`, {
+    headers: { authorization: `Bearer ${session.token}` },
     cache: "no-store",
   }).catch(() => null);
   return response?.ok ? ((await response.json()) as T) : null;

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { defaultArea, getPortalSession } from "@/lib/portal";
+import { defaultArea, defaultInternalArea, getPortalSession, internalRoles } from "@/lib/portal";
 import { CompanySelector } from "./company-selector";
 import { LogoutButton } from "./logout-button";
 
@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "Portal", robots: { index: false, fol
 export default async function PortalPage() {
   const { token, profile, membership } = await getPortalSession();
   if (!token) redirect("/entrar");
+  if (profile && internalRoles.includes(profile.systemRole)) redirect(defaultInternalArea(profile.systemRole));
   if (membership) redirect(defaultArea(membership.role));
 
   return <section className="portal-section shell">

@@ -1,0 +1,12 @@
+import type { Metadata } from "next";
+import { internalFetch, requireInternal } from "@/lib/portal";
+import { date, EmptyReport, MetricCard, number } from "../../report-ui";
+
+export const metadata: Metadata = { title: "Desenvolvimento interno" };
+type Report = { indicators: { totalReleases: number; published: number; pendingApprovals: number; activeCompanies: number }; releases: Array<{ id: string; version: string; title: string; status: string; environment: string; createdAt: string; createdBy: { name: string }; approvals: Array<{ id: string; area: string; decision: string; approver: { name: string } }>; _count: { customerAccess: number } }> };
+
+export default async function DevelopmentPage() {
+  await requireInternal(["DEVELOPER"]);
+  const report = await internalFetch<Report>("/api/v1/interno/desenvolvimento");
+  return <section className="report-page"><div className="report-heading"><div><span>VERSÕES E GOVERNANÇA</span><h1>Desenvolvimento</h1><p>Releases, aprovações internas e liberação controlada para clientes.</p></div><div className="report-period">Esteira de produção</div></div>{!report ? <EmptyReport text="Conecte a API para carregar a esteira de versões."/> : <><div className="report-metrics"><MetricCard label="Versões recentes" value={number(report.indicators.totalReleases)}/><MetricCard label="Publicadas" value={number(report.indicators.published)} tone="success"/><MetricCard label="Aprovações pendentes" value={number(report.indicators.pendingApprovals)} tone={report.indicators.pendingApprovals ? "warning" : "default"}/><MetricCard label="Clientes ativos" value={number(report.indicators.activeCompanies)}/></div><article className="report-panel full"><div className="panel-title"><div><span>RELEASES</span><h2>Esteira de publicação</h2></div></div>{report.releases.length ? <div className="release-list">{report.releases.map((release) => <div className="release-row" key={release.id}><span className={`status-pill ${release.status.toLowerCase()}`}>{release.status}</span><div><strong>v{release.version} · {release.title}</strong><small>{release.environment} · criada por {release.createdBy.name} em {date(release.createdAt)}</small></div><div><b>{release.approvals.filter((item) => item.decision === "APPROVED").length}/{release.approvals.length}</b><small>aprovações</small></div><div><b>{release._count.customerAccess}</b><small>clientes liberados</small></div></div>)}</div> : <EmptyReport text="Nenhuma versão cadastrada."/>}</article></>}</section>;
+}

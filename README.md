@@ -15,12 +15,14 @@ A persistência de produção foi consolidada em PostgreSQL + Prisma. O modelo c
 
 O portal autenticado já possui seleção segura de empresa, navegação por perfil e painéis separados de Gestão, Operação, Motor Fiscal e Usuários. A administração de equipe permite convite com validade e uso único, aceite de conta, alteração de perfil e suspensão auditada. Os indicadores são calculados pela API diretamente sobre vendas, estoque, lotes, análises tributárias e logs de auditoria, sempre isolados por empresa.
 
+A central corporativa possui acesso independente para Helpdesk, Financeiro, Comercial e Desenvolvimento. Usuários internos são direcionados automaticamente à sua área, com filas operacionais, indicadores consolidados e ações auditadas sobre chamados e implantação de clientes.
+
 ## Próximas etapas
 
 1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.
 2. Conectar `web/` à Vercel e informar as variáveis de ambiente.
-3. Construir os painéis internos de helpdesk, financeiro e desenvolvedores.
-4. Integrar provedor de e-mail transacional para entrega automática dos convites.
-5. Integrar cobrança, observabilidade e monitoramento de produção.
+3. Integrar provedor de e-mail transacional para entrega automática dos convites.
+4. Conectar cobrança e webhooks do provedor financeiro.
+5. Adicionar observabilidade, alertas e monitoramento de produção.
 
 Consulte [api/README.md](api/README.md) para a API, [web/README.md](web/README.md) para o frontend e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.

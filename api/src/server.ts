@@ -8,6 +8,7 @@ import { prisma } from "./infra/prisma.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { cadastrosRoutes } from "./routes/cadastros.routes.js";
 import { fiscalRoutes } from "./routes/fiscal.routes.js";
+import { internalRoutes } from "./routes/internal.routes.js";
 import { operationsRoutes } from "./routes/operations.routes.js";
 import { reportsRoutes } from "./routes/reports.routes.js";
 import { usersRoutes } from "./routes/users.routes.js";
@@ -36,6 +37,7 @@ await app.register(jwt, {
 await app.register(authRoutes, { prefix: "/api/v1/auth" });
 await app.register(cadastrosRoutes, { prefix: "/api/v1/cadastros" });
 await app.register(fiscalRoutes, { prefix: "/api/v1/fiscal" });
+await app.register(internalRoutes, { prefix: "/api/v1/interno" });
 await app.register(vendasRoutes, { prefix: "/api/v1/vendas" });
 await app.register(reportsRoutes, { prefix: "/api/v1/relatorios" });
 await app.register(usersRoutes, { prefix: "/api/v1/usuarios" });

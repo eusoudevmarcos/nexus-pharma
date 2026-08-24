@@ -243,3 +243,30 @@ test("protege convites e alterações de acesso com trilha de auditoria", async 
   assert.doesNotMatch(inviteProxy, /token: body\.token/);
   assert.match(logout, /cookies\.delete\("nexus_company"\)/);
 });
+
+test("separa a operação interna por departamento e perfil de sistema", async () => {
+  const [routes, server, portalLib, layout, shell, support, finance, commercial, development] = await Promise.all([
+    readFile(new URL("../api/src/routes/internal.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/lib/portal.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/internal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/suporte/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/financeiro/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/comercial/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/desenvolvimento/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(server, /prefix: "\/api\/v1\/interno"/);
+  for (const role of ["HELPDESK", "FINANCE", "COMMERCIAL", "DEVELOPER"]) assert.match(routes, new RegExp(`"${role}"`));
+  assert.match(routes, /SUPPORT_TICKET_UPDATED/);
+  assert.match(routes, /COMPANY_PIPELINE_UPDATED/);
+  assert.match(portalLib, /defaultInternalArea/);
+  assert.match(portalLib, /requireInternal/);
+  assert.match(layout, /InternalShell/);
+  assert.match(shell, /Áreas internas/);
+  assert.match(support, /Fila única/);
+  assert.match(finance, /Receita recorrente/);
+  assert.match(commercial, /Pipeline SaaS/);
+  assert.match(development, /Esteira de publicação/);
+});
