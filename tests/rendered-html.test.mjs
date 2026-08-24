@@ -190,3 +190,30 @@ test("mantém o site institucional pronto para Vercel e login seguro", async () 
   assert.match(vercel, /nextjs/);
   assert.match(webPackage, /"next": "16\.2\.6"/);
 });
+
+test("entrega o portal multiempresa com relatórios separados por perfil", async () => {
+  const [reports, server, portal, shell, companySession, management, operation, fiscal, users] = await Promise.all([
+    readFile(new URL("../api/src/routes/reports.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/portal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/api/session/company/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/gestao/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/operacao/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/fiscal/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/usuarios/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(server, /prefix: "\/api\/v1\/relatorios"/);
+  for (const route of ["/gestao", "/operacao", "/fiscal", "/usuarios"]) assert.match(reports, new RegExp(`"${route}"`));
+  assert.match(reports, /tenantContext/);
+  assert.match(reports, /requireTenantRoles/);
+  assert.match(companySession, /httpOnly: true/);
+  assert.match(companySession, /memberships\?\.find/);
+  assert.match(portal, /CompanySelector/);
+  assert.match(shell, /Módulos do portal/);
+  assert.match(management, /Gestão do negócio/);
+  assert.match(operation, /Estoque e vendas/);
+  assert.match(fiscal, /Motor fiscal/);
+  assert.match(users, /Perfis da empresa/);
+});

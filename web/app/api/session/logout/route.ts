@@ -16,5 +16,6 @@ export async function POST() {
   const response = NextResponse.json({ ok: true });
   response.cookies.delete("nexus_access");
   response.cookies.delete("nexus_refresh");
+  response.cookies.delete("nexus_company");
   return response;
 }
