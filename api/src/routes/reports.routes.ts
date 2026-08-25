@@ -49,6 +49,45 @@ const money = (value: unknown) => Number(value ?? 0);
 
 export async function reportsRoutes(app: FastifyInstance) {
   app.get(
+    "/alertas",
+    { preHandler: [authenticate, tenantContext] },
+    async (request) => {
+      const companyId = request.tenant!.companyId;
+      const [summary, alerts, lastRun] = await Promise.all([
+        prisma.businessAlert.groupBy({ by: ["type", "status"], where: { companyId }, _count: true }),
+        prisma.businessAlert.findMany({
+          where: { companyId, status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+          include: {
+            product: { select: { name: true, ean: true, stockQuantity: true, salePrice: true } },
+            lot: { select: { code: true, quantity: true, expiresAt: true } },
+            invoice: { select: { amount: true, dueAt: true, status: true } },
+            acknowledgedBy: { select: { name: true } },
+          },
+          orderBy: [{ severity: "desc" }, { dueAt: "asc" }, { detectedAt: "desc" }],
+          take: 80,
+        }),
+        prisma.backgroundJobRun.findFirst({ where: { jobName: "DAILY_BUSINESS_AUTOMATION" }, orderBy: { startedAt: "desc" } }),
+      ]);
+      return {
+        indicators: {
+          open: alerts.filter((alert) => alert.status === "OPEN").length,
+          acknowledged: alerts.filter((alert) => alert.status === "ACKNOWLEDGED").length,
+          critical: alerts.filter((alert) => alert.severity === "CRITICAL").length,
+          purchaseOpportunities: alerts.filter((alert) => alert.type === "HIGH_MARGIN_REORDER").length,
+        },
+        summary,
+        alerts: alerts.map((alert) => ({
+          ...alert,
+          product: alert.product ? { ...alert.product, stockQuantity: money(alert.product.stockQuantity), salePrice: money(alert.product.salePrice) } : null,
+          lot: alert.lot ? { ...alert.lot, quantity: money(alert.lot.quantity) } : null,
+          invoice: alert.invoice ? { ...alert.invoice, amount: money(alert.invoice.amount) } : null,
+        })),
+        lastRun,
+      };
+    },
+  );
+
+  app.get(
     "/gestao",
     {
       preHandler: [

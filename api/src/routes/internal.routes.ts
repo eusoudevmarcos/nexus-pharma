@@ -33,7 +33,7 @@ export async function internalRoutes(app: FastifyInstance) {
       const databaseStarted = performance.now();
       await prisma.$queryRaw`SELECT 1`;
       const databaseLatencyMs = Math.round(performance.now() - databaseStarted);
-      const [incidents, openIncidents, criticalIncidents, failedEmails, failedBillingEvents, activeSessions] = await Promise.all([
+      const [incidents, openIncidents, criticalIncidents, failedEmails, failedBillingEvents, activeSessions, lastAutomation, failedAutomations] = await Promise.all([
         prisma.operationalIncident.findMany({
           include: { resolvedBy: { select: { name: true } } },
           orderBy: [{ status: "asc" }, { severity: "desc" }, { lastSeenAt: "desc" }],
@@ -44,16 +44,19 @@ export async function internalRoutes(app: FastifyInstance) {
         prisma.emailDelivery.count({ where: { status: "FAILED", createdAt: { gte: last24Hours } } }),
         prisma.billingWebhookEvent.count({ where: { status: "FAILED", receivedAt: { gte: last24Hours } } }),
         prisma.authSession.count({ where: { revokedAt: null, expiresAt: { gt: now } } }),
+        prisma.backgroundJobRun.findFirst({ where: { jobName: "DAILY_BUSINESS_AUTOMATION" }, orderBy: { startedAt: "desc" } }),
+        prisma.backgroundJobRun.count({ where: { status: "FAILED", startedAt: { gte: last24Hours } } }),
       ]);
       return {
         generatedAt: now,
         runtime: runtimeSnapshot(),
-        indicators: { databaseLatencyMs, openIncidents, criticalIncidents, failedEmails, failedBillingEvents, activeSessions },
+        indicators: { databaseLatencyMs, openIncidents, criticalIncidents, failedEmails, failedBillingEvents, activeSessions, failedAutomations },
         services: [
           { name: "API", status: "UP", detail: `versão ${config.SERVICE_VERSION}` },
           { name: "PostgreSQL", status: "UP", detail: `${databaseLatencyMs} ms` },
           { name: "E-mail transacional", status: config.EMAIL_RELAY_URL ? "CONFIGURED" : "PENDING", detail: config.EMAIL_RELAY_URL ? "relay conectado" : "aguardando credencial" },
           { name: "Cobrança", status: config.BILLING_WEBHOOK_SECRET ? "CONFIGURED" : "PENDING", detail: config.BILLING_WEBHOOK_SECRET ? "assinatura ativa" : "aguardando segredo" },
+          { name: "Automação diária", status: lastAutomation?.status === "COMPLETED" ? "UP" : lastAutomation?.status === "FAILED" ? "ERROR" : "PENDING", detail: lastAutomation?.finishedAt ? `última execução ${lastAutomation.finishedAt.toISOString()}` : "aguardando primeira execução" },
         ],
         incidents,
       };

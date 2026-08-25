@@ -21,6 +21,8 @@ A automação comercial já possui fila auditável de e-mail, reenvio com rotaç
 
 A central de observabilidade acompanha prontidão da API e PostgreSQL, desempenho, sessões e integrações. Falhas são agrupadas em incidentes, reabertas em caso de recorrência e tratadas pela equipe técnica com trilha de auditoria.
 
+A automação diária cria uma fila inteligente para estoque baixo, oportunidades de compra com boa margem, lotes em vencimento e cobranças atrasadas. Cada execução possui histórico, proteção contra duplicidade e tratamento automático das condições já normalizadas.
+
 ## Próximas etapas
 
 1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.
@@ -28,5 +30,6 @@ A central de observabilidade acompanha prontidão da API e PostgreSQL, desempenh
 3. Informar as credenciais do relay de e-mail e conectar o adaptador do provedor escolhido.
 4. Informar o segredo interno e conectar o adaptador do provedor de cobrança escolhido.
 5. Conectar o coletor externo de logs e alertas ao endpoint protegido de métricas.
+6. Revisar o custo do Cron Job do Render e ativar a rotina diária na implantação comercial.
 
 Consulte [api/README.md](api/README.md) para a API, [web/README.md](web/README.md) para o frontend e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.

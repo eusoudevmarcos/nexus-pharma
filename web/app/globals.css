@@ -385,10 +385,11 @@ body:has(.portal-app) > main { overflow: visible; }
 .automation-row small, .automation-row em { overflow: hidden; color: #75838a; font-size: .58rem; font-style: normal; text-overflow: ellipsis; }
 .automation-row em { color: #9a3030; }
 .service-health-panel, .incident-panel { min-height: 0; }
-.service-health-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
+.service-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 22px; }
 .service-health-grid > div { display: grid; grid-template-columns: 12px 1fr; gap: 3px 8px; align-items: center; padding: 17px; border: 1px solid #e2e9eb; border-radius: 16px; }
 .service-health-grid i { width: 9px; height: 9px; grid-row: 1 / 3; border-radius: 50%; background: #dfab00; }
 .service-health-grid i.up, .service-health-grid i.configured { background: #1f9c6c; box-shadow: 0 0 0 4px #e0f5ed; }
+.service-health-grid i.error { background: #cf4141; box-shadow: 0 0 0 4px #ffeded; }
 .service-health-grid strong { color: var(--ink); font-size: .72rem; }
 .service-health-grid span, .service-health-grid small { color: #738087; font-size: .58rem; }
 .service-health-grid small { grid-column: 2; }
@@ -411,6 +412,29 @@ body:has(.portal-app) > main { overflow: visible; }
 .monitor-empty > span { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; color: #176c4e; background: #dff4eb; font-weight: 900; }
 .monitor-empty strong { color: var(--ink); font-size: .78rem; }
 .monitor-empty p { margin: 0; font-size: .63rem; }
+.alert-center-panel { min-height: 0; }
+.alert-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 8px; }
+.alert-filter button { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 13px; border: 1px solid #dbe4e7; border-radius: 11px; color: #65737b; background: white; cursor: pointer; font-size: .64rem; font-weight: 800; }
+.alert-filter button[aria-selected="true"] { border-color: var(--navy); color: white; background: var(--navy); }
+.alert-filter button span { min-width: 21px; height: 21px; display: grid; place-items: center; border-radius: 8px; color: var(--navy); background: #edf3f5; font-size: .56rem; }
+.business-alert-list { margin-top: 12px; }
+.business-alert { min-height: 116px; display: grid; grid-template-columns: 46px minmax(250px, 1fr) 105px minmax(120px, auto) 185px; gap: 14px; align-items: center; padding: 16px 0; border-top: 1px solid #e7edef; }
+.business-alert:first-child { border-top: 0; }
+.business-alert-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; color: #856200; background: #fff1ba; font-weight: 900; }
+.business-alert.error .business-alert-icon, .business-alert.critical .business-alert-icon { color: #963737; background: #ffeded; }
+.business-alert-copy { min-width: 0; }
+.business-alert-copy > span { color: var(--navy); font-size: .56rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.business-alert-copy h2 { margin: 3px 0; color: var(--ink); font-size: .8rem; }
+.business-alert-copy p { margin: 0; color: #69777f; font-size: .63rem; line-height: 1.45; }
+.business-alert-copy small { color: #8a969c; font-size: .55rem; }
+.business-alert-data { display: flex; flex-wrap: wrap; gap: 10px 15px; }
+.business-alert-data > div { display: grid; gap: 2px; }
+.business-alert-data span { color: #89959b; font-size: .53rem; }
+.business-alert-data strong { color: var(--navy); font-size: .68rem; }
+.business-alert-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.business-alert-actions button { min-height: 35px; padding: 0 9px; border: 0; border-radius: 9px; color: white; background: var(--navy); cursor: pointer; font-size: .57rem; font-weight: 800; }
+.business-alert-actions button.quiet { color: #7a858b; background: #edf1f2; }
+.business-alert-actions button:disabled { opacity: .45; }
 .company-row { grid-template-columns: minmax(240px, 1fr) 120px 135px 70px 65px; }
 .company-row > div:nth-child(2) span, .company-row label { color: #7a878e; font-size: .58rem; }
 .company-row > div:nth-child(2) b { color: var(--navy); font-size: .7rem; }
@@ -476,6 +500,9 @@ body:has(.portal-app) > main { overflow: visible; }
   .service-health-grid { grid-template-columns: 1fr 1fr; }
   .incident-row { grid-template-columns: 75px 1fr 105px; }
   .incident-actions { grid-column: 2 / -1; }
+  .business-alert { grid-template-columns: 46px 1fr 105px; }
+  .business-alert-data, .business-alert-actions { grid-column: 2 / -1; }
+  .business-alert-actions { justify-content: flex-start; }
   .company-row { padding-block: 12px; grid-template-columns: 1fr 120px 120px; }
   .company-row label, .company-row button { grid-column: 2 / -1; }
 }
@@ -551,6 +578,8 @@ body:has(.portal-app) > main { overflow: visible; }
   .service-health-grid { grid-template-columns: 1fr; }
   .incident-row { grid-template-columns: 1fr; padding-block: 16px; }
   .incident-actions { grid-column: auto; justify-content: flex-start; }
+  .business-alert { grid-template-columns: 42px 1fr; }
+  .business-alert > .status-pill, .business-alert-data, .business-alert-actions { grid-column: 2; }
   .ticket-row > *, .ticket-row select:nth-of-type(2), .ticket-row button, .finance-list .internal-row > strong, .company-row label, .company-row button { grid-column: auto; }
   .priority-dot { display: none; }
   .footer-grid { grid-template-columns: 1fr; gap: 34px; }

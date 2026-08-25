@@ -6,6 +6,7 @@ import { prisma } from "../infra/prisma.js";
 import {
   authenticate,
   requireSystemRoles,
+  requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
 
@@ -39,8 +40,50 @@ const approvalSchema = z.object({
   decisao: z.enum(["APPROVED", "REJECTED"]),
   observacoes: z.string().max(10000).nullable().default(null),
 });
+const alertUpdateSchema = z.object({ status: z.enum(["ACKNOWLEDGED", "RESOLVED", "DISMISSED"]) });
 
 export async function operationsRoutes(app: FastifyInstance) {
+  app.patch<{ Params: { id: string } }>(
+    "/alertas/:id",
+    { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST", "OPERATOR"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = alertUpdateSchema.safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALERTA_INVALIDO" });
+      if (request.user.systemRole === "CUSTOMER" && request.tenant!.role === "OPERATOR" && parsed.data.status !== "ACKNOWLEDGED") {
+        return reply.status(403).send({ erro: "ACAO_DE_ALERTA_NAO_PERMITIDA" });
+      }
+      const alert = await prisma.businessAlert.findFirst({ where: { id: id.data, companyId: request.tenant!.companyId } });
+      if (!alert) return reply.status(404).send({ erro: "ALERTA_NAO_ENCONTRADO" });
+      const updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.businessAlert.update({
+          where: { id: alert.id },
+          data: {
+            status: parsed.data.status,
+            ...(parsed.data.status === "ACKNOWLEDGED"
+              ? { acknowledgedAt: new Date(), acknowledgedById: request.user.sub, resolvedAt: null }
+              : { resolvedAt: new Date(), acknowledgedAt: alert.acknowledgedAt ?? new Date(), acknowledgedById: alert.acknowledgedById ?? request.user.sub }),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            companyId: alert.companyId,
+            userId: request.user.sub,
+            action: "BUSINESS_ALERT_UPDATED",
+            entity: "BusinessAlert",
+            entityId: alert.id,
+            requestId: request.id,
+            ipAddress: request.ip,
+            before: { status: alert.status },
+            after: { status: result.status, type: result.type },
+          },
+        });
+        return result;
+      });
+      return reply.send(updated);
+    },
+  );
+
   app.get("/planos", async () =>
     prisma.plan.findMany({
       where: { active: true },

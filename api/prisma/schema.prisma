@@ -119,6 +119,28 @@ enum IncidentStatus {
   RESOLVED
 }
 
+enum BusinessAlertType {
+  STOCK_LOW
+  HIGH_MARGIN_REORDER
+  EXPIRY_90
+  EXPIRY_60
+  EXPIRY_30
+  BILLING_OVERDUE
+}
+
+enum BusinessAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum JobRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 enum TicketStatus {
   OPEN
   IN_PROGRESS
@@ -189,6 +211,7 @@ enum ReorderAlertStatus {
   ACKNOWLEDGED
   ORDERED
   DISMISSED
+  RESOLVED
 }
 
 enum TaxAnalysisStatus {
@@ -225,6 +248,7 @@ model User {
   analysesReviewed  TaxAnalysis[]     @relation("AnalysisReviewer")
   auditLogs         AuditLog[]
   incidentsResolved OperationalIncident[] @relation("IncidentResolver")
+  alertsAcknowledged BusinessAlert[] @relation("AlertAcknowledgedBy")
 
   @@map("users")
 }
@@ -288,6 +312,7 @@ model Company {
   auditLogs         AuditLog[]
   emailDeliveries   EmailDelivery[]
   billingEvents     BillingWebhookEvent[]
+  businessAlerts    BusinessAlert[]
 
   @@index([status])
   @@map("companies")
@@ -382,6 +407,7 @@ model Invoice {
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
   subscription      Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  businessAlerts    BusinessAlert[]
 
   @@index([status, dueAt])
   @@map("invoices")
@@ -450,6 +476,55 @@ model OperationalIncident {
   @@index([status, severity, lastSeenAt])
   @@index([source, lastSeenAt])
   @@map("operational_incidents")
+}
+
+model BusinessAlert {
+  id                 String              @id @default(uuid()) @db.Uuid
+  companyId          String              @map("company_id") @db.Uuid
+  productId          String?             @map("product_id") @db.Uuid
+  lotId              String?             @map("lot_id") @db.Uuid
+  invoiceId          String?             @map("invoice_id") @db.Uuid
+  acknowledgedById   String?             @map("acknowledged_by_id") @db.Uuid
+  type               BusinessAlertType
+  severity           IncidentSeverity    @default(WARNING)
+  status             BusinessAlertStatus @default(OPEN)
+  deduplicationKey   String              @unique @map("deduplication_key") @db.VarChar(180)
+  title              String              @db.VarChar(180)
+  message            String              @db.VarChar(1000)
+  actionData         Json                @default("{}") @map("action_data")
+  detectedAt         DateTime            @default(now()) @map("detected_at") @db.Timestamptz(3)
+  dueAt              DateTime?           @map("due_at") @db.Timestamptz(3)
+  acknowledgedAt     DateTime?           @map("acknowledged_at") @db.Timestamptz(3)
+  resolvedAt         DateTime?           @map("resolved_at") @db.Timestamptz(3)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product            Product?            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lot                InventoryLot?       @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  invoice            Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  acknowledgedBy     User?               @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, severity, detectedAt])
+  @@index([productId, status])
+  @@index([dueAt, status])
+  @@map("business_alerts")
+}
+
+model BackgroundJobRun {
+  id             String       @id @default(uuid()) @db.Uuid
+  jobName        String       @map("job_name") @db.VarChar(100)
+  idempotencyKey String       @unique @map("idempotency_key") @db.VarChar(160)
+  status         JobRunStatus @default(RUNNING)
+  attempts       Int          @default(1)
+  counters       Json         @default("{}")
+  result         Json         @default("{}")
+  error          String?      @db.VarChar(2000)
+  startedAt      DateTime     @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt     DateTime?    @map("finished_at") @db.Timestamptz(3)
+
+  @@index([jobName, startedAt])
+  @@index([status, startedAt])
+  @@map("background_job_runs")
 }
 
 model FiscalCategory {
@@ -532,6 +607,7 @@ model Product {
   saleItems         SaleItem[]
   reorderAlerts     ReorderAlert[]
   analyses          TaxAnalysis[]
+  businessAlerts    BusinessAlert[]
 
   @@unique([companyId, ean])
   @@index([companyId, name])
@@ -551,6 +627,7 @@ model InventoryLot {
   updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
   product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   stockMovements StockMovement[]
+  businessAlerts BusinessAlert[]
 
   @@unique([productId, code])
   @@index([expiresAt, quantity])

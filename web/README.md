@@ -15,3 +15,5 @@ O portal inclui seleção de empresa, painéis por perfil, gestão de usuários,
 Perfis corporativos não dependem de vínculo com uma farmácia: Helpdesk, Financeiro, Comercial, Desenvolvimento e Administração Interna recebem navegação e painéis próprios após o login. O Financeiro também acompanha filas e falhas de e-mail e os eventos recentes do webhook de cobrança.
 
 Administração e Desenvolvimento possuem uma janela de Monitoramento com saúde da API, banco, integrações, sessões ativas, desempenho e tratamento auditado de incidentes.
+
+Clientes possuem uma Central de Alertas separada, com filtros para compras, vencimentos e cobranças. Operadores podem assumir alertas; perfis de gestão podem resolver ou dispensar, sempre com auditoria.

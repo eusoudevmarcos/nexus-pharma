@@ -7,6 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "jobs:daily": "node dist/jobs/run-daily.js",
     "postinstall": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:format": "prisma format",

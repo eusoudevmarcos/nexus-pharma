@@ -42,6 +42,8 @@ Rotas principais:
 - `POST /api/v1/vendas/processar`
 - `GET/POST /api/v1/suporte/tickets`
 - `GET /api/v1/relatorios/{gestao,operacao,fiscal,usuarios}`
+- `GET /api/v1/relatorios/alertas`
+- `PATCH /api/v1/alertas/:id`
 - `GET/POST /api/v1/usuarios/convites`
 - `POST /api/v1/usuarios/convites/:id/reenviar`
 - `POST /api/v1/usuarios/convites/aceitar`
@@ -79,6 +81,19 @@ A assinatura usa `BILLING_WEBHOOK_SECRET` sobre `<timestamp>.<event-id>.<sha256-
 `/health/live` confirma que o processo está ativo; `/health/ready` também valida o PostgreSQL e informa sua latência. O endpoint `/api/v1/operations/metrics` exige `Authorization: Bearer <OBSERVABILITY_TOKEN>` e entrega contadores do processo sem expor dados de clientes.
 
 Falhas não tratadas, entregas de e-mail e webhooks financeiros geram incidentes agrupados por impressão digital. A central interna em `/portal/interno/monitoramento` permite que Administração e Desenvolvimento assumam e resolvam a ocorrência, com auditoria. Se a mesma falha reaparecer, o incidente é reaberto automaticamente.
+
+## Automação diária do negócio
+
+`npm run jobs:daily` executa uma rotina idempotente que:
+
+- identifica estoque baixo e produtos com margem a partir de 25%, boa saída e cobertura de até 15 dias;
+- calcula quantidade sugerida para 30 dias de venda;
+- gera alertas progressivos de vencimento em 90, 60 e 30 dias;
+- sinaliza cobranças vencidas;
+- encerra automaticamente alertas cuja condição deixou de existir;
+- registra contadores, tentativas, resultado e falhas da execução.
+
+O Blueprint inclui um Cron Job diário às `10:00 UTC`. O comando sempre termina após a execução e o histórico impede processamento duplicado no mesmo dia. Cron Jobs não possuem plano gratuito e geram cobrança própria quando provisionados; consulte a [documentação oficial do Render](https://render.com/docs/cronjobs) antes de sincronizar o serviço.
 
 ## Render
 

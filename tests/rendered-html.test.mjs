@@ -339,3 +339,45 @@ test("monitora a plataforma e trata incidentes operacionais", async () => {
   assert.match(proxy, /monitoramento\/incidentes/);
   assert.match(render, /OBSERVABILITY_TOKEN/);
 });
+
+test("automatiza estoque, vencimentos, margem e cobrança em uma central de alertas", async () => {
+  const [schema, migration, job, runner, packageJson, reports, operations, render, shell, page, center, proxy, monitoring] = await Promise.all([
+    readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/migrations/20260824230000_business_automation/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/jobs/daily-business-automation.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/jobs/run-daily.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/package.json", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/reports.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/operations.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/portal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/alertas/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/alertas/alert-center.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/api/portal/alerts/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/monitoramento/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /model BusinessAlert \{/);
+  assert.match(schema, /model BackgroundJobRun \{/);
+  assert.match(schema, /deduplicationKey\s+String\s+@unique/);
+  assert.match(migration, /business_alerts_deduplication_key_key/);
+  assert.match(job, /daily-business-automation:\$\{dateKey\}/);
+  assert.match(job, /previous\?\.status === "RUNNING"/);
+  assert.match(job, /margin >= 0\.25/);
+  assert.match(job, /coverageDays[\s\S]*?<= 15/);
+  assert.match(job, /EXPIRY_90/);
+  assert.match(job, /BILLING_OVERDUE/);
+  assert.match(job, /status: "RESOLVED"/);
+  assert.match(runner, /prisma\.\$disconnect/);
+  assert.match(packageJson, /"jobs:daily"/);
+  assert.match(reports, /"\/alertas"/);
+  assert.match(operations, /BUSINESS_ALERT_UPDATED/);
+  assert.match(render, /type: cron/);
+  assert.match(render, /schedule: "0 10 \* \* \*"/);
+  assert.match(shell, /Central de alertas|\/portal\/alertas/);
+  assert.match(page, /Central de alertas/);
+  assert.match(center, /Oportunidade de compra/);
+  assert.match(center, /Assumir/);
+  assert.match(proxy, /\/api\/v1\/alertas/);
+  assert.match(monitoring, /failedAutomations/);
+});
