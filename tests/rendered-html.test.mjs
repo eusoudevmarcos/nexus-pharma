@@ -307,3 +307,35 @@ test("automatiza convites e cobrança com segurança e monitoramento", async () 
   assert.match(finance, /E-mails e webhooks financeiros/);
   for (const key of ["EMAIL_RELAY_URL", "EMAIL_RELAY_KEY", "BILLING_WEBHOOK_SECRET"]) assert.match(render, new RegExp(key));
 });
+
+test("monitora a plataforma e trata incidentes operacionais", async () => {
+  const [schema, migration, observability, server, internal, shell, page, board, proxy, render] = await Promise.all([
+    readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/migrations/20260824213000_operational_observability/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/services/observability.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/internal.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/internal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/monitoramento/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/monitoramento/incident-board.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/api/portal/internal/incidents/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /model OperationalIncident \{/);
+  assert.match(schema, /occurrenceCount Int\s+@default\(1\)/);
+  assert.match(migration, /operational_incidents_fingerprint_key/);
+  assert.match(observability, /occurrenceCount: \{ increment: 1 \}/);
+  assert.match(observability, /status: "OPEN"/);
+  assert.match(server, /"\/health\/live"/);
+  assert.match(server, /"\/health\/ready"/);
+  assert.match(server, /OBSERVABILITY_TOKEN/);
+  assert.match(server, /recordOperationalIncident/);
+  assert.match(internal, /OPERATIONAL_INCIDENT_UPDATED/);
+  assert.match(shell, /Monitoramento/);
+  assert.match(page, /Saúde dos serviços/);
+  assert.match(board, /Assumir/);
+  assert.match(board, /Resolver/);
+  assert.match(proxy, /monitoramento\/incidentes/);
+  assert.match(render, /OBSERVABILITY_TOKEN/);
+});

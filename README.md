@@ -19,12 +19,14 @@ A central corporativa possui acesso independente para Helpdesk, Financeiro, Come
 
 A automação comercial já possui fila auditável de e-mail, reenvio com rotação do token e fallback manual. A cobrança dispõe de webhook normalizado com HMAC, proteção contra repetição e processamento idempotente de faturas e assinaturas. O painel Financeiro acompanha as duas integrações sem misturar o acesso dos clientes.
 
+A central de observabilidade acompanha prontidão da API e PostgreSQL, desempenho, sessões e integrações. Falhas são agrupadas em incidentes, reabertas em caso de recorrência e tratadas pela equipe técnica com trilha de auditoria.
+
 ## Próximas etapas
 
 1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.
 2. Conectar `web/` à Vercel e informar as variáveis de ambiente.
 3. Informar as credenciais do relay de e-mail e conectar o adaptador do provedor escolhido.
 4. Informar o segredo interno e conectar o adaptador do provedor de cobrança escolhido.
-5. Adicionar observabilidade, alertas e monitoramento de produção.
+5. Conectar o coletor externo de logs e alertas ao endpoint protegido de métricas.
 
 Consulte [api/README.md](api/README.md) para a API, [web/README.md](web/README.md) para o frontend e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.

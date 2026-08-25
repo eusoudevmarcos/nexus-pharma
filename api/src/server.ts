@@ -14,6 +14,7 @@ import { operationsRoutes } from "./routes/operations.routes.js";
 import { reportsRoutes } from "./routes/reports.routes.js";
 import { usersRoutes } from "./routes/users.routes.js";
 import { vendasRoutes } from "./routes/vendas.routes.js";
+import { observeResponse, recordOperationalIncident, runtimeSnapshot } from "./services/observability.js";
 
 const app = Fastify({
   logger: { level: config.LOG_LEVEL },
@@ -35,6 +36,10 @@ await app.register(jwt, {
   sign: { expiresIn: config.ACCESS_TOKEN_TTL },
 });
 
+app.addHook("onResponse", async (_request, reply) => {
+  observeResponse(reply.statusCode, reply.elapsedTime);
+});
+
 await app.register(authRoutes, { prefix: "/api/v1/auth" });
 await app.register(billingWebhookRoutes, { prefix: "/api/v1/webhooks" });
 await app.register(cadastrosRoutes, { prefix: "/api/v1/cadastros" });
@@ -45,19 +50,47 @@ await app.register(reportsRoutes, { prefix: "/api/v1/relatorios" });
 await app.register(usersRoutes, { prefix: "/api/v1/usuarios" });
 await app.register(operationsRoutes, { prefix: "/api/v1" });
 
-app.get("/health", async () => {
+app.get("/health/live", async () => ({ status: "ok", service: "nexus-pharma-api", version: config.SERVICE_VERSION }));
+
+app.get("/health/ready", async () => {
+  const started = performance.now();
   await prisma.$queryRaw`SELECT 1`;
-  return { status: "ok", database: "up", service: "nexus-pharma-api" };
+  return { status: "ok", database: "up", databaseLatencyMs: Math.round(performance.now() - started), service: "nexus-pharma-api", version: config.SERVICE_VERSION };
 });
 
-app.setErrorHandler((error, request, reply) => {
+app.get("/health", async () => {
+  const started = performance.now();
+  await prisma.$queryRaw`SELECT 1`;
+  return { status: "ok", database: "up", databaseLatencyMs: Math.round(performance.now() - started), service: "nexus-pharma-api", version: config.SERVICE_VERSION };
+});
+
+app.get("/api/v1/operations/metrics", async (request, reply) => {
+  if (!config.OBSERVABILITY_TOKEN || request.headers.authorization !== `Bearer ${config.OBSERVABILITY_TOKEN}`) {
+    return reply.status(401).send({ erro: "TOKEN_DE_OBSERVABILIDADE_INVALIDO" });
+  }
+  return runtimeSnapshot();
+});
+
+app.setErrorHandler(async (error, request, reply) => {
   const failure = error as { validation?: unknown; statusCode?: number };
   request.log.error({ err: error }, "Falha não tratada");
   if (failure.validation)
     return reply.status(400).send({ erro: "REQUISICAO_INVALIDA" });
+  const statusCode = failure.statusCode && failure.statusCode < 500 ? failure.statusCode : 500;
+  if (statusCode >= 500) {
+    const errorMessage = error instanceof Error ? error.message : "ERRO_DESCONHECIDO";
+    await recordOperationalIncident({
+      source: "api",
+      severity: "ERROR",
+      title: "Falha não tratada na API",
+      detail: errorMessage,
+      metadata: { method: request.method, route: request.routeOptions.url, requestId: request.id },
+      fingerprintKey: `api:${request.method}:${request.routeOptions.url}:${errorMessage}`,
+    }).catch(() => undefined);
+  }
   return reply
     .status(
-      failure.statusCode && failure.statusCode < 500 ? failure.statusCode : 500,
+      statusCode,
     )
     .send({
       erro: failure.statusCode === 401 ? "NAO_AUTORIZADO" : "ERRO_INTERNO",

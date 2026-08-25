@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireSystemRoles } from "../security/auth.js";
+import { runtimeSnapshot } from "../services/observability.js";
 
 const money = (value: unknown) => Number(value ?? 0);
 const ticketUpdateSchema = z
@@ -17,8 +19,82 @@ const companyUpdateSchema = z
     etapa_onboarding: z.number().int().min(1).max(10).optional(),
   })
   .refine((data) => Object.keys(data).length > 0);
+const incidentUpdateSchema = z.object({
+  status: z.enum(["ACKNOWLEDGED", "RESOLVED"]),
+});
 
 export async function internalRoutes(app: FastifyInstance) {
+  app.get(
+    "/monitoramento",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
+    async () => {
+      const now = new Date();
+      const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const databaseStarted = performance.now();
+      await prisma.$queryRaw`SELECT 1`;
+      const databaseLatencyMs = Math.round(performance.now() - databaseStarted);
+      const [incidents, openIncidents, criticalIncidents, failedEmails, failedBillingEvents, activeSessions] = await Promise.all([
+        prisma.operationalIncident.findMany({
+          include: { resolvedBy: { select: { name: true } } },
+          orderBy: [{ status: "asc" }, { severity: "desc" }, { lastSeenAt: "desc" }],
+          take: 40,
+        }),
+        prisma.operationalIncident.count({ where: { status: { not: "RESOLVED" } } }),
+        prisma.operationalIncident.count({ where: { status: { not: "RESOLVED" }, severity: "CRITICAL" } }),
+        prisma.emailDelivery.count({ where: { status: "FAILED", createdAt: { gte: last24Hours } } }),
+        prisma.billingWebhookEvent.count({ where: { status: "FAILED", receivedAt: { gte: last24Hours } } }),
+        prisma.authSession.count({ where: { revokedAt: null, expiresAt: { gt: now } } }),
+      ]);
+      return {
+        generatedAt: now,
+        runtime: runtimeSnapshot(),
+        indicators: { databaseLatencyMs, openIncidents, criticalIncidents, failedEmails, failedBillingEvents, activeSessions },
+        services: [
+          { name: "API", status: "UP", detail: `versão ${config.SERVICE_VERSION}` },
+          { name: "PostgreSQL", status: "UP", detail: `${databaseLatencyMs} ms` },
+          { name: "E-mail transacional", status: config.EMAIL_RELAY_URL ? "CONFIGURED" : "PENDING", detail: config.EMAIL_RELAY_URL ? "relay conectado" : "aguardando credencial" },
+          { name: "Cobrança", status: config.BILLING_WEBHOOK_SECRET ? "CONFIGURED" : "PENDING", detail: config.BILLING_WEBHOOK_SECRET ? "assinatura ativa" : "aguardando segredo" },
+        ],
+        incidents,
+      };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/monitoramento/incidentes/:id",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = incidentUpdateSchema.safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "INCIDENTE_INVALIDO" });
+      const incident = await prisma.operationalIncident.findUnique({ where: { id: id.data } });
+      if (!incident) return reply.status(404).send({ erro: "INCIDENTE_NAO_ENCONTRADO" });
+      const updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.operationalIncident.update({
+          where: { id: incident.id },
+          data: {
+            status: parsed.data.status,
+            ...(parsed.data.status === "RESOLVED" ? { resolvedAt: new Date(), resolvedById: request.user.sub } : { resolvedAt: null, resolvedById: null }),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: request.user.sub,
+            action: "OPERATIONAL_INCIDENT_UPDATED",
+            entity: "OperationalIncident",
+            entityId: incident.id,
+            requestId: request.id,
+            ipAddress: request.ip,
+            before: { status: incident.status },
+            after: { status: result.status },
+          },
+        });
+        return result;
+      });
+      return reply.send(updated);
+    },
+  );
+
   app.get(
     "/suporte",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"])] },

@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
+import { recordOperationalIncident } from "./observability.js";
 
 type InvitationMessage = {
   invitationId: string;
@@ -79,6 +80,14 @@ export async function deliverInvitationEmail(message: InvitationMessage) {
       where: { id: delivery.id },
       data: { status: "FAILED", lastError: messageText },
     });
+    await recordOperationalIncident({
+      source: "email",
+      severity: "WARNING",
+      title: "Falha na entrega de convite",
+      detail: messageText,
+      metadata: { deliveryId: delivery.id, provider: "relay" },
+      fingerprintKey: `email:invitation:${messageText}`,
+    }).catch(() => undefined);
     return { delivery: updated, inviteUrl, automatic: false };
   }
 }

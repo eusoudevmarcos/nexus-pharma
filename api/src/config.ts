@@ -19,6 +19,7 @@ const schema = z.object({
     .default("false")
     .transform((value) => value === "true"),
   LOG_LEVEL: z.string().default("info"),
+  SERVICE_VERSION: z.string().default("development"),
   WEB_APP_URL: z.string().url().default("http://localhost:3100"),
   EMAIL_RELAY_URL: z.preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -30,9 +31,16 @@ const schema = z.object({
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.string().min(32).optional(),
   ),
+  OBSERVABILITY_TOKEN: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
 });
 
-export const config = schema.parse(process.env);
+export const config = schema.parse({
+  ...process.env,
+  SERVICE_VERSION: process.env.SERVICE_VERSION || process.env.RENDER_GIT_COMMIT,
+});
 export const allowedOrigins = config.WEB_ORIGIN.split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);

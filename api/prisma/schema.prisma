@@ -106,6 +106,19 @@ enum BillingEventStatus {
   IGNORED
 }
 
+enum IncidentSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
 enum TicketStatus {
   OPEN
   IN_PROGRESS
@@ -211,6 +224,7 @@ model User {
   analysesRequested TaxAnalysis[]     @relation("AnalysisRequester")
   analysesReviewed  TaxAnalysis[]     @relation("AnalysisReviewer")
   auditLogs         AuditLog[]
+  incidentsResolved OperationalIncident[] @relation("IncidentResolver")
 
   @@map("users")
 }
@@ -415,6 +429,27 @@ model BillingWebhookEvent {
   @@index([status, receivedAt])
   @@index([companyId, receivedAt])
   @@map("billing_webhook_events")
+}
+
+model OperationalIncident {
+  id              String           @id @default(uuid()) @db.Uuid
+  fingerprint     String           @unique @db.Char(64)
+  source          String           @db.VarChar(80)
+  severity        IncidentSeverity @default(ERROR)
+  status          IncidentStatus   @default(OPEN)
+  title           String           @db.VarChar(180)
+  detail          String?          @db.VarChar(2000)
+  metadata        Json             @default("{}")
+  occurrenceCount Int              @default(1) @map("occurrence_count")
+  firstSeenAt     DateTime         @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt      DateTime         @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  resolvedAt      DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  resolvedById    String?          @map("resolved_by_id") @db.Uuid
+  resolvedBy      User?            @relation("IncidentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, severity, lastSeenAt])
+  @@index([source, lastSeenAt])
+  @@map("operational_incidents")
 }
 
 model FiscalCategory {

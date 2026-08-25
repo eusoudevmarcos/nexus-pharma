@@ -31,6 +31,8 @@ x-company-id: <uuid-da-empresa>
 Rotas principais:
 
 - `GET /health`
+- `GET /health/live`
+- `GET /health/ready`
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/planos`
@@ -48,9 +50,11 @@ Rotas principais:
 - `GET /api/v1/interno/financeiro`
 - `GET/PATCH /api/v1/interno/comercial`
 - `GET /api/v1/interno/desenvolvimento`
+- `GET/PATCH /api/v1/interno/monitoramento`
 - `GET /api/v1/financeiro/assinaturas`
 - `GET/POST /api/v1/desenvolvimento/releases`
 - `POST /api/v1/webhooks/billing/:provider`
+- `GET /api/v1/operations/metrics`
 
 O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. Convites de acesso usam token único armazenado como hash, expiram em 72 horas e toda mudança de perfil é auditada. O reenvio rotaciona o token e invalida o link anterior. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
 
@@ -69,6 +73,12 @@ x-nexus-signature: HMAC-SHA256 em hexadecimal
 ```
 
 A assinatura usa `BILLING_WEBHOOK_SECRET` sobre `<timestamp>.<event-id>.<sha256-do-JSON>`. A janela aceita é de cinco minutos. Eventos são idempotentes por provedor e identificador; o corpo normalizado aceita eventos de fatura (`opened`, `paid`, `past_due`, `voided`) e assinatura (`activated`, `paused`, `cancelled`). Antes de produção, o adaptador específico do provedor escolhido deve validar a assinatura original dele e então gerar esta assinatura interna.
+
+## Observabilidade
+
+`/health/live` confirma que o processo está ativo; `/health/ready` também valida o PostgreSQL e informa sua latência. O endpoint `/api/v1/operations/metrics` exige `Authorization: Bearer <OBSERVABILITY_TOKEN>` e entrega contadores do processo sem expor dados de clientes.
+
+Falhas não tratadas, entregas de e-mail e webhooks financeiros geram incidentes agrupados por impressão digital. A central interna em `/portal/interno/monitoramento` permite que Administração e Desenvolvimento assumam e resolvam a ocorrência, com auditoria. Se a mesma falha reaparecer, o incidente é reaberto automaticamente.
 
 ## Render
 

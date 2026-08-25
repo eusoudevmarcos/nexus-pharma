@@ -4,6 +4,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
+import { recordOperationalIncident } from "../services/observability.js";
 
 const providerSchema = z.string().regex(/^[a-z0-9_-]{2,40}$/);
 const eventSchema = z.object({
@@ -179,6 +180,14 @@ export async function billingWebhookRoutes(app: FastifyInstance) {
           where: { id: stored.id },
           data: { status: "FAILED", processedAt: new Date(), lastError: message },
         });
+        await recordOperationalIncident({
+          source: "billing",
+          severity: "CRITICAL",
+          title: "Falha no processamento de webhook financeiro",
+          detail: message,
+          metadata: { provider: provider.data, eventId, eventType: event.data.type },
+          fingerprintKey: `billing:${provider.data}:${event.data.type}:${message}`,
+        }).catch(() => undefined);
         request.log.error({ eventId, provider: provider.data, err: error }, "Falha no webhook financeiro");
         return reply.status(500).send({ erro: "PROCESSAMENTO_FINANCEIRO_FALHOU" });
       }

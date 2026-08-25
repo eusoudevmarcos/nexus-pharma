@@ -13,3 +13,5 @@ Na Vercel, configure o diretório raiz do projeto como `web` e cadastre `NEXUS_A
 O portal inclui seleção de empresa, painéis por perfil, gestão de usuários, geração e reenvio de convite de uso único, aceite de conta e alteração auditada de permissões. Quando o relay transacional está configurado, o convite é entregue automaticamente; sem ele, o portal apresenta o link seguro para envio manual.
 
 Perfis corporativos não dependem de vínculo com uma farmácia: Helpdesk, Financeiro, Comercial, Desenvolvimento e Administração Interna recebem navegação e painéis próprios após o login. O Financeiro também acompanha filas e falhas de e-mail e os eventos recentes do webhook de cobrança.
+
+Administração e Desenvolvimento possuem uma janela de Monitoramento com saúde da API, banco, integrações, sessões ativas, desempenho e tratamento auditado de incidentes.
