@@ -50,6 +50,12 @@ Rotas principais:
 - `PATCH /api/v1/usuarios/membros/:id`
 - `GET/PATCH /api/v1/interno/suporte`
 - `GET /api/v1/interno/financeiro`
+- `GET /api/v1/interno/faturamento`
+- `POST /api/v1/interno/faturamento/economias`
+- `POST /api/v1/interno/faturamento/fechar`
+- `PUT /api/v1/interno/comercial/empresas/:id/assinatura`
+- `POST /api/v1/interno/comercial/empresas/:id/lojas`
+- `POST /api/v1/interno/comercial/lojas/:id/pdvs`
 - `GET/PATCH /api/v1/interno/comercial`
 - `GET /api/v1/interno/desenvolvimento`
 - `GET/PATCH /api/v1/interno/monitoramento`
@@ -75,6 +81,16 @@ x-nexus-signature: HMAC-SHA256 em hexadecimal
 ```
 
 A assinatura usa `BILLING_WEBHOOK_SECRET` sobre `<timestamp>.<event-id>.<sha256-do-JSON>`. A janela aceita é de cinco minutos. Eventos são idempotentes por provedor e identificador; o corpo normalizado aceita eventos de fatura (`opened`, `paid`, `past_due`, `voided`) e assinatura (`activated`, `paused`, `cancelled`). Antes de produção, o adaptador específico do provedor escolhido deve validar a assinatura original dele e então gerar esta assinatura interna.
+
+## Faturamento mensal SaaS
+
+O seed mantém quatro planos vigentes: Basic (R$ 698), Smart (R$ 1.199), Fiscal Inteligente (R$ 1.990) e Ultimate (R$ 2.498). Todos incluem uma loja e um PDV por loja; cada filial ativa adicional soma R$ 1.000 e cada PDV ativo acima do primeiro de sua loja soma R$ 280.
+
+O fechamento mensal salva uma memória imutável com competência, plano, contagens e itens discriminados. Planos Fiscal Inteligente e Ultimate exigem que a economia do mês esteja `VERIFIED`; sem homologação e evidências, a fatura permanece `DRAFT`, com envio ao gateway bloqueado. Depois do fechamento, a economia fica `LOCKED`. O Ultimate cria entrada de R$ 5.000 no primeiro mês e quatro parcelas de R$ 1.250 nos meses 2 a 5; os demais planos criam o setup único de R$ 890.
+
+Configure `BILLING_RELAY_URL` e, se necessário, `BILLING_RELAY_KEY`. A API envia uma cobrança unificada com chave de idempotência e itens. Sem relay, a solicitação fica `QUEUED` para integração manual; o sistema nunca simula que o pagamento foi emitido. O webhook `invoice.paid` baixa as parcelas do onboarding vinculadas e conclui o onboarding quando todas forem pagas.
+
+Não há rateio proporcional nesta versão: lojas e PDVs são contados pela situação no encerramento da competência. Essa regra deve constar no contrato comercial antes da entrada em produção.
 
 ## Observabilidade
 

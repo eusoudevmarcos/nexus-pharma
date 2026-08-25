@@ -1,11 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { config } from "../config.js";
+import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireSystemRoles } from "../security/auth.js";
 import { runtimeSnapshot } from "../services/observability.js";
+import { closeMonthlyInvoice, ensureCustomerBillingStructure, normalizeBillingPeriod } from "../services/monthly-billing.js";
 
 const money = (value: unknown) => Number(value ?? 0);
+const toJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const ticketUpdateSchema = z
   .object({
     status: z.enum(["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"]).optional(),
@@ -22,8 +25,193 @@ const companyUpdateSchema = z
 const incidentUpdateSchema = z.object({
   status: z.enum(["ACKNOWLEDGED", "RESOLVED"]),
 });
+const savingsSchema = z.object({
+  empresa_id: z.string().uuid(),
+  periodo: z.coerce.date(),
+  economia_tributaria: z.number().min(0).max(100_000_000),
+  economia_perdas_estoque: z.number().min(0).max(100_000_000),
+  evidencias: z.array(z.record(z.unknown())).min(1).max(100),
+});
+const invoiceCloseSchema = z.object({ empresa_id: z.string().uuid(), periodo: z.coerce.date(), vencimento: z.coerce.date() });
+const subscriptionSetupSchema = z.object({ plano: z.enum(["BASIC", "SMART", "FISCAL_INTELIGENTE", "ULTIMATE"]), inicio_contrato: z.coerce.date(), status: z.enum(["TRIALING", "ACTIVE"]).default("ACTIVE") });
+const storeSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120), tipo: z.enum(["MAIN", "BRANCH"]).default("BRANCH") });
+const pdvSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120) });
+const activationSchema = z.object({ ativo: z.boolean() });
 
 export async function internalRoutes(app: FastifyInstance) {
+  app.get(
+    "/faturamento",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "FINANCE"])] },
+    async () => {
+      const currentPeriod = normalizeBillingPeriod(new Date());
+      const [plans, subscriptions, recentInvoices, savingsPending] = await Promise.all([
+        prisma.plan.findMany({ where: { active: true }, orderBy: { position: "asc" } }),
+        prisma.subscription.findMany({
+          where: { status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
+          include: {
+            company: { include: { stores: { include: { pointsOfSale: true } } } },
+            plan: true,
+            onboarding: { include: { installments: { orderBy: { number: "asc" } } } },
+          },
+          orderBy: { updatedAt: "desc" },
+        }),
+        prisma.invoice.findMany({
+          include: { items: { orderBy: { createdAt: "asc" } }, chargeRequests: { orderBy: { createdAt: "desc" }, take: 1 }, subscription: { include: { company: { select: { tradeName: true } }, plan: { select: { name: true } } } } },
+          orderBy: { createdAt: "desc" },
+          take: 40,
+        }),
+        prisma.monthlySavingsLedger.count({ where: { period: currentPeriod, status: "DRAFT" } }),
+      ]);
+      return {
+        currentPeriod,
+        plans: plans.map((plan) => ({ ...plan, monthlyPrice: money(plan.monthlyPrice), setupPrice: money(plan.setupPrice), successFeeRate: money(plan.successFeeRate), additionalStorePrice: money(plan.additionalStorePrice), extraPdvPrice: money(plan.extraPdvPrice) })),
+        indicators: {
+          subscriptions: subscriptions.length,
+          stores: subscriptions.reduce((sum, item) => sum + item.company.stores.filter((store) => store.active).length, 0),
+          pdvs: subscriptions.reduce((sum, item) => sum + item.company.stores.reduce((total, store) => total + store.pointsOfSale.filter((pdv) => pdv.active).length, 0), 0),
+          savingsPending,
+          draftInvoices: recentInvoices.filter((invoice) => invoice.requiresReview).length,
+        },
+        subscriptions: subscriptions.map((subscription) => ({
+          ...subscription,
+          plan: { ...subscription.plan, monthlyPrice: money(subscription.plan.monthlyPrice), setupPrice: money(subscription.plan.setupPrice), successFeeRate: money(subscription.plan.successFeeRate) },
+          onboarding: subscription.onboarding ? {
+            ...subscription.onboarding,
+            setupTotal: money(subscription.onboarding.setupTotal),
+            entryAmount: money(subscription.onboarding.entryAmount),
+            installmentAmount: money(subscription.onboarding.installmentAmount),
+            installments: subscription.onboarding.installments.map((installment) => ({ ...installment, amount: money(installment.amount) })),
+          } : null,
+          stores: subscription.company.stores.map((store) => ({ ...store, pdvs: store.pointsOfSale })),
+        })),
+        invoices: recentInvoices.map((invoice) => ({ ...invoice, amount: money(invoice.amount), items: invoice.items.map((item) => ({ ...item, quantity: money(item.quantity), unitAmount: money(item.unitAmount), totalAmount: money(item.totalAmount) })) })),
+      };
+    },
+  );
+
+  app.post(
+    "/faturamento/economias",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "FINANCE"])] },
+    async (request, reply) => {
+      const parsed = savingsSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ erro: "ECONOMIA_INVALIDA", detalhes: parsed.error.flatten() });
+      const period = normalizeBillingPeriod(parsed.data.periodo);
+      const existing = await prisma.monthlySavingsLedger.findUnique({ where: { companyId_period: { companyId: parsed.data.empresa_id, period } } });
+      if (existing?.status === "LOCKED") return reply.status(409).send({ erro: "ECONOMIA_JA_FATURADA" });
+      const company = await prisma.company.findUnique({ where: { id: parsed.data.empresa_id }, select: { id: true } });
+      if (!company) return reply.status(404).send({ erro: "EMPRESA_NAO_ENCONTRADA" });
+      const ledger = await prisma.$transaction(async (tx) => {
+        const saved = await tx.monthlySavingsLedger.upsert({
+          where: { companyId_period: { companyId: company.id, period } },
+          create: { companyId: company.id, period, taxSavings: parsed.data.economia_tributaria, inventoryLossSavings: parsed.data.economia_perdas_estoque, evidence: toJson(parsed.data.evidencias), status: "VERIFIED", verifiedById: request.user.sub, verifiedAt: new Date() },
+          update: { taxSavings: parsed.data.economia_tributaria, inventoryLossSavings: parsed.data.economia_perdas_estoque, evidence: toJson(parsed.data.evidencias), status: "VERIFIED", verifiedById: request.user.sub, verifiedAt: new Date() },
+        });
+        await tx.auditLog.create({ data: { companyId: company.id, userId: request.user.sub, action: "MONTHLY_SAVINGS_VERIFIED", entity: "MonthlySavingsLedger", entityId: saved.id, requestId: request.id, ipAddress: request.ip, before: existing ? { taxSavings: money(existing.taxSavings), inventoryLossSavings: money(existing.inventoryLossSavings), status: existing.status } : undefined, after: { taxSavings: parsed.data.economia_tributaria, inventoryLossSavings: parsed.data.economia_perdas_estoque, evidenceCount: parsed.data.evidencias.length, status: "VERIFIED" } } });
+        return saved;
+      });
+      return reply.send(ledger);
+    },
+  );
+
+  app.post(
+    "/faturamento/fechar",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "FINANCE"])] },
+    async (request, reply) => {
+      const parsed = invoiceCloseSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ erro: "FECHAMENTO_INVALIDO" });
+      try {
+        const result = await closeMonthlyInvoice({ companyId: parsed.data.empresa_id, period: parsed.data.periodo, dueAt: parsed.data.vencimento, requestedById: request.user.sub });
+        return reply.send(result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "FECHAMENTO_FALHOU";
+        if (["ASSINATURA_ATIVA_NAO_ENCONTRADA", "ASSINATURA_NAO_ENCONTRADA"].includes(message)) return reply.status(409).send({ erro: message });
+        throw error;
+      }
+    },
+  );
+
+  app.put<{ Params: { id: string } }>(
+    "/comercial/empresas/:id/assinatura",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
+    async (request, reply) => {
+      const companyId = z.string().uuid().safeParse(request.params.id);
+      const parsed = subscriptionSetupSchema.safeParse(request.body);
+      if (!companyId.success || !parsed.success) return reply.status(400).send({ erro: "ASSINATURA_INVALIDA" });
+      const plan = await prisma.plan.findUnique({ where: { code: parsed.data.plano } });
+      const company = await prisma.company.findUnique({ where: { id: companyId.data } });
+      if (!plan?.active || !company) return reply.status(404).send({ erro: "EMPRESA_OU_PLANO_NAO_ENCONTRADO" });
+      const current = await prisma.subscription.findFirst({ where: { companyId: company.id, status: { not: "CANCELLED" } }, include: { onboarding: { select: { id: true } }, _count: { select: { invoices: true } } } });
+      if (current && current.planId !== plan.id && current._count.invoices > 0) return reply.status(409).send({ erro: "PLANO_COM_FATURAS_NAO_PODE_SER_SUBSTITUIDO" });
+      if (current?.onboarding && (current.planId !== plan.id || current.contractStartedAt.getTime() !== parsed.data.inicio_contrato.getTime())) return reply.status(409).send({ erro: "ONBOARDING_INICIADO_NAO_PODE_SER_RECALCULADO" });
+      const subscription = current
+        ? await prisma.subscription.update({ where: { id: current.id }, data: { planId: plan.id, status: parsed.data.status, contractStartedAt: parsed.data.inicio_contrato } })
+        : await prisma.subscription.create({ data: { companyId: company.id, planId: plan.id, status: parsed.data.status, contractStartedAt: parsed.data.inicio_contrato } });
+      await ensureCustomerBillingStructure(subscription.id);
+      await prisma.auditLog.create({ data: { companyId: company.id, userId: request.user.sub, action: "SUBSCRIPTION_CONFIGURED", entity: "Subscription", entityId: subscription.id, requestId: request.id, ipAddress: request.ip, after: { plan: plan.code, status: subscription.status, contractStartedAt: subscription.contractStartedAt } } });
+      return reply.send(subscription);
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/comercial/empresas/:id/lojas",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
+    async (request, reply) => {
+      const companyId = z.string().uuid().safeParse(request.params.id);
+      const parsed = storeSchema.safeParse(request.body);
+      if (!companyId.success || !parsed.success) return reply.status(400).send({ erro: "LOJA_INVALIDA" });
+      const company = await prisma.company.findUnique({ where: { id: companyId.data }, select: { id: true } });
+      if (!company) return reply.status(404).send({ erro: "EMPRESA_NAO_ENCONTRADA" });
+      const store = await prisma.$transaction(async (tx) => {
+        const saved = await tx.store.create({ data: { companyId: company.id, code: parsed.data.codigo, name: parsed.data.nome, type: parsed.data.tipo } });
+        await tx.auditLog.create({ data: { companyId: company.id, userId: request.user.sub, action: "STORE_ACTIVATED", entity: "Store", entityId: saved.id, requestId: request.id, ipAddress: request.ip, after: { code: saved.code, name: saved.name, type: saved.type } } });
+        return saved;
+      });
+      return reply.status(201).send(store);
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/comercial/lojas/:id/pdvs",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
+    async (request, reply) => {
+      const storeId = z.string().uuid().safeParse(request.params.id);
+      const parsed = pdvSchema.safeParse(request.body);
+      if (!storeId.success || !parsed.success) return reply.status(400).send({ erro: "PDV_INVALIDO" });
+      const store = await prisma.store.findUnique({ where: { id: storeId.data }, select: { id: true, companyId: true } });
+      if (!store) return reply.status(404).send({ erro: "LOJA_NAO_ENCONTRADA" });
+      const pdv = await prisma.$transaction(async (tx) => {
+        const saved = await tx.pointOfSale.create({ data: { storeId: store.id, code: parsed.data.codigo, name: parsed.data.nome } });
+        await tx.auditLog.create({ data: { companyId: store.companyId, userId: request.user.sub, action: "POINT_OF_SALE_ACTIVATED", entity: "PointOfSale", entityId: saved.id, requestId: request.id, ipAddress: request.ip, after: { storeId: store.id, code: saved.code, name: saved.name } } });
+        return saved;
+      });
+      return reply.status(201).send(pdv);
+    },
+  );
+
+  app.patch<{ Params: { type: string; id: string } }>(
+    "/comercial/ativacao/:type/:id",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
+    async (request, reply) => {
+      const parsed = activationSchema.safeParse(request.body);
+      const id = z.string().uuid().safeParse(request.params.id);
+      if (!parsed.success || !id.success || !["loja", "pdv"].includes(request.params.type)) return reply.status(400).send({ erro: "ATIVACAO_INVALIDA" });
+      if (parsed.data.ativo) return reply.status(409).send({ erro: "REATIVACAO_REQUER_NOVO_REGISTRO" });
+      const target = request.params.type === "loja"
+        ? await prisma.store.findUnique({ where: { id: id.data }, select: { id: true, companyId: true } })
+        : await prisma.pointOfSale.findUnique({ where: { id: id.data }, select: { id: true, store: { select: { companyId: true } } } });
+      if (!target) return reply.status(404).send({ erro: "RECURSO_NAO_ENCONTRADO" });
+      const companyId = "companyId" in target ? target.companyId : target.store.companyId;
+      const updated = await prisma.$transaction(async (tx) => {
+        const saved = request.params.type === "loja"
+          ? await tx.store.update({ where: { id: id.data }, data: { active: false, deactivatedAt: new Date() } })
+          : await tx.pointOfSale.update({ where: { id: id.data }, data: { active: false, deactivatedAt: new Date() } });
+        await tx.auditLog.create({ data: { companyId, userId: request.user.sub, action: request.params.type === "loja" ? "STORE_DEACTIVATED" : "POINT_OF_SALE_DEACTIVATED", entity: request.params.type === "loja" ? "Store" : "PointOfSale", entityId: id.data, requestId: request.id, ipAddress: request.ip } });
+        return saved;
+      });
+      return reply.send(updated);
+    },
+  );
+
   app.get(
     "/monitoramento",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
@@ -233,12 +421,12 @@ export async function internalRoutes(app: FastifyInstance) {
     "/comercial",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
     async () => {
-      const [companies, pipeline] = await Promise.all([
+      const [companies, pipeline, plans] = await Promise.all([
         prisma.company.groupBy({ by: ["status"], _count: true }),
         prisma.company.findMany({
           include: {
             subscriptions: {
-              include: { plan: { select: { name: true, monthlyPrice: true } } },
+              include: { plan: { select: { code: true, name: true, monthlyPrice: true } } },
               orderBy: { updatedAt: "desc" },
               take: 1,
             },
@@ -247,9 +435,11 @@ export async function internalRoutes(app: FastifyInstance) {
           orderBy: { updatedAt: "desc" },
           take: 30,
         }),
+        prisma.plan.findMany({ where: { active: true }, select: { code: true, name: true, monthlyPrice: true, setupPrice: true, hasFineTuning: true }, orderBy: { position: "asc" } }),
       ]);
       return {
         indicators: Object.fromEntries(companies.map((item) => [item.status, item._count])),
+        plans: plans.map((plan) => ({ ...plan, monthlyPrice: money(plan.monthlyPrice), setupPrice: money(plan.setupPrice) })),
         pipeline: pipeline.map((company) => ({
           id: company.id,
           tradeName: company.tradeName,

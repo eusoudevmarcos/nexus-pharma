@@ -10,6 +10,7 @@ const links = [
   { href: "/portal/interno/monitoramento", label: "Monitoramento", icon: "●", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
   { href: "/portal/interno/suporte", label: "Helpdesk", icon: "?", roles: ["INTERNAL_ADMIN", "HELPDESK"] },
   { href: "/portal/interno/financeiro", label: "Financeiro", icon: "$", roles: ["INTERNAL_ADMIN", "FINANCE"] },
+  { href: "/portal/interno/faturamento", label: "Faturamento SaaS", icon: "R$", roles: ["INTERNAL_ADMIN", "FINANCE"] },
   { href: "/portal/interno/comercial", label: "Comercial", icon: "↗", roles: ["INTERNAL_ADMIN", "COMMERCIAL"] },
   { href: "/portal/interno/desenvolvimento", label: "Desenvolvimento", icon: "⌘", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
 ];

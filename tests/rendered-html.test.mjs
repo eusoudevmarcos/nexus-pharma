@@ -381,3 +381,47 @@ test("automatiza estoque, vencimentos, margem e cobrança em uma central de aler
   assert.match(proxy, /\/api\/v1\/alertas/);
   assert.match(monitoring, /failedAutomations/);
 });
+
+test("implementa planos, onboarding, success fee auditável e faturamento mensal idempotente", async () => {
+  const [schema, migration, seed, billing, gateway, webhook, internal, billingPage, billingCenter, commercial, shell, render] = await Promise.all([
+    readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/migrations/20260825010000_saas_pricing_billing/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/seed.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/services/monthly-billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/services/billing-gateway.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/billing-webhooks.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/internal.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/faturamento/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/faturamento/billing-center.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/comercial/commercial-pipeline.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/internal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+  ]);
+
+  for (const model of ["Store", "PointOfSale", "CustomerOnboarding", "SetupInstallment", "MonthlySavingsLedger", "InvoiceItem", "BillingChargeRequest"]) assert.match(schema, new RegExp(`model ${model} \\{`));
+  assert.match(schema, /@@unique\(\[subscriptionId, billingPeriod\]\)/);
+  assert.match(migration, /stores_one_main_per_company_uidx/);
+  assert.match(migration, /billing_charge_requests_invoice_id_payload_hash_key/);
+  for (const plan of ["BASIC", "SMART", "FISCAL_INTELIGENTE", "ULTIMATE"]) assert.match(seed, new RegExp(`code: "${plan}"`));
+  for (const price of ["monthlyPrice: 698", "monthlyPrice: 1199", "monthlyPrice: 1990", "monthlyPrice: 2498", "setupPrice: 10000", "additionalStorePrice: 1000", "extraPdvPrice: 280"]) assert.match(seed, new RegExp(price));
+  assert.match(billing, /additionalStores/);
+  assert.match(billing, /extraPdvs/);
+  assert.match(billing, /totalSavings \* successRate/);
+  assert.match(billing, /amount: 5000/);
+  assert.match(billing, /amount: 1250/);
+  assert.match(billing, /isolationLevel: "Serializable"/);
+  assert.match(billing, /requiresReview \? "DRAFT" : "OPEN"/);
+  assert.match(gateway, /payloadHash/);
+  assert.match(gateway, /idempotency_key/);
+  assert.match(gateway, /BILLING_RELAY_URL/);
+  assert.match(webhook, /setupInstallment\.updateMany/);
+  assert.match(webhook, /status: "COMPLETED"/);
+  assert.match(internal, /MONTHLY_SAVINGS_VERIFIED/);
+  assert.match(internal, /MONTHLY_INVOICE_CLOSED|faturamento\/fechar/);
+  assert.match(billingPage, /OPERAÇÃO OCEAN/);
+  assert.match(billingCenter, /Homologar economia mensal/);
+  assert.match(billingCenter, /Faturas discriminadas/);
+  assert.match(commercial, /Ativar contrato/);
+  assert.match(shell, /Faturamento SaaS/);
+  for (const key of ["BILLING_RELAY_URL", "BILLING_RELAY_KEY"]) assert.match(render, new RegExp(key));
+});

@@ -118,7 +118,7 @@ export async function billingWebhookRoutes(app: FastifyInstance) {
               : event.data.type === "invoice.voided"
                 ? "VOID"
                 : "OPEN";
-            await tx.invoice.upsert({
+            const savedInvoice = await tx.invoice.upsert({
               where: { providerReference: event.data.provider_invoice_id },
               create: {
                 subscriptionId: subscription.id,
@@ -137,6 +137,34 @@ export async function billingWebhookRoutes(app: FastifyInstance) {
                 metadata: toJson(event.data.metadata),
               },
             });
+            if (event.data.type === "invoice.paid") {
+              const paidAt = event.data.paid_at ?? new Date();
+              const linkedInstallments = await tx.setupInstallment.findMany({
+                where: { invoiceId: savedInvoice.id },
+                select: { onboardingId: true },
+              });
+              if (linkedInstallments.length) {
+                await tx.setupInstallment.updateMany({
+                  where: { invoiceId: savedInvoice.id, status: "BILLED" },
+                  data: { status: "PAID", paidAt },
+                });
+                for (const onboardingId of [...new Set(linkedInstallments.map((item) => item.onboardingId))]) {
+                  const remaining = await tx.setupInstallment.count({
+                    where: { onboardingId, status: { in: ["PENDING", "BILLED"] } },
+                  });
+                  if (remaining === 0) {
+                    await tx.customerOnboarding.update({
+                      where: { id: onboardingId },
+                      data: { status: "COMPLETED", completedAt: paidAt },
+                    });
+                  }
+                }
+              }
+              await tx.businessAlert.updateMany({
+                where: { invoiceId: savedInvoice.id, type: "BILLING_OVERDUE", status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+                data: { status: "RESOLVED", resolvedAt: paidAt },
+              });
+            }
           }
           const subscriptionStatus = event.data.type === "invoice.past_due"
             ? "PAST_DUE"

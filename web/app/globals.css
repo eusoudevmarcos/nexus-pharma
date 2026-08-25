@@ -132,7 +132,7 @@ main { overflow: hidden; }
 .security-list span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--yellow); color: var(--navy-deep); font-size: .75rem; font-weight: 900; }
 .security-list p { margin: 0; color: #d7e2e8; font-size: .92rem; }
 
-.plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: stretch; }
+.plan-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; align-items: stretch; }
 .plan-card { position: relative; display: flex; flex-direction: column; min-height: 560px; padding: 30px; border: 1px solid var(--line); border-radius: 26px; background: white; }
 .plan-card.featured { border: 2px solid var(--navy); box-shadow: var(--shadow); }
 .plan-badge { position: absolute; top: -14px; right: 20px; padding: 7px 12px; border-radius: 999px; background: var(--yellow); color: var(--navy-dark); font-size: .63rem; font-weight: 900; letter-spacing: .06em; }
@@ -142,6 +142,7 @@ main { overflow: hidden; }
 .plan-price { display: flex; gap: 6px; align-items: baseline; margin-top: 28px; }
 .plan-price strong { color: var(--navy-dark); font-size: 2rem; }
 .plan-price span, .plan-card small { color: var(--muted); font-size: .75rem; }
+.plan-card .plan-setup { min-height: 44px; display: block; margin-top: 8px; color: #586771; line-height: 1.45; }
 .plan-card ul { display: grid; gap: 13px; flex: 1; padding: 23px 0; margin: 22px 0; border-block: 1px solid #e8edef; list-style: none; }
 .plan-card li { display: flex; gap: 9px; align-items: start; color: #485862; font-size: .87rem; }
 .plan-card li span { color: #16835e; font-weight: 900; }
@@ -384,6 +385,56 @@ body:has(.portal-app) > main { overflow: visible; }
 .automation-row strong { overflow: hidden; color: var(--ink); font-size: .69rem; text-overflow: ellipsis; }
 .automation-row small, .automation-row em { overflow: hidden; color: #75838a; font-size: .58rem; font-style: normal; text-overflow: ellipsis; }
 .automation-row em { color: #9a3030; }
+.billing-center { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.billing-page .report-metrics { margin-top: 0; }
+.billing-plan-panel, .billing-customer-panel, .billing-invoice-panel { min-height: 0; }
+.billing-plan-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
+.billing-plan { min-width: 0; padding: 18px; border: 1px solid #e0e8ea; border-radius: 18px; background: #f8fafb; }
+.billing-plan.has-success { border-top: 3px solid var(--yellow); background: #fffdf4; }
+.billing-plan > span { color: #9c7600; font-size: .57rem; font-weight: 900; letter-spacing: .09em; }
+.billing-plan h3 { min-height: 39px; margin: 8px 0 10px; color: var(--navy-dark); font-size: .92rem; }
+.billing-plan > strong { display: block; color: var(--navy); font-size: 1.18rem; }
+.billing-plan > strong small { margin-left: 4px; color: #78858c; font-size: .56rem; }
+.billing-plan p { margin: 5px 0 10px; color: #6d7b83; font-size: .61rem; }
+.billing-plan ul { display: grid; gap: 4px; padding: 10px 0 0; margin: 0; border-top: 1px solid #e4eaec; color: #52636c; font-size: .59rem; list-style: none; }
+.billing-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.billing-form-panel { min-height: 0; }
+.billing-form-panel > p { margin: 9px 0 18px; color: #6d7b83; font-size: .65rem; }
+.billing-form-panel form { display: grid; gap: 12px; }
+.billing-form-panel label { display: grid; gap: 5px; color: #52636c; font-size: .63rem; font-weight: 800; }
+.billing-form-panel input, .billing-form-panel select, .billing-form-panel textarea { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #cad8dd; border-radius: 12px; outline: none; color: var(--ink); background: white; font-size: .68rem; }
+.billing-form-panel textarea { min-height: 82px; padding-block: 11px; resize: vertical; }
+.billing-form-panel input:focus, .billing-form-panel select:focus, .billing-form-panel textarea:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(6,58,92,.08); }
+.billing-form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.billing-form-panel button { min-height: 45px; border: 0; border-radius: 12px; color: white; background: var(--navy); cursor: pointer; font-size: .68rem; font-weight: 850; }
+.billing-form-panel button:disabled { cursor: default; opacity: .48; }
+.billing-preview { display: grid; padding: 14px; border-radius: 13px; background: #edf4f6; }
+.billing-preview span, .billing-preview small { color: #708088; font-size: .59rem; }
+.billing-preview strong { margin: 2px 0; color: var(--navy); font-size: .75rem; }
+.billing-feedback { padding: 15px 18px; border: 1px solid #cfe8dc; border-radius: 14px; color: #176747; background: #ebf8f2; font-size: .68rem; font-weight: 750; }
+.billing-feedback.error { border-color: #f0cccc; color: #8f3131; background: #fff1f1; }
+.billing-customer-list, .billing-invoice-list { margin-top: 17px; }
+.billing-customer-row { min-height: 72px; display: grid; grid-template-columns: minmax(220px, 1.3fr) 90px repeat(3, 75px); gap: 12px; align-items: center; border-top: 1px solid #e7edef; }
+.billing-customer-row:first-child { border-top: 0; }
+.billing-customer-row > div { display: grid; }
+.billing-customer-row strong { color: var(--ink); font-size: .74rem; }
+.billing-customer-row small { color: #78858d; font-size: .58rem; }
+.billing-customer-row b { color: var(--navy); font-size: .8rem; }
+.billing-invoice-list details { border-top: 1px solid #e5ebed; }
+.billing-invoice-list details:first-child { border-top: 0; }
+.billing-invoice-list summary { min-height: 69px; display: grid; grid-template-columns: minmax(230px, 1fr) 100px 120px; gap: 14px; align-items: center; cursor: pointer; list-style: none; }
+.billing-invoice-list summary::-webkit-details-marker { display: none; }
+.billing-invoice-list summary > div { display: grid; }
+.billing-invoice-list summary strong { color: var(--ink); font-size: .73rem; }
+.billing-invoice-list summary small { color: #7b888f; font-size: .58rem; }
+.billing-invoice-list summary > b { color: var(--navy); text-align: right; font-size: .76rem; }
+.billing-lines { display: grid; padding: 4px 15px 15px; border-radius: 14px; background: #f5f8f9; }
+.billing-lines > div, .billing-lines footer { min-height: 45px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #e0e7e9; }
+.billing-lines > div span { display: grid; color: #52626b; font-size: .64rem; }
+.billing-lines small { color: #8a969c; font-size: .54rem; }
+.billing-lines strong { color: var(--ink); font-size: .65rem; }
+.billing-lines footer { border-bottom: 0; color: #6f7d85; font-size: .6rem; }
+.billing-lines footer strong { color: var(--navy); }
 .service-health-panel, .incident-panel { min-height: 0; }
 .service-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 22px; }
 .service-health-grid > div { display: grid; grid-template-columns: 12px 1fr; gap: 3px 8px; align-items: center; padding: 17px; border: 1px solid #e2e9eb; border-radius: 16px; }
@@ -439,6 +490,17 @@ body:has(.portal-app) > main { overflow: visible; }
 .company-row > div:nth-child(2) span, .company-row label { color: #7a878e; font-size: .58rem; }
 .company-row > div:nth-child(2) b { color: var(--navy); font-size: .7rem; }
 .company-row label { display: grid; gap: 3px; }
+.commercial-company-card { padding: 8px 0 15px; border-top: 1px solid #e2e9eb; }
+.commercial-company-card:first-child { border-top: 0; }
+.commercial-company-card .company-row { border-top: 0; }
+.contract-row { display: grid; grid-template-columns: 1.2fr .75fr 1fr auto; gap: 12px; align-items: end; padding: 13px 15px; border-radius: 15px; background: #f2f7f8; }
+.contract-row label, .contract-row > div { display: grid; gap: 4px; color: #708087; font-size: .58rem; font-weight: 800; }
+.contract-row select, .contract-row input { width: 100%; height: 40px; padding: 0 10px; border: 1px solid #cad8dd; border-radius: 10px; color: var(--ink); background: white; font-size: .64rem; }
+.contract-row > div { align-self: center; }
+.contract-row > div strong { color: var(--navy); font-size: .68rem; }
+.contract-row button { min-height: 40px; padding-inline: 13px; border: 0; border-radius: 10px; color: white; background: var(--navy); cursor: pointer; font-size: .62rem; font-weight: 850; }
+.contract-row button:disabled { cursor: default; opacity: .5; }
+.contract-feedback { margin: 9px 15px 0; color: #356b58; font-size: .61rem; }
 .release-row { min-height: 82px; display: grid; grid-template-columns: 105px minmax(250px, 1fr) 100px 105px; gap: 15px; align-items: center; border-top: 1px solid #e7edef; }
 .release-row > div { display: grid; }
 .release-row strong { color: var(--ink); font-size: .78rem; }
@@ -470,7 +532,7 @@ body:has(.portal-app) > main { overflow: visible; }
   .audience-grid article:nth-child(n+4) { border-bottom: 1px solid var(--line); }
   .audience-grid article:nth-child(n+5) { border-bottom: 0; }
   .plan-grid, .detail-grid, .security-card-grid, .portal-grid { grid-template-columns: 1fr 1fr; }
-  .plan-card:last-child { grid-column: 1 / -1; }
+  .plan-card:last-child { grid-column: auto; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
   .portal-app { grid-template-columns: 88px minmax(0, 1fr); }
   .portal-sidebar { padding-inline: 14px; }
@@ -497,6 +559,9 @@ body:has(.portal-app) > main { overflow: visible; }
   .finance-list .internal-row > strong { grid-column: 2 / -1; }
   .automation-summary { grid-template-columns: repeat(2, 1fr); }
   .automation-columns { grid-template-columns: 1fr; }
+  .billing-plan-grid { grid-template-columns: 1fr 1fr; }
+  .billing-action-grid { grid-template-columns: 1fr; }
+  .billing-customer-row { grid-template-columns: minmax(200px, 1fr) 90px repeat(3, 65px); }
   .service-health-grid { grid-template-columns: 1fr 1fr; }
   .incident-row { grid-template-columns: 75px 1fr 105px; }
   .incident-actions { grid-column: 2 / -1; }
@@ -505,6 +570,7 @@ body:has(.portal-app) > main { overflow: visible; }
   .business-alert-actions { justify-content: flex-start; }
   .company-row { padding-block: 12px; grid-template-columns: 1fr 120px 120px; }
   .company-row label, .company-row button { grid-column: 2 / -1; }
+  .contract-row { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -570,11 +636,16 @@ body:has(.portal-app) > main { overflow: visible; }
   .invitation-row > span { grid-column: 1; }
   .invitation-actions { justify-content: flex-start; }
   .automation-summary { grid-template-columns: 1fr 1fr; }
+  .billing-plan-grid, .billing-form-pair { grid-template-columns: 1fr; }
+  .billing-customer-row, .billing-invoice-list summary { padding-block: 13px; grid-template-columns: 1fr 1fr; }
+  .billing-customer-row > div:first-child, .billing-invoice-list summary > div { grid-column: 1 / -1; }
+  .billing-invoice-list summary > b { text-align: left; }
   .member-row { padding-block: 15px; grid-template-columns: 44px 1fr; }
   .member-role, .member-actions { grid-column: 2; }
   .member-actions { display: flex; flex-wrap: wrap; }
   .invitation-card { padding: 28px 22px; }
   .ticket-row, .finance-list .internal-row, .company-row, .release-row { padding-block: 15px; grid-template-columns: 1fr; }
+  .contract-row { grid-template-columns: 1fr; }
   .service-health-grid { grid-template-columns: 1fr; }
   .incident-row { grid-template-columns: 1fr; padding-block: 16px; }
   .incident-actions { grid-column: auto; justify-content: flex-start; }

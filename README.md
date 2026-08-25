@@ -23,12 +23,14 @@ A central de observabilidade acompanha prontidão da API e PostgreSQL, desempenh
 
 A automação diária cria uma fila inteligente para estoque baixo, oportunidades de compra com boa margem, lotes em vencimento e cobranças atrasadas. Cada execução possui histórico, proteção contra duplicidade e tratamento automático das condições já normalizadas.
 
+O motor comercial SaaS possui os planos Basic, Smart, Fiscal Inteligente e Ultimate, onboarding financeiro, matriz e primeiro PDV inclusos, cobrança de filiais e PDVs extras e memória mensal discriminada. O Success Fee só é calculado sobre economia tributária e perdas de estoque evitadas depois da homologação humana com evidências. A área Comercial ativa o contrato e gera o cronograma de setup; a janela interna de Faturamento homologa a economia, fecha a competência e entrega uma cobrança idempotente ao adaptador do gateway.
+
 ## Próximas etapas
 
 1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.
 2. Conectar `web/` à Vercel e informar as variáveis de ambiente.
 3. Informar as credenciais do relay de e-mail e conectar o adaptador do provedor escolhido.
-4. Informar o segredo interno e conectar o adaptador do provedor de cobrança escolhido.
+4. Informar `BILLING_RELAY_URL`, `BILLING_RELAY_KEY` e o segredo do webhook para conectar o provedor de cobrança escolhido.
 5. Conectar o coletor externo de logs e alertas ao endpoint protegido de métricas.
 6. Revisar o custo do Cron Job do Render e ativar a rotina diária na implantação comercial.
 

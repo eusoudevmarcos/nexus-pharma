@@ -31,6 +31,11 @@ const schema = z.object({
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.string().min(32).optional(),
   ),
+  BILLING_RELAY_URL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().url().optional(),
+  ),
+  BILLING_RELAY_KEY: optionalText,
   OBSERVABILITY_TOKEN: z.preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.string().min(32).optional(),

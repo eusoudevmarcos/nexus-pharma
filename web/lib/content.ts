@@ -49,34 +49,57 @@ export type CommercialPlan = {
   description: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  setupPrice: number;
+  successFeeRate: number;
+  hasFineTuning: boolean;
   features: string[];
   featured?: boolean;
 };
 
 export const fallbackPlans: CommercialPlan[] = [
   {
-    code: "ESSENCIAL",
-    name: "Essencial",
-    description: "Para organizar a operação fiscal e o estoque da farmácia.",
-    monthlyPrice: 299,
-    yearlyPrice: 2990,
-    features: ["Motor fiscal", "Estoque e validade", "Alertas de reposição", "Até 5 usuários"],
+    code: "BASIC",
+    name: "Basic",
+    description: "A base operacional para organizar a rotina da farmácia.",
+    monthlyPrice: 698,
+    yearlyPrice: 8376,
+    setupPrice: 890,
+    successFeeRate: 0,
+    hasFineTuning: false,
+    features: ["Vendas e PDV", "Estoque básico", "Financeiro", "1 loja e 1 PDV inclusos"],
   },
   {
-    code: "GESTAO",
-    name: "Gestão",
-    description: "Para decisões de margem, compras e atendimento prioritário.",
-    monthlyPrice: 599,
-    yearlyPrice: 5990,
-    features: ["Tudo do Essencial", "IA fiscal assistida", "Indicadores de margem", "Suporte prioritário"],
+    code: "SMART",
+    name: "Smart",
+    description: "Automação para comprar melhor e perder menos por validade.",
+    monthlyPrice: 1199,
+    yearlyPrice: 14388,
+    setupPrice: 890,
+    successFeeRate: 0,
+    hasFineTuning: false,
+    features: ["Tudo do Basic", "IA de compras", "Automação de estoque e pedidos", "Controle inteligente de validades"],
+  },
+  {
+    code: "FISCAL_INTELIGENTE",
+    name: "Fiscal Inteligente",
+    description: "Gestão e motor tributário trabalhando em tempo real.",
+    monthlyPrice: 1990,
+    yearlyPrice: 23880,
+    setupPrice: 890,
+    successFeeRate: 0.1,
+    hasFineTuning: false,
+    features: ["Tudo do Smart", "Motor tributário em tempo real", "Economia auditável", "Success Fee de 10% somente sobre economia real"],
     featured: true,
   },
   {
-    code: "REDE",
-    name: "Rede",
-    description: "Para operações multiempresa com integrações e governança.",
-    monthlyPrice: 1299,
-    yearlyPrice: 12990,
-    features: ["Tudo do Gestão", "API e webhooks", "Liberação por empresa", "SLA dedicado"],
+    code: "ULTIMATE",
+    name: "Ultimate",
+    description: "Implantação completa com ajuste fino tributário da base.",
+    monthlyPrice: 2498,
+    yearlyPrice: 29976,
+    setupPrice: 10000,
+    successFeeRate: 0.1,
+    hasFineTuning: true,
+    features: ["Tudo do Fiscal Inteligente", "Consultoria tributária inicial", "Ajuste fino da base", "Success Fee de 10% sobre economia homologada"],
   },
 ];

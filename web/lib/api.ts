@@ -14,6 +14,9 @@ export async function getPlans(): Promise<CommercialPlan[]> {
       description: string;
       monthlyPrice: string | number;
       yearlyPrice: string | number;
+      setupPrice: string | number;
+      successFeeRate: string | number;
+      hasFineTuning: boolean;
       features: unknown;
     }>;
     return plans.map((plan, index) => ({
@@ -22,8 +25,11 @@ export async function getPlans(): Promise<CommercialPlan[]> {
       description: plan.description,
       monthlyPrice: Number(plan.monthlyPrice),
       yearlyPrice: Number(plan.yearlyPrice),
+      setupPrice: Number(plan.setupPrice),
+      successFeeRate: Number(plan.successFeeRate),
+      hasFineTuning: plan.hasFineTuning,
       features: Array.isArray(plan.features) ? plan.features.map(String) : [],
-      featured: plan.code === "GESTAO" || index === 1,
+      featured: plan.code === "FISCAL_INTELIGENTE" || index === 2,
     }));
   } catch {
     return fallbackPlans;
