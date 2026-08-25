@@ -475,3 +475,39 @@ test("endurece identidade, sessão, origem e observabilidade de segurança", asy
   assert.match(center, /Reutilização de token bloqueada/);
   for (const key of ["JWT_ISSUER", "JWT_AUDIENCE", "MAX_ACTIVE_SESSIONS"]) assert.match(render, new RegExp(key));
 });
+
+test("opera direitos dos titulares, retenção mínima e recuperação comprovável", async () => {
+  const [schema, migration, routes, retention, runner, server, customerPage, internalPage, shell, internalShell, render, runbook] = await Promise.all([
+    readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/migrations/20260825050000_privacy_and_recovery/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/privacy.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/jobs/privacy-retention.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/jobs/run-daily.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/privacidade/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/privacidade/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/portal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/internal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+    readFile(new URL("../docs/PRIVACIDADE-E-RECUPERACAO.md", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /model PrivacyRequest \{/);
+  assert.match(schema, /model RecoveryDrill \{/);
+  assert.match(migration, /privacy_requests_status_due_at_idx/);
+  assert.match(routes, /PRIVACY_REQUEST_CREATED/);
+  assert.match(routes, /MOTIVO_DE_RETENCAO_OBRIGATORIO/);
+  assert.match(routes, /productionReady: recoveryConfigured && Boolean\(recentPassed\)/);
+  assert.match(retention, /authSession\.deleteMany/);
+  assert.match(retention, /oneTimeToken\.deleteMany/);
+  assert.match(retention, /personalBusinessDataDeletion: "MANUAL_LEGAL_REVIEW_REQUIRED"/);
+  assert.match(runner, /privacy-retention/);
+  assert.match(server, /privacyRoutes/);
+  assert.match(customerPage, /Canal do titular/);
+  assert.match(internalPage, /Privacidade & DR/);
+  assert.match(shell, /\/portal\/privacidade/);
+  assert.match(internalShell, /Privacidade & DR/);
+  assert.match(render, /DATABASE_RECOVERY_MODE/);
+  assert.match(render, /plano gratuito não oferece restauração gerenciada/);
+  assert.match(runbook, /A exclusão nunca é automática/);
+});

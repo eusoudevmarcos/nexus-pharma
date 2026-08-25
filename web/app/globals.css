@@ -529,6 +529,58 @@ body:has(.portal-app) > main { overflow: visible; }
 .release-row small { color: #78858d; font-size: .61rem; }
 .release-row > div:not(:first-of-type) b { color: var(--navy); }
 
+.privacy-center, .privacy-operations { display: grid; gap: 16px; }
+.privacy-notice, .recovery-readiness { padding: 18px 21px; display: grid; grid-template-columns: 38px 1fr; gap: 13px; align-items: center; border: 1px solid #cadfe7; border-radius: 19px; background: #edf6f9; }
+.privacy-notice > span, .recovery-readiness > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; color: var(--navy-deep); background: var(--yellow); font-weight: 900; }
+.privacy-notice strong, .recovery-readiness strong { color: var(--navy-dark); font-size: .78rem; }
+.privacy-notice p, .recovery-readiness p { margin: 3px 0 0; color: #60717a; font-size: .65rem; line-height: 1.45; }
+.privacy-grid, .privacy-dr-grid { display: grid; grid-template-columns: .8fr 1.4fr; gap: 16px; }
+.privacy-form-panel, .privacy-list-panel, .privacy-queue-panel, .recovery-form-panel, .recovery-list-panel { min-height: 0; }
+.privacy-form-panel form, .recovery-form-panel form { display: grid; gap: 13px; margin-top: 22px; }
+.privacy-form-panel label, .recovery-form-panel label { display: grid; gap: 6px; color: #53646d; font-size: .65rem; font-weight: 800; }
+.privacy-form-panel select, .privacy-form-panel textarea, .recovery-form-panel input, .recovery-form-panel textarea { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #c9d7dc; border-radius: 12px; outline: none; color: var(--ink); background: white; font-size: .68rem; }
+.privacy-form-panel textarea, .recovery-form-panel textarea { padding-block: 11px; resize: vertical; }
+.privacy-form-panel select:focus, .privacy-form-panel textarea:focus, .recovery-form-panel input:focus, .recovery-form-panel textarea:focus, .privacy-admin-resolution select:focus, .privacy-admin-resolution textarea:focus, .recovery-evidence input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(6,58,92,.08); }
+.privacy-form-panel button, .recovery-form-panel button, .privacy-admin-resolution button, .recovery-actions button { min-height: 43px; padding-inline: 13px; border: 0; border-radius: 11px; color: white; background: var(--navy); cursor: pointer; font-size: .65rem; font-weight: 850; }
+.privacy-form-panel button:disabled, .recovery-form-panel button:disabled, .privacy-admin-resolution button:disabled, .recovery-actions button:disabled { cursor: default; opacity: .45; }
+.form-feedback { margin: 0; color: #176747; font-size: .64rem; }
+.privacy-request-list, .privacy-admin-list, .recovery-drill-list { margin-top: 18px; }
+.privacy-request-row { min-height: 93px; padding: 15px 0; display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: start; border-top: 1px solid #e6ecee; }
+.privacy-request-row:first-child, .privacy-admin-row:first-child, .recovery-drill-row:first-child { border-top: 0; }
+.privacy-request-row > div { display: grid; }
+.privacy-request-row code, .privacy-admin-identity code { color: #8f6e00; font-size: .56rem; font-weight: 850; }
+.privacy-request-row strong, .privacy-admin-row strong, .recovery-drill-row strong { color: var(--ink); font-size: .72rem; }
+.privacy-request-row small, .privacy-admin-row small, .recovery-drill-row small { color: #78868d; font-size: .58rem; }
+.privacy-request-row > p, .privacy-request-row .retention-reason { grid-column: 1 / -1; margin: 0; color: #5f6f78; font-size: .63rem; }
+.status-pill.active { color: #176c4d; background: #e3f5ed; }
+.status-pill.suspended { color: #8b2929; background: #ffeded; }
+.status-pill.pending { color: #775a00; background: var(--yellow-soft); }
+.recovery-readiness.blocked { border-color: #ead787; background: #fffbed; }
+.recovery-readiness.ready { border-color: #bfe3d4; background: #ebf8f2; }
+.privacy-queue-panel { padding-bottom: 12px; }
+.privacy-admin-row { min-height: 180px; padding: 17px 0; display: grid; grid-template-columns: minmax(250px, .9fr) minmax(340px, 1.1fr); gap: 20px; border-top: 1px solid #e5ebed; }
+.privacy-admin-row.overdue { margin-inline: -12px; padding-inline: 12px; border-radius: 14px; background: #fff7f7; }
+.privacy-admin-identity, .privacy-admin-resolution { min-width: 0; display: grid; align-content: start; gap: 4px; }
+.privacy-admin-identity b { margin-top: 6px; color: var(--navy); font-size: .62rem; }
+.privacy-admin-identity > span { color: #7c898f; font-size: .57rem; }
+.privacy-admin-identity p { margin: 7px 0 0; color: #5e6e76; font-size: .62rem; line-height: 1.4; }
+.privacy-admin-resolution { grid-template-columns: 1fr auto; gap: 8px; }
+.privacy-admin-resolution select, .privacy-admin-resolution textarea, .recovery-evidence input { width: 100%; min-height: 39px; padding: 0 10px; border: 1px solid #c9d7dc; border-radius: 10px; outline: none; color: var(--ink); background: white; font-size: .62rem; }
+.privacy-admin-resolution textarea { grid-column: 1 / -1; padding-block: 9px; resize: vertical; }
+.privacy-admin-resolution button { grid-column: 2; min-height: 39px; }
+.privacy-admin-resolution .form-error { grid-column: 1 / -1; color: #9b3030; }
+.privacy-dr-grid { grid-template-columns: .7fr 1.3fr; }
+.recovery-drill-row { min-height: 112px; padding: 14px 0; display: grid; grid-template-columns: 12px minmax(220px, 1fr) auto; gap: 12px; align-items: start; border-top: 1px solid #e5ebed; }
+.recovery-signal { width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: #dda800; }
+.recovery-signal.passed { background: #1d9a6a; box-shadow: 0 0 0 4px #e1f5ed; }
+.recovery-signal.failed { background: #cc4646; box-shadow: 0 0 0 4px #ffeded; }
+.recovery-drill-row > div:nth-child(2) { display: grid; }
+.recovery-drill-row p { margin: 5px 0 0; color: #78868d; font-size: .57rem; }
+.recovery-evidence { grid-column: 2 / -1; display: grid; grid-template-columns: 100px 100px 1fr auto; gap: 7px; }
+.recovery-actions { display: flex; gap: 6px; }
+.recovery-actions button { min-height: 39px; }
+.recovery-actions button.danger { background: #9b3434; }
+
 .site-footer { padding-top: 72px; color: #d6e2e8; background: var(--navy-deep); }
 .footer-grid { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 55px; padding-bottom: 60px; }
 .footer-grid > div { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -568,6 +620,10 @@ body:has(.portal-app) > main { overflow: visible; }
   .portal-user { display: flex; justify-content: center; padding: 8px; }
   .portal-sidebar-actions { display: grid; gap: 6px; text-align: center; }
   .portal-content { padding: 30px 24px; }
+  .privacy-grid, .privacy-dr-grid { grid-template-columns: 1fr; }
+  .privacy-admin-row { grid-template-columns: 1fr; }
+  .recovery-evidence { grid-template-columns: 90px 90px 1fr; }
+  .recovery-actions { grid-column: 1 / -1; }
   .report-metrics { grid-template-columns: 1fr 1fr; }
   .report-layout, .report-layout.two-columns { grid-template-columns: 1fr; }
   .company-grid { grid-template-columns: 1fr 1fr; }
@@ -641,6 +697,14 @@ body:has(.portal-app) > main { overflow: visible; }
   .portal-sidebar nav a { width: 43px; min-height: 42px; }
   .portal-workspace > header { height: 62px; padding-inline: 18px; }
   .portal-content { padding: 25px 14px 55px; }
+  .privacy-notice, .recovery-readiness { grid-template-columns: 34px 1fr; padding: 15px; }
+  .privacy-request-row, .privacy-admin-row, .recovery-drill-row { grid-template-columns: 1fr; }
+  .privacy-request-row > p, .privacy-request-row .retention-reason, .recovery-evidence { grid-column: auto; }
+  .privacy-admin-resolution { grid-template-columns: 1fr; }
+  .privacy-admin-resolution button { grid-column: auto; }
+  .recovery-signal { display: none; }
+  .recovery-evidence { grid-template-columns: 1fr 1fr; }
+  .recovery-evidence input:nth-child(3), .recovery-actions { grid-column: 1 / -1; }
   .report-heading { min-height: 0; flex-direction: column; }
   .report-heading p { font-size: .82rem; }
   .report-period { display: none; }

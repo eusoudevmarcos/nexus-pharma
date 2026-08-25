@@ -270,33 +270,65 @@ enum TaxAnalysisStatus {
   SUPERSEDED
 }
 
+enum PrivacyRequestType {
+  CONFIRMATION_ACCESS
+  CORRECTION
+  ANONYMIZATION_BLOCK_DELETION
+  PORTABILITY
+  CONSENT_REVOCATION
+  DATA_SHARING_INFO
+  AUTOMATED_DECISION_REVIEW
+}
+
+enum PrivacyRequestStatus {
+  RECEIVED
+  IDENTITY_CHECK
+  IN_PROGRESS
+  WAITING_LEGAL_REVIEW
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum RecoveryDrillStatus {
+  SCHEDULED
+  RUNNING
+  PASSED
+  FAILED
+  CANCELLED
+}
+
 model User {
-  id                 String                 @id @default(uuid()) @db.Uuid
-  email              String                 @unique @db.VarChar(254)
-  passwordHash       String?                @map("password_hash") @db.VarChar(255)
-  name               String                 @db.VarChar(160)
-  systemRole         SystemRole             @default(CUSTOMER) @map("system_role")
-  status             AccountStatus          @default(INVITED)
-  lastLoginAt        DateTime?              @map("last_login_at") @db.Timestamptz(3)
-  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
-  memberships        Membership[]
-  authSessions       AuthSession[]
-  oneTimeTokens      OneTimeToken[]
-  invitationsSent    Invitation[]           @relation("InvitationCreator")
-  ticketsCreated     SupportTicket[]        @relation("TicketCreator")
-  ticketsAssigned    SupportTicket[]        @relation("TicketAssignee")
-  ticketMessages     TicketMessage[]
-  releasesCreated    Release[]              @relation("ReleaseCreator")
-  releaseApprovals   ReleaseApproval[]
-  releasesEnabled    CustomerRelease[]      @relation("ReleaseEnabler")
-  apiCredentials     ApiCredential[]
-  analysesRequested  TaxAnalysis[]          @relation("AnalysisRequester")
-  analysesReviewed   TaxAnalysis[]          @relation("AnalysisReviewer")
-  auditLogs          AuditLog[]
-  incidentsResolved  OperationalIncident[]  @relation("IncidentResolver")
-  alertsAcknowledged BusinessAlert[]        @relation("AlertAcknowledgedBy")
-  savingsVerified    MonthlySavingsLedger[] @relation("SavingsVerifier")
+  id                     String                 @id @default(uuid()) @db.Uuid
+  email                  String                 @unique @db.VarChar(254)
+  passwordHash           String?                @map("password_hash") @db.VarChar(255)
+  name                   String                 @db.VarChar(160)
+  systemRole             SystemRole             @default(CUSTOMER) @map("system_role")
+  status                 AccountStatus          @default(INVITED)
+  lastLoginAt            DateTime?              @map("last_login_at") @db.Timestamptz(3)
+  createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships            Membership[]
+  authSessions           AuthSession[]
+  oneTimeTokens          OneTimeToken[]
+  invitationsSent        Invitation[]           @relation("InvitationCreator")
+  ticketsCreated         SupportTicket[]        @relation("TicketCreator")
+  ticketsAssigned        SupportTicket[]        @relation("TicketAssignee")
+  ticketMessages         TicketMessage[]
+  releasesCreated        Release[]              @relation("ReleaseCreator")
+  releaseApprovals       ReleaseApproval[]
+  releasesEnabled        CustomerRelease[]      @relation("ReleaseEnabler")
+  apiCredentials         ApiCredential[]
+  analysesRequested      TaxAnalysis[]          @relation("AnalysisRequester")
+  analysesReviewed       TaxAnalysis[]          @relation("AnalysisReviewer")
+  auditLogs              AuditLog[]
+  incidentsResolved      OperationalIncident[]  @relation("IncidentResolver")
+  alertsAcknowledged     BusinessAlert[]        @relation("AlertAcknowledgedBy")
+  savingsVerified        MonthlySavingsLedger[] @relation("SavingsVerifier")
+  privacyRequests        PrivacyRequest[]       @relation("PrivacyRequestSubject")
+  privacyRequestsMade    PrivacyRequest[]       @relation("PrivacyRequestCreator")
+  privacyRequestsHandled PrivacyRequest[]       @relation("PrivacyRequestHandler")
+  recoveryDrills         RecoveryDrill[]        @relation("RecoveryDrillPerformer")
 
   @@map("users")
 }
@@ -370,6 +402,7 @@ model Company {
   stores            Store[]
   onboardings       CustomerOnboarding[]
   savingsLedgers    MonthlySavingsLedger[]
+  privacyRequests   PrivacyRequest[]
 
   @@index([status])
   @@map("companies")
@@ -730,9 +763,9 @@ model BillingChargeRequest {
   updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
   invoice           Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
+  @@unique([invoiceId, payloadHash])
   @@index([status, createdAt])
   @@index([invoiceId, createdAt])
-  @@unique([invoiceId, payloadHash])
   @@map("billing_charge_requests")
 }
 
@@ -1141,4 +1174,55 @@ model AuditLog {
   @@index([companyId, createdAt])
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+model PrivacyRequest {
+  id                 String               @id @default(uuid()) @db.Uuid
+  protocol           String               @unique @db.VarChar(32)
+  companyId          String               @map("company_id") @db.Uuid
+  subjectUserId      String               @map("subject_user_id") @db.Uuid
+  requestedById      String               @map("requested_by_id") @db.Uuid
+  handledById        String?              @map("handled_by_id") @db.Uuid
+  type               PrivacyRequestType
+  status             PrivacyRequestStatus @default(RECEIVED)
+  details            String?              @db.Text
+  dueAt              DateTime             @map("due_at") @db.Timestamptz(3)
+  identityVerifiedAt DateTime?            @map("identity_verified_at") @db.Timestamptz(3)
+  resolutionSummary  String?              @map("resolution_summary") @db.Text
+  retentionReason    String?              @map("retention_reason") @db.Text
+  completedAt        DateTime?            @map("completed_at") @db.Timestamptz(3)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  subject            User                 @relation("PrivacyRequestSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  requestedBy        User                 @relation("PrivacyRequestCreator", fields: [requestedById], references: [id], onDelete: Restrict)
+  handledBy          User?                @relation("PrivacyRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([subjectUserId, status])
+  @@index([status, dueAt])
+  @@map("privacy_requests")
+}
+
+model RecoveryDrill {
+  id              String              @id @default(uuid()) @db.Uuid
+  status          RecoveryDrillStatus @default(SCHEDULED)
+  environment     String              @db.VarChar(40)
+  backupReference String?             @map("backup_reference") @db.VarChar(200)
+  objective       String              @db.Text
+  scheduledAt     DateTime            @map("scheduled_at") @db.Timestamptz(3)
+  startedAt       DateTime?           @map("started_at") @db.Timestamptz(3)
+  completedAt     DateTime?           @map("completed_at") @db.Timestamptz(3)
+  rpoMinutes      Int?                @map("rpo_minutes")
+  rtoMinutes      Int?                @map("rto_minutes")
+  integrityChecks Json                @default("[]") @map("integrity_checks")
+  notes           String?             @db.Text
+  performedById   String?             @map("performed_by_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  performedBy     User?               @relation("RecoveryDrillPerformer", fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([completedAt])
+  @@map("recovery_drills")
 }

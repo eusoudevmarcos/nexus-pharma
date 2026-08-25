@@ -12,6 +12,7 @@ const links = [
   { href: "/portal/operacao", label: "Operação", icon: "◎", roles: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR", "VIEWER"] },
   { href: "/portal/fiscal", label: "Motor fiscal", icon: "◇", roles: ["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST", "VIEWER"] },
   { href: "/portal/usuarios", label: "Usuários", icon: "◌", roles: ["OWNER", "ADMIN", "MANAGER"] },
+  { href: "/portal/privacidade", label: "Privacidade", icon: "◈", roles: ["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
 ];
 
 export function PortalShell({ profile, membership, children }: { profile: PortalProfile; membership: CompanyMembership; children: React.ReactNode }) {

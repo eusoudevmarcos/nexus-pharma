@@ -17,6 +17,11 @@ const schema = z.object({
   JWT_AUDIENCE: z.string().min(3).default("nexus-pharma-web"),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   MAX_ACTIVE_SESSIONS: z.coerce.number().int().min(1).max(20).default(5),
+  PRIVACY_REQUEST_SLA_DAYS: z.coerce.number().int().min(1).max(90).default(15),
+  AUTH_SESSION_RETENTION_DAYS: z.coerce.number().int().min(7).max(730).default(90),
+  ONE_TIME_TOKEN_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  DATABASE_RECOVERY_MODE: z.enum(["NONE", "PITR"]).default("NONE"),
+  DATABASE_RECOVERY_WINDOW_DAYS: z.coerce.number().int().min(0).max(90).default(0),
   TRUST_PROXY: z
     .enum(["true", "false"])
     .default("false")
