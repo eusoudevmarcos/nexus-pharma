@@ -20,6 +20,10 @@ const app = Fastify({
   logger: { level: config.LOG_LEVEL },
   requestIdHeader: "x-request-id",
   trustProxy: config.TRUST_PROXY,
+  bodyLimit: 1_048_576,
+  requestTimeout: 30_000,
+  connectionTimeout: 10_000,
+  maxParamLength: 200,
 });
 
 await app.register(cors, {
@@ -33,11 +37,19 @@ await app.register(helmet, { contentSecurityPolicy: false });
 await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
 await app.register(jwt, {
   secret: config.JWT_SECRET,
-  sign: { expiresIn: config.ACCESS_TOKEN_TTL },
+  sign: { expiresIn: config.ACCESS_TOKEN_TTL, iss: config.JWT_ISSUER, aud: config.JWT_AUDIENCE },
+  verify: { allowedIss: config.JWT_ISSUER, allowedAud: config.JWT_AUDIENCE },
 });
 
 app.addHook("onResponse", async (_request, reply) => {
   observeResponse(reply.statusCode, reply.elapsedTime);
+});
+app.addHook("onSend", async (request, reply, payload) => {
+  if (request.url.startsWith("/api/v1/") && request.url !== "/api/v1/planos") {
+    reply.header("cache-control", "no-store, max-age=0");
+    reply.header("pragma", "no-cache");
+  }
+  return payload;
 });
 
 await app.register(authRoutes, { prefix: "/api/v1/auth" });

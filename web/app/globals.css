@@ -435,6 +435,28 @@ body:has(.portal-app) > main { overflow: visible; }
 .billing-lines strong { color: var(--ink); font-size: .65rem; }
 .billing-lines footer { border-bottom: 0; color: #6f7d85; font-size: .6rem; }
 .billing-lines footer strong { color: var(--navy); }
+.security-center { display: grid; gap: 16px; }
+.security-session-panel, .security-event-panel { min-height: 0; }
+.security-session-list, .security-event-list { margin-top: 18px; }
+.security-session-row { min-height: 82px; display: grid; grid-template-columns: 12px minmax(240px, 1fr) 145px 90px 90px; gap: 13px; align-items: center; border-top: 1px solid #e5ebed; }
+.security-session-row:first-child, .security-event-row:first-child { border-top: 0; }
+.security-signal { width: 9px; height: 9px; border-radius: 50%; background: #9aa5aa; }
+.security-signal.active { background: #1d9a6a; box-shadow: 0 0 0 4px #e1f5ed; }
+.security-signal.revoked { background: #cc4646; }
+.security-session-row > div { min-width: 0; display: grid; }
+.security-session-row strong, .security-event-row strong { color: var(--ink); font-size: .72rem; }
+.security-session-row small, .security-session-row em, .security-event-row small { overflow: hidden; color: #7a878e; font-size: .57rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.security-session-row > div:nth-child(3) span { color: #8a969c; font-size: .55rem; }
+.security-session-row > div:nth-child(3) b { color: var(--navy); font-size: .64rem; }
+.security-session-row > button { min-height: 36px; border: 0; border-radius: 9px; color: white; background: #9b3434; cursor: pointer; font-size: .58rem; font-weight: 850; }
+.security-session-row > button:disabled { opacity: .45; }
+.security-event-row { min-height: 68px; display: grid; grid-template-columns: 35px minmax(220px, 1fr) 145px 100px; gap: 13px; align-items: center; border-top: 1px solid #e8edef; }
+.security-event-row > span { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 10px; color: #176b4c; background: #e2f4ec; font-size: .68rem; font-weight: 900; }
+.security-event-row.warning > span { color: #725700; background: #fff2bb; }
+.security-event-row.critical > span { color: #952e2e; background: #ffebeb; }
+.security-event-row > div { display: grid; min-width: 0; }
+.security-event-row > div:nth-child(3) b { color: #596972; font-size: .61rem; }
+.security-event-row code { overflow: hidden; padding: 5px 7px; border-radius: 7px; color: #66757d; background: #edf2f4; font-size: .52rem; text-overflow: ellipsis; }
 .service-health-panel, .incident-panel { min-height: 0; }
 .service-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 22px; }
 .service-health-grid > div { display: grid; grid-template-columns: 12px 1fr; gap: 3px 8px; align-items: center; padding: 17px; border: 1px solid #e2e9eb; border-radius: 16px; }
@@ -562,6 +584,8 @@ body:has(.portal-app) > main { overflow: visible; }
   .billing-plan-grid { grid-template-columns: 1fr 1fr; }
   .billing-action-grid { grid-template-columns: 1fr; }
   .billing-customer-row { grid-template-columns: minmax(200px, 1fr) 90px repeat(3, 65px); }
+  .security-session-row { grid-template-columns: 12px 1fr 130px 85px; padding-block: 12px; }
+  .security-session-row > button, .security-session-row > small:last-child { grid-column: 2 / -1; width: max-content; min-width: 90px; }
   .service-health-grid { grid-template-columns: 1fr 1fr; }
   .incident-row { grid-template-columns: 75px 1fr 105px; }
   .incident-actions { grid-column: 2 / -1; }
@@ -640,6 +664,8 @@ body:has(.portal-app) > main { overflow: visible; }
   .billing-customer-row, .billing-invoice-list summary { padding-block: 13px; grid-template-columns: 1fr 1fr; }
   .billing-customer-row > div:first-child, .billing-invoice-list summary > div { grid-column: 1 / -1; }
   .billing-invoice-list summary > b { text-align: left; }
+  .security-session-row, .security-event-row { padding-block: 14px; grid-template-columns: 32px 1fr; }
+  .security-session-row > div:nth-child(3), .security-session-row > .status-pill, .security-session-row > button, .security-session-row > small:last-child, .security-event-row > div:nth-child(3), .security-event-row code { grid-column: 2; }
   .member-row { padding-block: 15px; grid-template-columns: 44px 1fr; }
   .member-role, .member-actions { grid-column: 2; }
   .member-actions { display: flex; flex-wrap: wrap; }

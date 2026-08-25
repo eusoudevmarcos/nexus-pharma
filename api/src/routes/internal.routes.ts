@@ -6,6 +6,7 @@ import { prisma } from "../infra/prisma.js";
 import { authenticate, requireSystemRoles } from "../security/auth.js";
 import { runtimeSnapshot } from "../services/observability.js";
 import { closeMonthlyInvoice, ensureCustomerBillingStructure, normalizeBillingPeriod } from "../services/monthly-billing.js";
+import { securityActions } from "../services/security-events.js";
 
 const money = (value: unknown) => Number(value ?? 0);
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -37,8 +38,52 @@ const subscriptionSetupSchema = z.object({ plano: z.enum(["BASIC", "SMART", "FIS
 const storeSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120), tipo: z.enum(["MAIN", "BRANCH"]).default("BRANCH") });
 const pdvSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120) });
 const activationSchema = z.object({ ativo: z.boolean() });
+const sessionRevokeSchema = z.object({ motivo: z.string().trim().min(3).max(80).default("ADMIN_REVOKED") });
 
 export async function internalRoutes(app: FastifyInstance) {
+  app.get(
+    "/seguranca",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
+    async () => {
+      const now = new Date();
+      const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const [sessions, activeSessions, failedLogins, refreshReuse, revokedSessions, events] = await Promise.all([
+        prisma.authSession.findMany({ select: { id: true, userId: true, userAgent: true, ipAddress: true, expiresAt: true, lastSeenAt: true, rotatedAt: true, revokedAt: true, revokedReason: true, createdAt: true, user: { select: { name: true, email: true, systemRole: true } } }, orderBy: { lastSeenAt: "desc" }, take: 80 }),
+        prisma.authSession.count({ where: { revokedAt: null, expiresAt: { gt: now } } }),
+        prisma.auditLog.count({ where: { action: "AUTH_LOGIN_FAILED", createdAt: { gte: last24Hours } } }),
+        prisma.auditLog.count({ where: { action: "AUTH_REFRESH_REUSE_DETECTED", createdAt: { gte: last30Days } } }),
+        prisma.authSession.count({ where: { revokedAt: { gte: last7Days } } }),
+        prisma.auditLog.findMany({ where: { action: { in: [...securityActions] } }, select: { id: true, action: true, entityId: true, requestId: true, ipAddress: true, metadata: true, createdAt: true, user: { select: { name: true, email: true } }, company: { select: { tradeName: true } } }, orderBy: { createdAt: "desc" }, take: 100 }),
+      ]);
+      return {
+        generatedAt: now,
+        indicators: { activeSessions, failedLogins, refreshReuse, revokedSessions },
+        sessions: sessions.map((session) => ({ ...session, status: session.revokedAt ? "REVOKED" : session.expiresAt <= now ? "EXPIRED" : "ACTIVE" })),
+        events: events.map((event) => ({ ...event, severity: event.action === "AUTH_REFRESH_REUSE_DETECTED" ? "CRITICAL" : ["AUTH_LOGIN_FAILED", "AUTH_REFRESH_FAILED", "AUTH_TENANT_ACCESS_DENIED"].includes(event.action) ? "WARNING" : "INFO" })),
+      };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/seguranca/sessoes/:id",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = sessionRevokeSchema.safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "REVOGACAO_INVALIDA" });
+      const session = await prisma.authSession.findUnique({ where: { id: id.data }, select: { id: true, userId: true, revokedAt: true } });
+      if (!session) return reply.status(404).send({ erro: "SESSAO_NAO_ENCONTRADA" });
+      if (session.revokedAt) return reply.send({ revoked: true, duplicate: true });
+      await prisma.$transaction(async (tx) => {
+        await tx.authSession.update({ where: { id: session.id }, data: { revokedAt: new Date(), revokedReason: parsed.data.motivo } });
+        await tx.auditLog.create({ data: { userId: session.userId, action: "AUTH_SESSION_REVOKED", entity: "AuthSession", entityId: session.id, requestId: request.id, ipAddress: request.ip, metadata: { reason: parsed.data.motivo, revokedBy: request.user.sub } } });
+      });
+      return reply.send({ revoked: true, duplicate: false });
+    },
+  );
+
   app.get(
     "/faturamento",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "FINANCE"])] },

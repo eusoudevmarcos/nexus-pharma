@@ -13,7 +13,10 @@ const schema = z.object({
   WEB_ORIGIN: z.string().default("http://localhost:3000"),
   JWT_SECRET: z.string().min(32),
   ACCESS_TOKEN_TTL: z.string().default("15m"),
+  JWT_ISSUER: z.string().min(3).default("nexus-pharma-api"),
+  JWT_AUDIENCE: z.string().min(3).default("nexus-pharma-web"),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  MAX_ACTIVE_SESSIONS: z.coerce.number().int().min(1).max(20).default(5),
   TRUST_PROXY: z
     .enum(["true", "false"])
     .default("false")
@@ -46,6 +49,11 @@ export const config = schema.parse({
   ...process.env,
   SERVICE_VERSION: process.env.SERVICE_VERSION || process.env.RENDER_GIT_COMMIT,
 });
-export const allowedOrigins = config.WEB_ORIGIN.split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+export const allowedOrigins = config.WEB_ORIGIN.split(",").map((origin) => {
+  const value = origin.trim();
+  const parsed = new URL(value);
+  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new Error(`WEB_ORIGIN_INVALIDA: ${value}`);
+  }
+  return parsed.origin;
+});

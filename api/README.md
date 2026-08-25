@@ -59,12 +59,20 @@ Rotas principais:
 - `GET/PATCH /api/v1/interno/comercial`
 - `GET /api/v1/interno/desenvolvimento`
 - `GET/PATCH /api/v1/interno/monitoramento`
+- `GET /api/v1/interno/seguranca`
+- `PATCH /api/v1/interno/seguranca/sessoes/:id`
 - `GET /api/v1/financeiro/assinaturas`
 - `GET/POST /api/v1/desenvolvimento/releases`
 - `POST /api/v1/webhooks/billing/:provider`
 - `GET /api/v1/operations/metrics`
 
 O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. Convites de acesso usam token único armazenado como hash, expiram em 72 horas e toda mudança de perfil é auditada. O reenvio rotaciona o token e invalida o link anterior. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
+
+## Identidade e sessões
+
+Configure `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`, `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL_DAYS` e `MAX_ACTIVE_SESSIONS`. Cada token de acesso contém o identificador da sessão e a API confirma no PostgreSQL se a sessão e a conta continuam ativas; logout e revogação administrativa passam a ter efeito imediato.
+
+O refresh token é armazenado somente como hash e rotacionado por operação atômica. A reutilização do token anterior ou duas rotações concorrentes revogam toda a sessão e geram um evento crítico. Falhas de login usam comparação de senha de tempo equivalente mesmo para identidades inexistentes, reduzindo enumeração por tempo. A central `/portal/interno/seguranca` mostra sessões, falhas e eventos para Administração e Desenvolvimento.
 
 ## E-mail transacional
 

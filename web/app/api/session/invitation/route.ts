@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       CONVITE_EXPIRADO_OU_UTILIZADO: "Este convite expirou ou já foi utilizado.",
       EMPRESA_INATIVA: "A empresa deste convite não está ativa.",
       CONTA_BLOQUEADA: "Esta conta está bloqueada. Fale com o suporte.",
-      ACEITE_INVALIDO: "Confira seu nome e use uma senha com pelo menos 10 caracteres, letra e número.",
+      ACEITE_INVALIDO: "Confira seu nome e use uma senha entre 12 e 72 caracteres, com letra e número.",
     };
     return NextResponse.json({ message: messages[body.erro ?? ""] ?? "Não foi possível aceitar o convite." }, { status: upstream.status });
   }

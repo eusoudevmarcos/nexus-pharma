@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { apiUrl } from "@/lib/api";
+import { sessionCookieNames, sessionCookieOptions } from "@/lib/session-cookies";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -9,7 +10,7 @@ type Profile = {
 };
 
 export async function POST(request: Request) {
-  const token = (await cookies()).get("nexus_access")?.value;
+  const token = (await cookies()).get(sessionCookieNames.access)?.value;
   const body = (await request.json().catch(() => null)) as { companyId?: string } | null;
   if (!token) return NextResponse.json({ message: "Sessão expirada." }, { status: 401 });
   if (!apiUrl()) return NextResponse.json({ message: "API não configurada." }, { status: 503 });
@@ -27,18 +28,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Você não possui acesso a esta empresa." }, { status: 403 });
   }
   const response = NextResponse.json({ ok: true });
-  response.cookies.set("nexus_company", body.companyId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 30 * 24 * 60 * 60,
-  });
+  response.cookies.set(sessionCookieNames.company, body.companyId, sessionCookieOptions(30 * 24 * 60 * 60));
   return response;
 }
 
 export async function DELETE() {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set("nexus_company", "", { path: "/", maxAge: 0 });
+  response.cookies.set(sessionCookieNames.company, "", { path: "/", maxAge: 0 });
   return response;
 }

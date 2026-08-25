@@ -8,6 +8,7 @@ import type { PortalProfile } from "@/lib/portal";
 
 const links = [
   { href: "/portal/interno/monitoramento", label: "Monitoramento", icon: "●", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
+  { href: "/portal/interno/seguranca", label: "Segurança", icon: "◆", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
   { href: "/portal/interno/suporte", label: "Helpdesk", icon: "?", roles: ["INTERNAL_ADMIN", "HELPDESK"] },
   { href: "/portal/interno/financeiro", label: "Financeiro", icon: "$", roles: ["INTERNAL_ADMIN", "FINANCE"] },
   { href: "/portal/interno/faturamento", label: "Faturamento SaaS", icon: "R$", roles: ["INTERNAL_ADMIN", "FINANCE"] },

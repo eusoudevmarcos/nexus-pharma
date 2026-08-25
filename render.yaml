@@ -21,8 +21,14 @@ services:
         generateValue: true
       - key: ACCESS_TOKEN_TTL
         value: 15m
+      - key: JWT_ISSUER
+        value: nexus-pharma-api
+      - key: JWT_AUDIENCE
+        value: nexus-pharma-web
       - key: REFRESH_TOKEN_TTL_DAYS
         value: "30"
+      - key: MAX_ACTIVE_SESSIONS
+        value: "5"
       - key: TRUST_PROXY
         value: "true"
       - key: LOG_LEVEL

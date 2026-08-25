@@ -159,7 +159,7 @@ test("mantém a fundação SaaS pronta para PostgreSQL, Prisma e Render", async 
 });
 
 test("mantém o site institucional pronto para Vercel e login seguro", async () => {
-  const [home, layout, brand, styles, login, logout, vercel, webPackage] =
+  const [home, layout, brand, styles, login, logout, sessionCookies, vercel, webPackage] =
     await Promise.all([
       readFile(new URL("../web/app/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../web/app/layout.tsx", import.meta.url), "utf8"),
@@ -173,6 +173,7 @@ test("mantém o site institucional pronto para Vercel e login seguro", async () 
         new URL("../web/app/api/session/logout/route.ts", import.meta.url),
         "utf8",
       ),
+      readFile(new URL("../web/lib/session-cookies.ts", import.meta.url), "utf8"),
       readFile(new URL("../web/vercel.json", import.meta.url), "utf8"),
       readFile(new URL("../web/package.json", import.meta.url), "utf8"),
     ]);
@@ -183,21 +184,23 @@ test("mantém o site institucional pronto para Vercel e login seguro", async () 
   assert.match(layout, /logo\/icon-nexus-pharma\.png/);
   assert.match(brand, /logo-nexus-horizontal\.png/);
   assert.match(styles, /\.brand img[\s\S]*background: transparent/);
-  assert.match(login, /httpOnly: true/);
-  assert.match(login, /sameSite: "lax"/);
-  assert.match(login, /nexus_refresh/);
-  assert.match(logout, /cookies\.delete\("nexus_access"\)/);
+  assert.match(sessionCookies, /httpOnly: true/);
+  assert.match(sessionCookies, /sameSite: "strict"/);
+  assert.match(sessionCookies, /__Host-nexus_refresh/);
+  assert.match(login, /sessionCookieOptions/);
+  assert.match(logout, /cookies\.delete\(sessionCookieNames\.access\)/);
   assert.match(vercel, /nextjs/);
   assert.match(webPackage, /"next": "16\.2\.6"/);
 });
 
 test("entrega o portal multiempresa com relatórios separados por perfil", async () => {
-  const [reports, server, portal, shell, companySession, management, operation, fiscal, users] = await Promise.all([
+  const [reports, server, portal, shell, companySession, sessionCookies, management, operation, fiscal, users] = await Promise.all([
     readFile(new URL("../api/src/routes/reports.routes.ts", import.meta.url), "utf8"),
     readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
     readFile(new URL("../web/app/portal/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../web/app/portal/portal-shell.tsx", import.meta.url), "utf8"),
     readFile(new URL("../web/app/api/session/company/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/lib/session-cookies.ts", import.meta.url), "utf8"),
     readFile(new URL("../web/app/portal/gestao/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../web/app/portal/operacao/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../web/app/portal/fiscal/page.tsx", import.meta.url), "utf8"),
@@ -208,7 +211,8 @@ test("entrega o portal multiempresa com relatórios separados por perfil", async
   for (const route of ["/gestao", "/operacao", "/fiscal", "/usuarios"]) assert.match(reports, new RegExp(`"${route}"`));
   assert.match(reports, /tenantContext/);
   assert.match(reports, /requireTenantRoles/);
-  assert.match(companySession, /httpOnly: true/);
+  assert.match(companySession, /sessionCookieOptions/);
+  assert.match(sessionCookies, /httpOnly: true/);
   assert.match(companySession, /memberships\?\.find/);
   assert.match(portal, /CompanySelector/);
   assert.match(shell, /Módulos do portal/);
@@ -241,7 +245,7 @@ test("protege convites e alterações de acesso com trilha de auditoria", async 
   assert.match(acceptance, /Aceitar convite/);
   assert.match(inviteProxy, /inviteUrl/);
   assert.doesNotMatch(inviteProxy, /token: body\.token/);
-  assert.match(logout, /cookies\.delete\("nexus_company"\)/);
+  assert.match(logout, /cookies\.delete\(sessionCookieNames\.company\)/);
 });
 
 test("separa a operação interna por departamento e perfil de sistema", async () => {
@@ -424,4 +428,50 @@ test("implementa planos, onboarding, success fee auditável e faturamento mensal
   assert.match(commercial, /Ativar contrato/);
   assert.match(shell, /Faturamento SaaS/);
   for (const key of ["BILLING_RELAY_URL", "BILLING_RELAY_KEY"]) assert.match(render, new RegExp(key));
+});
+
+test("endurece identidade, sessão, origem e observabilidade de segurança", async () => {
+  const [schema, migration, authRoute, authGuard, securityEvents, server, internal, cookies, proxy, nextConfig, shell, page, center, render] = await Promise.all([
+    readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/migrations/20260825030000_auth_security_hardening/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/auth.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/security/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/services/security-events.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/internal.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/lib/session-cookies.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/next.config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/internal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/seguranca/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/seguranca/security-center.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /previousRefreshTokenHash/);
+  assert.match(schema, /revokedReason/);
+  assert.match(schema, /lastSeenAt/);
+  assert.match(migration, /previous_refresh_token_hash/);
+  assert.match(authRoute, /dummyPasswordHash/);
+  assert.match(authRoute, /AUTH_REFRESH_REUSE_DETECTED/);
+  assert.match(authRoute, /refreshTokenHash: presentedHash/);
+  assert.match(authRoute, /MAX_ACTIVE_SESSIONS/);
+  assert.match(authRoute, /sid: session\.id|sid: session\.created\.id/);
+  assert.match(authGuard, /request\.user\.sid/);
+  assert.match(authGuard, /session\.revokedAt/);
+  assert.match(securityEvents, /identityFingerprint/);
+  assert.match(server, /allowedIss/);
+  assert.match(server, /allowedAud/);
+  assert.match(internal, /"\/seguranca"/);
+  assert.match(internal, /seguranca\/sessoes/);
+  assert.match(cookies, /__Host-nexus_access/);
+  assert.match(cookies, /sameSite: "strict"/);
+  assert.match(proxy, /sec-fetch-site/);
+  assert.match(proxy, /origin !== expectedOrigin/);
+  assert.match(nextConfig, /Content-Security-Policy/);
+  assert.match(nextConfig, /Strict-Transport-Security/);
+  assert.match(shell, /Segurança/);
+  assert.match(page, /Defesa ativa/);
+  assert.match(center, /Reutilização de token bloqueada/);
+  for (const key of ["JWT_ISSUER", "JWT_AUDIENCE", "MAX_ACTIVE_SESSIONS"]) assert.match(render, new RegExp(key));
 });

@@ -41,6 +41,7 @@ Assim, um colaborador interno pode operar suporte, cobrança ou liberações sem
 - trocar e guardar `JWT_SECRET` somente no Render;
 - usar um domínio HTTPS da API e restringir `WEB_ORIGIN` ao domínio da Vercel;
 - criar o administrador pelo seed uma única vez e depois remover as variáveis de senha;
-- migrar a autenticação para cookies `HttpOnly` ou provedor de identidade antes de liberar clientes;
+- manter os cookies `HttpOnly`, `Secure`, `SameSite=Strict` e prefixados com `__Host-` no portal;
+- monitorar reutilização de refresh token, sessões excedentes e eventos de acesso na central de Segurança;
 - manter o banco sem acesso público (`ipAllowList: []`) e usar somente a conexão interna do Render;
 - homologar regras e fontes fiscais com profissional responsável antes de ativá-las para venda.

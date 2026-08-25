@@ -3,6 +3,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { apiUrl } from "./api";
+import { sessionCookieNames } from "./session-cookies";
 
 export type CompanyMembership = {
   role: string;
@@ -22,8 +23,8 @@ export const internalRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANC
 
 export const getPortalSession = cache(async () => {
   const store = await cookies();
-  const token = store.get("nexus_access")?.value ?? null;
-  const selectedCompanyId = store.get("nexus_company")?.value ?? null;
+  const token = store.get(sessionCookieNames.access)?.value ?? null;
+  const selectedCompanyId = store.get(sessionCookieNames.company)?.value ?? null;
   if (!token || !apiUrl()) {
     return { token, profile: null, membership: null, selectedCompanyId };
   }

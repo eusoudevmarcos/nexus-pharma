@@ -18,4 +18,6 @@ O Comercial configura o plano e o início do contrato, gerando automaticamente a
 
 Administração e Desenvolvimento possuem uma janela de Monitoramento com saúde da API, banco, integrações, sessões ativas, desempenho e tratamento auditado de incidentes.
 
+A janela de Segurança permite revisar dispositivos, revogar sessões e acompanhar falhas de login, reutilização de token e acessos multiempresa bloqueados. Em produção, as credenciais ficam em cookies `HttpOnly`, `Secure`, `SameSite=Strict`, com prefixo `__Host-`. Operações da API web rejeitam origem cruzada e todas as páginas recebem CSP, HSTS, bloqueio de frame e política restritiva de recursos.
+
 Clientes possuem uma Central de Alertas separada, com filtros para compras, vencimentos e cobranças. Operadores podem assumir alertas; perfis de gestão podem resolver ou dispensar, sempre com auditoria.

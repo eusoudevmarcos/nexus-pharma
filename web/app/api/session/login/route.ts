@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiUrl } from "@/lib/api";
+import { sessionCookieNames, sessionCookieOptions } from "@/lib/session-cookies";
 
 type LoginResponse = {
   access_token?: string;
@@ -8,14 +9,6 @@ type LoginResponse = {
   companies?: unknown;
   erro?: string;
 };
-
-const cookieOptions = (maxAge: number) => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge,
-});
 
 export async function POST(request: Request) {
   if (!apiUrl()) return NextResponse.json({ message: "O ambiente ainda não foi conectado à API." }, { status: 503 });
@@ -35,7 +28,7 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ user: body.user, companies: body.companies });
-  response.cookies.set("nexus_access", body.access_token, cookieOptions(15 * 60));
-  response.cookies.set("nexus_refresh", body.refresh_token, cookieOptions(30 * 24 * 60 * 60));
+  response.cookies.set(sessionCookieNames.access, body.access_token, sessionCookieOptions(15 * 60));
+  response.cookies.set(sessionCookieNames.refresh, body.refresh_token, sessionCookieOptions(30 * 24 * 60 * 60));
   return response;
 }

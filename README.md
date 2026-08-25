@@ -25,6 +25,8 @@ A automação diária cria uma fila inteligente para estoque baixo, oportunidade
 
 O motor comercial SaaS possui os planos Basic, Smart, Fiscal Inteligente e Ultimate, onboarding financeiro, matriz e primeiro PDV inclusos, cobrança de filiais e PDVs extras e memória mensal discriminada. O Success Fee só é calculado sobre economia tributária e perdas de estoque evitadas depois da homologação humana com evidências. A área Comercial ativa o contrato e gera o cronograma de setup; a janela interna de Faturamento homologa a economia, fecha a competência e entrega uma cobrança idempotente ao adaptador do gateway.
 
+A camada de identidade agora vincula cada JWT a uma sessão persistida e revogável. Tokens de renovação são rotacionados com detecção de reutilização e concorrência, sessões excedentes são encerradas automaticamente e eventos de login, bloqueio e acesso multiempresa ficam disponíveis na central interna de Segurança. O portal utiliza cookies `HttpOnly` com prefixo `__Host-` em produção, proteção de origem para operações mutáveis e headers restritivos de navegador.
+
 ## Próximas etapas
 
 1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.

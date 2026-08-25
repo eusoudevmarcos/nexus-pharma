@@ -36,8 +36,8 @@ const acceptanceSchema = z.object({
   nome: z.string().trim().min(3).max(160),
   senha: z
     .string()
-    .min(10)
-    .max(200)
+    .min(12)
+    .max(72)
     .regex(/[A-Za-z]/, "A senha deve conter uma letra.")
     .regex(/[0-9]/, "A senha deve conter um número."),
 });

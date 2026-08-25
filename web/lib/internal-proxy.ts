@@ -2,9 +2,10 @@ import "server-only";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { apiUrl } from "./api";
+import { sessionCookieNames } from "./session-cookies";
 
 export async function proxyInternal(path: string, init: RequestInit) {
-  const token = (await cookies()).get("nexus_access")?.value;
+  const token = (await cookies()).get(sessionCookieNames.access)?.value;
   if (!token) return NextResponse.json({ message: "Sessão expirada." }, { status: 401 });
   if (!apiUrl()) return NextResponse.json({ message: "API não configurada." }, { status: 503 });
   const upstream = await fetch(`${apiUrl()}${path}`, {

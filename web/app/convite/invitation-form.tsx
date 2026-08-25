@@ -26,8 +26,8 @@ export function InvitationForm({ token }: { token: string }) {
   if (result) return <div className="invitation-success"><span>✓</span><h2>Acesso confirmado</h2><p>Você já pode entrar no ambiente da <strong>{result.company}</strong>{result.requiresLogin ? " usando a senha da sua conta existente." : "."}</p><Link className="button button-yellow" href="/entrar">Entrar no Nexus</Link></div>;
   return <form action={submit} className="login-form">
     <label>Seu nome completo<input autoComplete="name" name="nome" required /></label>
-    <label>Crie uma senha<input autoComplete="new-password" minLength={10} name="senha" required type="password" /></label>
-    <small>Use no mínimo 10 caracteres, incluindo uma letra e um número.</small>
+    <label>Crie uma senha<input autoComplete="new-password" maxLength={72} minLength={12} name="senha" required type="password" /></label>
+    <small>Use de 12 a 72 caracteres, incluindo uma letra e um número.</small>
     {error && <p className="form-error">{error}</p>}
     <button className="button button-yellow" disabled={loading || !token} type="submit">{loading ? "Confirmando…" : "Aceitar convite"}</button>
   </form>;

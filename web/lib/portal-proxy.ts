@@ -2,11 +2,12 @@ import "server-only";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { apiUrl } from "./api";
+import { sessionCookieNames } from "./session-cookies";
 
 export async function proxyPortal(path: string, init: RequestInit) {
   const jar = await cookies();
-  const token = jar.get("nexus_access")?.value;
-  const companyId = jar.get("nexus_company")?.value;
+  const token = jar.get(sessionCookieNames.access)?.value;
+  const companyId = jar.get(sessionCookieNames.company)?.value;
   if (!token || !companyId) {
     return NextResponse.json({ message: "Sessão ou empresa não selecionada." }, { status: 401 });
   }
