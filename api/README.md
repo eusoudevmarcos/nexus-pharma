@@ -41,6 +41,7 @@ Rotas principais:
 - `GET/POST /api/v1/suporte/tickets`
 - `GET /api/v1/relatorios/{gestao,operacao,fiscal,usuarios}`
 - `GET/POST /api/v1/usuarios/convites`
+- `POST /api/v1/usuarios/convites/:id/reenviar`
 - `POST /api/v1/usuarios/convites/aceitar`
 - `PATCH /api/v1/usuarios/membros/:id`
 - `GET/PATCH /api/v1/interno/suporte`
@@ -49,8 +50,25 @@ Rotas principais:
 - `GET /api/v1/interno/desenvolvimento`
 - `GET /api/v1/financeiro/assinaturas`
 - `GET/POST /api/v1/desenvolvimento/releases`
+- `POST /api/v1/webhooks/billing/:provider`
 
-O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. Convites de acesso usam token único armazenado como hash, expiram em 72 horas e toda mudança de perfil é auditada. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
+O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. Convites de acesso usam token único armazenado como hash, expiram em 72 horas e toda mudança de perfil é auditada. O reenvio rotaciona o token e invalida o link anterior. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
+
+## E-mail transacional
+
+Configure `WEB_APP_URL`, `EMAIL_RELAY_URL`, `EMAIL_RELAY_KEY` e `EMAIL_FROM` no Render. A API envia ao relay um `POST` JSON com `from`, `to`, `subject`, `html`, `text` e `metadata`. Sem relay configurado, o convite permanece como `QUEUED` e o portal oferece o link para envio manual. O token nunca é persistido no registro de entrega.
+
+## Webhooks financeiros
+
+O adaptador do provedor deve normalizar o evento e chamar `POST /api/v1/webhooks/billing/:provider` com os cabeçalhos:
+
+```text
+x-nexus-event-id: identificador-unico-do-evento
+x-nexus-timestamp: timestamp Unix em segundos
+x-nexus-signature: HMAC-SHA256 em hexadecimal
+```
+
+A assinatura usa `BILLING_WEBHOOK_SECRET` sobre `<timestamp>.<event-id>.<sha256-do-JSON>`. A janela aceita é de cinco minutos. Eventos são idempotentes por provedor e identificador; o corpo normalizado aceita eventos de fatura (`opened`, `paid`, `past_due`, `voided`) e assinatura (`activated`, `paused`, `cancelled`). Antes de produção, o adaptador específico do provedor escolhido deve validar a assinatura original dele e então gerar esta assinatura interna.
 
 ## Render
 

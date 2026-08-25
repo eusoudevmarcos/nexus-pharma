@@ -100,7 +100,7 @@ export async function internalRoutes(app: FastifyInstance) {
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "FINANCE"])] },
     async () => {
       const now = new Date();
-      const [subscriptions, openInvoices, overdueInvoices, recentInvoices] = await Promise.all([
+      const [subscriptions, openInvoices, overdueInvoices, recentInvoices, emailStatuses, failedBillingEvents, recentDeliveries, recentBillingEvents] = await Promise.all([
         prisma.subscription.groupBy({ by: ["status"], _count: true }),
         prisma.invoice.aggregate({ where: { status: "OPEN" }, _count: true, _sum: { amount: true } }),
         prisma.invoice.aggregate({ where: { status: "OPEN", dueAt: { lt: now } }, _count: true, _sum: { amount: true } }),
@@ -110,6 +110,18 @@ export async function internalRoutes(app: FastifyInstance) {
           },
           orderBy: { dueAt: "asc" },
           take: 30,
+        }),
+        prisma.emailDelivery.groupBy({ by: ["status"], _count: true }),
+        prisma.billingWebhookEvent.count({ where: { status: "FAILED" } }),
+        prisma.emailDelivery.findMany({
+          select: { id: true, recipient: true, template: true, provider: true, status: true, attempts: true, lastError: true, createdAt: true, sentAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        }),
+        prisma.billingWebhookEvent.findMany({
+          select: { id: true, provider: true, eventType: true, status: true, externalEventId: true, lastError: true, receivedAt: true, processedAt: true },
+          orderBy: { receivedAt: "desc" },
+          take: 10,
         }),
       ]);
       const recurringRevenue = await prisma.subscription.findMany({
@@ -128,6 +140,12 @@ export async function internalRoutes(app: FastifyInstance) {
         },
         subscriptions: subscriptions.map((item) => ({ status: item.status, count: item._count })),
         invoices: recentInvoices.map((invoice) => ({ ...invoice, amount: money(invoice.amount) })),
+        automation: {
+          email: Object.fromEntries(emailStatuses.map((item) => [item.status, item._count])),
+          failedBillingEvents,
+          recentDeliveries,
+          recentBillingEvents,
+        },
       };
     },
   );

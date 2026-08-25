@@ -270,3 +270,40 @@ test("separa a operação interna por departamento e perfil de sistema", async (
   assert.match(commercial, /Pipeline SaaS/);
   assert.match(development, /Esteira de publicação/);
 });
+
+test("automatiza convites e cobrança com segurança e monitoramento", async () => {
+  const [schema, migration, delivery, webhook, users, server, resendProxy, administration, internal, finance, render] = await Promise.all([
+    readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/migrations/20260824200000_email_and_billing_automation/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/services/email-delivery.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/billing-webhooks.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/users.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/api/portal/invitations/[id]/resend/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/usuarios/user-administration.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/internal.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/financeiro/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /model EmailDelivery \{/);
+  assert.match(schema, /model BillingWebhookEvent \{/);
+  assert.match(schema, /@@unique\(\[provider, externalEventId\]\)/);
+  assert.doesNotMatch(schema.match(/model EmailDelivery \{[\s\S]*?\n\}/)?.[0] ?? "", /token/i);
+  assert.match(migration, /billing_webhook_events_provider_external_event_id_key/);
+  assert.match(delivery, /status: config\.EMAIL_RELAY_URL \? "PROCESSING" : "QUEUED"/);
+  assert.match(delivery, /AbortSignal\.timeout\(10_000\)/);
+  assert.doesNotMatch(delivery, /token:\s*message\.token/);
+  assert.match(webhook, /createHmac\("sha256"/);
+  assert.match(webhook, /timingSafeEqual/);
+  assert.match(webhook, /5 \* 60 \* 1000/);
+  assert.match(webhook, /error\.code === "P2002"/);
+  assert.match(server, /prefix: "\/api\/v1\/webhooks"/);
+  assert.match(users, /USER_INVITATION_RESENT/);
+  assert.match(resendProxy, /inviteUrl/);
+  assert.doesNotMatch(resendProxy, /token: body\.token/);
+  assert.match(administration, /Reenviar/);
+  assert.match(internal, /failedBillingEvents/);
+  assert.match(finance, /E-mails e webhooks financeiros/);
+  for (const key of ["EMAIL_RELAY_URL", "EMAIL_RELAY_KEY", "BILLING_WEBHOOK_SECRET"]) assert.match(render, new RegExp(key));
+});

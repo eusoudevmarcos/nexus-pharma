@@ -17,12 +17,14 @@ O portal autenticado já possui seleção segura de empresa, navegação por per
 
 A central corporativa possui acesso independente para Helpdesk, Financeiro, Comercial e Desenvolvimento. Usuários internos são direcionados automaticamente à sua área, com filas operacionais, indicadores consolidados e ações auditadas sobre chamados e implantação de clientes.
 
+A automação comercial já possui fila auditável de e-mail, reenvio com rotação do token e fallback manual. A cobrança dispõe de webhook normalizado com HMAC, proteção contra repetição e processamento idempotente de faturas e assinaturas. O painel Financeiro acompanha as duas integrações sem misturar o acesso dos clientes.
+
 ## Próximas etapas
 
 1. Conectar a API e o PostgreSQL ao Render e executar a migration inicial.
 2. Conectar `web/` à Vercel e informar as variáveis de ambiente.
-3. Integrar provedor de e-mail transacional para entrega automática dos convites.
-4. Conectar cobrança e webhooks do provedor financeiro.
+3. Informar as credenciais do relay de e-mail e conectar o adaptador do provedor escolhido.
+4. Informar o segredo interno e conectar o adaptador do provedor de cobrança escolhido.
 5. Adicionar observabilidade, alertas e monitoramento de produção.
 
 Consulte [api/README.md](api/README.md) para a API, [web/README.md](web/README.md) para o frontend e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.

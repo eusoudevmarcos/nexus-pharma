@@ -29,6 +29,16 @@ services:
         value: info
       - key: WEB_ORIGIN
         sync: false
+      - key: WEB_APP_URL
+        sync: false
+      - key: EMAIL_RELAY_URL
+        sync: false
+      - key: EMAIL_RELAY_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: BILLING_WEBHOOK_SECRET
+        sync: false
       - key: SEED_ADMIN_EMAIL
         sync: false
       - key: SEED_ADMIN_PASSWORD

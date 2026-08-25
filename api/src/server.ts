@@ -6,6 +6,7 @@ import Fastify from "fastify";
 import { allowedOrigins, config } from "./config.js";
 import { prisma } from "./infra/prisma.js";
 import { authRoutes } from "./routes/auth.routes.js";
+import { billingWebhookRoutes } from "./routes/billing-webhooks.routes.js";
 import { cadastrosRoutes } from "./routes/cadastros.routes.js";
 import { fiscalRoutes } from "./routes/fiscal.routes.js";
 import { internalRoutes } from "./routes/internal.routes.js";
@@ -35,6 +36,7 @@ await app.register(jwt, {
 });
 
 await app.register(authRoutes, { prefix: "/api/v1/auth" });
+await app.register(billingWebhookRoutes, { prefix: "/api/v1/webhooks" });
 await app.register(cadastrosRoutes, { prefix: "/api/v1/cadastros" });
 await app.register(fiscalRoutes, { prefix: "/api/v1/fiscal" });
 await app.register(internalRoutes, { prefix: "/api/v1/interno" });

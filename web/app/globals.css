@@ -315,13 +315,16 @@ body:has(.portal-app) > main { overflow: visible; }
 .invite-link span { grid-column: 1 / -1; color: #166347; font-size: .7rem; font-weight: 750; }
 .invite-link input { height: 42px; font-size: .7rem; }
 .invite-link button, .invitation-row button, .member-actions button { border: 0; background: transparent; color: var(--navy); cursor: pointer; font-size: .66rem; font-weight: 800; }
+.invite-feedback { margin: 0 0 16px; padding: 18px; border: 1px solid #dce5e8; border-radius: 18px; background: #fff; }
 .pending-invitations { min-height: 0; margin-bottom: 16px; }
 .pending-invitations > div:last-child { margin-top: 16px; }
 .invitation-row { min-height: 66px; display: grid; grid-template-columns: minmax(220px, 1fr) 180px auto; gap: 16px; align-items: center; border-top: 1px solid #e8edef; }
 .invitation-row > div { display: grid; }
 .invitation-row strong { color: var(--ink); font-size: .78rem; }
 .invitation-row small, .invitation-row > span { color: #77858d; font-size: .62rem; }
-.invitation-row button { color: #9a3030; }
+.invitation-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.invitation-row .invitation-actions button { color: var(--navy); }
+.invitation-row .invitation-actions .danger-link { color: #9a3030; }
 .member-list { margin-top: 20px; }
 .member-row { min-height: 92px; display: grid; grid-template-columns: 44px minmax(220px, 1fr) 185px 155px; gap: 14px; align-items: center; border-top: 1px solid #e8edef; }
 .member-row:first-child { border-top: 0; }
@@ -367,6 +370,20 @@ body:has(.portal-app) > main { overflow: visible; }
 .finance-list .internal-row { grid-template-columns: minmax(230px, 1fr) 110px 145px 130px; }
 .finance-list .internal-row > span:not(.status-pill) { color: #728088; font-size: .62rem; }
 .finance-list .internal-row > span b { color: var(--ink); }
+.automation-panel { min-height: 0; }
+.automation-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 22px 0; }
+.automation-summary > div { display: grid; gap: 4px; padding: 17px; border-radius: 16px; background: #f3f7f8; }
+.automation-summary strong { color: var(--navy); font-size: 1.35rem; }
+.automation-summary span { color: #708087; font-size: .64rem; }
+.automation-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.automation-columns > section { min-width: 0; padding: 18px; border: 1px solid #e1e8ea; border-radius: 18px; }
+.automation-columns h3 { margin: 0 0 10px; color: var(--ink); font-size: .8rem; }
+.automation-columns p { color: #75838a; font-size: .68rem; }
+.automation-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 11px 0; border-top: 1px solid #edf1f2; }
+.automation-row > div { min-width: 0; display: grid; gap: 2px; }
+.automation-row strong { overflow: hidden; color: var(--ink); font-size: .69rem; text-overflow: ellipsis; }
+.automation-row small, .automation-row em { overflow: hidden; color: #75838a; font-size: .58rem; font-style: normal; text-overflow: ellipsis; }
+.automation-row em { color: #9a3030; }
 .company-row { grid-template-columns: minmax(240px, 1fr) 120px 135px 70px 65px; }
 .company-row > div:nth-child(2) span, .company-row label { color: #7a878e; font-size: .58rem; }
 .company-row > div:nth-child(2) b { color: var(--navy); font-size: .7rem; }
@@ -427,6 +444,8 @@ body:has(.portal-app) > main { overflow: visible; }
   .ticket-row select:nth-of-type(2), .ticket-row button { grid-column: 2 / -1; }
   .finance-list .internal-row { grid-template-columns: 1fr 100px 125px; }
   .finance-list .internal-row > strong { grid-column: 2 / -1; }
+  .automation-summary { grid-template-columns: repeat(2, 1fr); }
+  .automation-columns { grid-template-columns: 1fr; }
   .company-row { padding-block: 12px; grid-template-columns: 1fr 120px 120px; }
   .company-row label, .company-row button { grid-column: 2 / -1; }
 }
@@ -492,6 +511,8 @@ body:has(.portal-app) > main { overflow: visible; }
   .invite-link span { grid-column: auto; }
   .invitation-row { padding-block: 13px; grid-template-columns: 1fr auto; }
   .invitation-row > span { grid-column: 1; }
+  .invitation-actions { justify-content: flex-start; }
+  .automation-summary { grid-template-columns: 1fr 1fr; }
   .member-row { padding-block: 15px; grid-template-columns: 44px 1fr; }
   .member-role, .member-actions { grid-column: 2; }
   .member-actions { display: flex; flex-wrap: wrap; }

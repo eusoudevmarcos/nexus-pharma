@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../infra/prisma.js";
+import { deliverInvitationEmail } from "../services/email-delivery.js";
 import {
   authenticate,
   requireTenantRoles,
@@ -97,6 +98,11 @@ export async function usersRoutes(app: FastifyInstance) {
           .send({ erro: "CONVITE_INVALIDO", detalhes: parsed.error.flatten() });
       }
       const companyId = request.tenant!.companyId;
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { tradeName: true },
+      });
+      if (!company) return reply.status(404).send({ erro: "EMPRESA_NAO_ENCONTRADA" });
       const existingMember = await prisma.membership.findFirst({
         where: { companyId, user: { email: parsed.data.email } },
       });
@@ -140,10 +146,75 @@ export async function usersRoutes(app: FastifyInstance) {
         });
         return created;
       });
+      const delivery = await deliverInvitationEmail({
+        invitationId: invitation.id,
+        companyId,
+        companyName: company.tradeName,
+        recipient: invitation.email,
+        role: invitation.role,
+        token,
+      });
       return reply.status(201).send({
         ...invitation,
         token,
-        delivery: "MANUAL_LINK",
+        delivery: { status: delivery.delivery.status, automatic: delivery.automatic },
+      });
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/convites/:id/reenviar",
+    {
+      preHandler: [
+        authenticate,
+        tenantContext,
+        requireTenantRoles(["OWNER", "ADMIN"]),
+      ],
+    },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      if (!id.success) return reply.status(400).send({ erro: "CONVITE_INVALIDO" });
+      const invitation = await prisma.invitation.findFirst({
+        where: { id: id.data, companyId: request.tenant!.companyId, acceptedAt: null },
+        include: { company: { select: { tradeName: true } } },
+      });
+      if (!invitation) return reply.status(404).send({ erro: "CONVITE_NAO_ENCONTRADO" });
+      const token = randomBytes(36).toString("base64url");
+      const expiresAt = invitationExpiry();
+      await prisma.$transaction([
+        prisma.invitation.update({
+          where: { id: invitation.id },
+          data: { tokenHash: tokenHash(token), expiresAt },
+        }),
+        prisma.emailDelivery.updateMany({
+          where: { invitationId: invitation.id, status: { in: ["QUEUED", "FAILED"] } },
+          data: { status: "CANCELLED" },
+        }),
+        prisma.auditLog.create({
+          data: {
+            companyId: invitation.companyId,
+            userId: request.user.sub,
+            action: "USER_INVITATION_RESENT",
+            entity: "Invitation",
+            entityId: invitation.id,
+            requestId: request.id,
+            ipAddress: request.ip,
+          },
+        }),
+      ]);
+      const delivery = await deliverInvitationEmail({
+        invitationId: invitation.id,
+        companyId: invitation.companyId,
+        companyName: invitation.company.tradeName,
+        recipient: invitation.email,
+        role: invitation.role,
+        token,
+      });
+      return reply.send({
+        id: invitation.id,
+        token,
+        expiresAt,
+        delivery: { status: delivery.delivery.status, automatic: delivery.automatic },
       });
     },
   );

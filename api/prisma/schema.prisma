@@ -90,6 +90,22 @@ enum InvoiceStatus {
   UNCOLLECTIBLE
 }
 
+enum EmailDeliveryStatus {
+  QUEUED
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum BillingEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
 enum TicketStatus {
   OPEN
   IN_PROGRESS
@@ -256,6 +272,8 @@ model Company {
   customerReleases  CustomerRelease[]
   apiCredentials    ApiCredential[]
   auditLogs         AuditLog[]
+  emailDeliveries   EmailDelivery[]
+  billingEvents     BillingWebhookEvent[]
 
   @@index([status])
   @@map("companies")
@@ -289,6 +307,7 @@ model Invitation {
   createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invitedBy   User       @relation("InvitationCreator", fields: [invitedById], references: [id])
+  deliveries  EmailDelivery[]
 
   @@index([companyId, email])
   @@map("invitations")
@@ -331,6 +350,7 @@ model Subscription {
   company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   plan               Plan               @relation(fields: [planId], references: [id])
   invoices           Invoice[]
+  billingEvents      BillingWebhookEvent[]
 
   @@index([companyId, status])
   @@map("subscriptions")
@@ -351,6 +371,50 @@ model Invoice {
 
   @@index([status, dueAt])
   @@map("invoices")
+}
+
+model EmailDelivery {
+  id                String              @id @default(uuid()) @db.Uuid
+  companyId         String?             @map("company_id") @db.Uuid
+  invitationId      String?             @map("invitation_id") @db.Uuid
+  recipient         String              @db.VarChar(254)
+  template          String              @db.VarChar(80)
+  subject           String              @db.VarChar(250)
+  provider          String              @default("manual") @db.VarChar(40)
+  providerMessageId String?             @unique @map("provider_message_id") @db.VarChar(180)
+  status            EmailDeliveryStatus @default(QUEUED)
+  attempts          Int                 @default(0)
+  lastError         String?             @map("last_error") @db.VarChar(1000)
+  sentAt            DateTime?           @map("sent_at") @db.Timestamptz(3)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company           Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  invitation        Invitation?         @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([companyId, createdAt])
+  @@map("email_deliveries")
+}
+
+model BillingWebhookEvent {
+  id              String             @id @default(uuid()) @db.Uuid
+  companyId       String?            @map("company_id") @db.Uuid
+  subscriptionId  String?            @map("subscription_id") @db.Uuid
+  provider        String             @db.VarChar(40)
+  externalEventId String             @map("external_event_id") @db.VarChar(180)
+  eventType       String             @map("event_type") @db.VarChar(100)
+  status          BillingEventStatus @default(RECEIVED)
+  payload         Json
+  lastError       String?            @map("last_error") @db.VarChar(2000)
+  receivedAt      DateTime           @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt     DateTime?          @map("processed_at") @db.Timestamptz(3)
+  company         Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  subscription    Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalEventId])
+  @@index([status, receivedAt])
+  @@index([companyId, receivedAt])
+  @@map("billing_webhook_events")
 }
 
 model FiscalCategory {
