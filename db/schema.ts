@@ -76,11 +76,13 @@ export const regrasFiscais = sqliteTable("regras_fiscais", {
   mva: real("mva").notNull().default(0),
   cstPis: text("cst_pis").notNull(),
   cstCofins: text("cst_cofins").notNull(),
+  cstPisCofins: text("cst_pis_cofins").notNull().default("01"),
   natureza: text("natureza_receita").notNull().default(""),
   pis: real("pis").notNull().default(0),
   cofins: real("cofins").notNull().default(0),
   cstReforma: text("cst_reforma").notNull(),
   classificacao: text("classificacao").notNull(),
+  cClassTrib: text("cclass_trib").notNull().default("000001"),
   cbs: real("cbs").notNull().default(0),
   ibs: real("ibs").notNull().default(0),
   reducao: real("reducao").notNull().default(0),
@@ -89,6 +91,22 @@ export const regrasFiscais = sqliteTable("regras_fiscais", {
 }, (table) => [
   primaryKey({ columns: [table.empresaId, table.categoriaId, table.regime] }),
   index("regras_fiscais_empresa_categoria_idx").on(table.empresaId, table.categoriaId),
+]);
+
+export const referenciasFiscais = sqliteTable("referencias_fiscais", {
+  catalogo: text("catalogo").notNull(),
+  codigo: text("codigo").notNull(),
+  codigoPai: text("codigo_pai"),
+  descricao: text("descricao").notNull(),
+  ncmPadroesJson: text("ncm_padroes_json").notNull().default("[]"),
+  fonteUrl: text("fonte_url").notNull(),
+  versaoFonte: text("versao_fonte").notNull(),
+  vigenciaInicio: text("vigencia_inicio"),
+  ativo: integer("ativo", { mode: "boolean" }).notNull().default(true),
+  atualizadoEm: text("atualizado_em").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  primaryKey({ columns: [table.catalogo, table.codigo, table.versaoFonte] }),
+  index("referencias_fiscais_catalogo_ativo_idx").on(table.catalogo, table.ativo),
 ]);
 
 export const produtos = sqliteTable("produtos", {

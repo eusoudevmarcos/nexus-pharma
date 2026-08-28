@@ -3,6 +3,13 @@ import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 import {
+  csosnCodes,
+  icmsCstCodes,
+  pisCofinsCstCodes,
+  validateIbsCbsClassification,
+  validateRevenueNature,
+} from "../fiscal/catalogs.js";
+import {
   authenticate,
   requireTenantRoles,
   tenantContext,
@@ -22,20 +29,19 @@ const toJson = (value: unknown) =>
 
 const fiscalRuleSchema = z.object({
   cfop: z.string().regex(/^[0-9]{4}$/),
-  cst_icms: z.string().min(2).max(3),
+  cst_icms: z.string().refine((value) => icmsCstCodes.has(value), "CST ICMS ausente da tabela interna"),
   csosn: z
     .string()
-    .regex(/^[0-9]{3}$/)
+    .refine((value) => csosnCodes.has(value), "CSOSN ausente da tabela interna")
     .nullable(),
   aliquota_icms: rate.default(0),
   mva: z.number().min(0).default(0),
-  cst_pis: z.string().regex(/^[0-9]{2}$/),
-  cst_cofins: z.string().regex(/^[0-9]{2}$/),
+  cst_pis_cofins: z.string().refine((value) => pisCofinsCstCodes.has(value), "CST PIS/COFINS ausente da tabela interna"),
   natureza_receita: z.string().max(20).nullable().default(null),
   aliquota_pis: rate.default(0),
   aliquota_cofins: rate.default(0),
   cst_ibs_cbs: z.string().min(2).max(5),
-  classificacao_tributaria: z.string().min(1).max(60),
+  cclass_trib: z.string().regex(/^[0-9]{6}$/),
   aliquota_cbs: rate.default(0),
   aliquota_ibs: rate.default(0),
   reducao_cbs: rate.default(0),
@@ -78,6 +84,20 @@ const categorySchema = z
     },
   );
 
+function fiscalCatalogErrors(category: z.infer<typeof categorySchema>) {
+  const errors: string[] = [];
+  for (const regime of regimes) {
+    const rule = category.regras_por_regime[regime];
+    if (!validateRevenueNature(category.ncm, rule.cst_pis_cofins, rule.natureza_receita)) {
+      errors.push(`${regime}: natureza da receita incompatível com o CST e o NCM`);
+    }
+    if (!validateIbsCbsClassification(category.ncm, rule.cst_ibs_cbs, rule.cclass_trib)) {
+      errors.push(`${regime}: cClassTrib incompatível com o CST IBS/CBS ou o NCM`);
+    }
+  }
+  return errors;
+}
+
 const lotSchema = z
   .object({
     codigo: z.string().min(1).max(60),
@@ -119,13 +139,15 @@ function mapRule(rule: z.infer<typeof fiscalRuleSchema>) {
     csosn: rule.csosn,
     icmsRate: rule.aliquota_icms,
     mvaRate: rule.mva,
-    cstPis: rule.cst_pis,
-    cstCofins: rule.cst_cofins,
+    cstPis: rule.cst_pis_cofins,
+    cstCofins: rule.cst_pis_cofins,
+    cstPisCofins: rule.cst_pis_cofins,
     revenueNature: rule.natureza_receita,
     pisRate: rule.aliquota_pis,
     cofinsRate: rule.aliquota_cofins,
     cstIbsCbs: rule.cst_ibs_cbs,
-    taxClassification: rule.classificacao_tributaria,
+    taxClassification: rule.cclass_trib,
+    cClassTrib: rule.cclass_trib,
     cbsRate: rule.aliquota_cbs,
     ibsRate: rule.aliquota_ibs,
     cbsReduction: rule.reducao_cbs,
@@ -160,6 +182,8 @@ export async function cadastrosRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const parsed = categorySchema.safeParse(request.body);
       if (!parsed.success) return validationError(reply, parsed.error);
+      const catalogErrors = fiscalCatalogErrors(parsed.data);
+      if (catalogErrors.length) return reply.status(400).send({ erro: "REFERENCIA_FISCAL_INVALIDA", detalhes: catalogErrors });
       if (!parsed.data.regras_por_regime.SIMPLES_NACIONAL.csosn) {
         return reply.status(400).send({ erro: "CSOSN_OBRIGATORIO_NO_SIMPLES" });
       }
@@ -213,6 +237,8 @@ export async function cadastrosRoutes(app: FastifyInstance) {
       const parsed = categorySchema.safeParse(request.body);
       if (!id.success) return reply.status(400).send({ erro: "ID_INVALIDO" });
       if (!parsed.success) return validationError(reply, parsed.error);
+      const catalogErrors = fiscalCatalogErrors(parsed.data);
+      if (catalogErrors.length) return reply.status(400).send({ erro: "REFERENCIA_FISCAL_INVALIDA", detalhes: catalogErrors });
       if (!parsed.data.regras_por_regime.SIMPLES_NACIONAL.csosn) {
         return reply.status(400).send({ erro: "CSOSN_OBRIGATORIO_NO_SIMPLES" });
       }

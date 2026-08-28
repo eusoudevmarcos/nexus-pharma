@@ -807,11 +807,13 @@ model FiscalRule {
   mvaRate            Decimal        @default(0) @map("mva_rate") @db.Decimal(9, 6)
   cstPis             String         @map("cst_pis") @db.Char(2)
   cstCofins          String         @map("cst_cofins") @db.Char(2)
+  cstPisCofins       String         @default("01") @map("cst_pis_cofins") @db.Char(2)
   revenueNature      String?        @map("revenue_nature") @db.VarChar(20)
   pisRate            Decimal        @default(0) @map("pis_rate") @db.Decimal(9, 6)
   cofinsRate         Decimal        @default(0) @map("cofins_rate") @db.Decimal(9, 6)
   cstIbsCbs          String         @map("cst_ibs_cbs") @db.VarChar(5)
   taxClassification  String         @map("tax_classification") @db.VarChar(60)
+  cClassTrib         String         @default("000001") @map("cclass_trib") @db.Char(6)
   cbsRate            Decimal        @default(0) @map("cbs_rate") @db.Decimal(9, 6)
   ibsRate            Decimal        @default(0) @map("ibs_rate") @db.Decimal(9, 6)
   cbsReduction       Decimal        @default(0) @map("cbs_reduction") @db.Decimal(9, 6)
@@ -824,6 +826,27 @@ model FiscalRule {
 
   @@unique([categoryId, regime])
   @@map("fiscal_rules")
+}
+
+model FiscalCatalogEntry {
+  id            String    @id @default(uuid()) @db.Uuid
+  catalog       String    @db.VarChar(40)
+  code          String    @db.VarChar(20)
+  parentCode    String?   @map("parent_code") @db.VarChar(40)
+  description   String    @db.VarChar(800)
+  ncmPatterns   Json      @default("[]") @map("ncm_patterns")
+  sourceUrl     String    @map("source_url") @db.VarChar(500)
+  sourceVersion String    @map("source_version") @db.VarChar(120)
+  validFrom     DateTime? @map("valid_from") @db.Date
+  validUntil    DateTime? @map("valid_until") @db.Date
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([catalog, code, sourceVersion])
+  @@index([catalog, active])
+  @@index([code, active])
+  @@map("fiscal_catalog_entries")
 }
 
 model Product {

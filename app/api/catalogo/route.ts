@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { initialCategories, initialProducts, type Category, type Product, type Regime, type Rule } from "../../catalog-data";
-import { auditoria, categorias, produtos, regrasFiscais } from "../../../db/schema";
+import { CSOSNS, ICMS_CSTS, IBS_CBS_CLASSIFICATIONS, PIS_COFINS_CSTS, REVENUE_NATURES, getIbsCbsClassification, isFiscalOption, revenueNatureSuggestions } from "../../fiscal-catalog";
+import { auditoria, categorias, produtos, referenciasFiscais, regrasFiscais } from "../../../db/schema";
 import { getTenantContext } from "../tenant-context";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,32 @@ function categoryValues(empresaId: string, category: Category) {
 }
 
 function ruleValues(empresaId: string, categoriaId: string, regime: Regime, rule: Rule) {
-  return { empresaId, categoriaId, regime, ...rule };
+  return {
+    empresaId, categoriaId, regime,
+    cfop: rule.cfop, cstIcms: rule.cstIcms, csosn: rule.csosn, icms: rule.icms, mva: rule.mva,
+    cstPis: rule.cstPisCofins, cstCofins: rule.cstPisCofins, cstPisCofins: rule.cstPisCofins,
+    natureza: rule.natureza, pis: rule.pis, cofins: rule.cofins,
+    cstReforma: rule.cstReforma, classificacao: rule.cClassTrib, cClassTrib: rule.cClassTrib,
+    cbs: rule.cbs, ibs: rule.ibs, reducao: rule.reducao, compensarCbs: rule.compensarCbs,
+  };
+}
+
+async function seedFiscalReferences(tenant: Awaited<ReturnType<typeof getTenantContext>> & { empresaId: string }) {
+  const [existing] = await tenant.db.select({ codigo: referenciasFiscais.codigo }).from(referenciasFiscais).limit(1);
+  if (existing) return;
+  const spedCstUrl = "https://sped.rfb.gov.br/item/show/1616";
+  const entries = [
+    ...PIS_COFINS_CSTS.map((item) => ({ catalogo: "PIS_COFINS_CST", ...item, fonteUrl: spedCstUrl, versaoFonte: "4.3.3/4.3.4-v1.0.0", ncmPatterns: [] as string[], parent: null as string | null })),
+    ...ICMS_CSTS.map((item) => ({ catalogo: "ICMS_CST", ...item, fonteUrl: "https://www.confaz.fazenda.gov.br/legislacao/arquivo-manuais/moc7-anexo-i-leiaute-e-rv.pdf", versaoFonte: "MOC-7.0", ncmPatterns: [] as string[], parent: null as string | null })),
+    ...CSOSNS.map((item) => ({ catalogo: "ICMS_CSOSN", ...item, fonteUrl: "https://www.confaz.fazenda.gov.br/legislacao/arquivo-manuais/moc7-anexo-i-leiaute-e-rv.pdf", versaoFonte: "MOC-7.0", ncmPatterns: [] as string[], parent: null as string | null })),
+    ...REVENUE_NATURES.map((item) => ({ catalogo: "PIS_COFINS_NATUREZA", ...item, fonteUrl: item.sourceUrl, versaoFonte: item.sourceVersion, ncmPatterns: item.ncmPrefixes, parent: item.csts.join(",") })),
+    ...IBS_CBS_CLASSIFICATIONS.map((item) => ({ catalogo: "IBS_CBS_CCLASSTRIB", ...item, fonteUrl: item.sourceUrl, versaoFonte: item.sourceVersion, ncmPatterns: item.ncmPrefixes, parent: item.cst })),
+  ];
+  const statements = entries.map((item) => tenant.db.insert(referenciasFiscais).values({
+    catalogo: item.catalogo, codigo: item.code, codigoPai: item.parent, descricao: item.description,
+    ncmPadroesJson: JSON.stringify(item.ncmPatterns), fonteUrl: item.fonteUrl, versaoFonte: item.versaoFonte,
+  }).onConflictDoNothing());
+  await tenant.db.batch(statements as [typeof statements[number], ...typeof statements]);
 }
 
 function productValues(empresaId: string, product: Product) {
@@ -78,6 +104,7 @@ export async function GET() {
   try {
     const tenant = await getTenantContext();
     if ("error" in tenant) return tenant.error;
+    await seedFiscalReferences(tenant);
     await seedCatalog(tenant);
 
     const [categoryRows, ruleRows, productRows] = await Promise.all([
@@ -91,8 +118,8 @@ export async function GET() {
       const current = rulesByCategory.get(row.categoriaId) ?? {};
       current[row.regime as Regime] = {
         cfop: row.cfop, cstIcms: row.cstIcms, csosn: row.csosn, icms: row.icms, mva: row.mva,
-        cstPis: row.cstPis, cstCofins: row.cstCofins, natureza: row.natureza, pis: row.pis, cofins: row.cofins,
-        cstReforma: row.cstReforma, classificacao: row.classificacao, cbs: row.cbs, ibs: row.ibs,
+        cstPisCofins: row.cstPisCofins || (row.cstPis === row.cstCofins ? row.cstPis : ""), natureza: row.natureza, pis: row.pis, cofins: row.cofins,
+        cstReforma: row.cstReforma, cClassTrib: row.cClassTrib || (/^\d{6}$/.test(row.classificacao) ? row.classificacao : "000001"), cbs: row.cbs, ibs: row.ibs,
         reducao: row.reducao, compensarCbs: row.compensarCbs,
       };
       rulesByCategory.set(row.categoriaId, current);
@@ -124,7 +151,7 @@ export async function PUT(request: Request) {
 
     if (payload.tipo === "categoria") {
       if (!canManageFiscal(tenant.papel)) return Response.json({ error: "Seu perfil não pode alterar regras fiscais." }, { status: 403 });
-      if (!isCategory(payload.registro)) return Response.json({ error: "Categoria fiscal inválida. Revise NCM, códigos e alíquotas." }, { status: 400 });
+      if (!isCategory(payload.registro)) return Response.json({ error: "Categoria fiscal inválida. Use somente códigos das tabelas internas e revise NCM, natureza e cClassTrib." }, { status: 400 });
       const category = payload.registro;
       const updatedAt = new Date().toISOString();
 
@@ -183,14 +210,17 @@ function isCategory(value: unknown): value is Category {
   const item = value as Category;
   if (!/^[a-z0-9_-]{1,40}$/i.test(item.id) || !item.nome?.trim() || !/^[A-Z0-9_-]{1,40}$/i.test(item.codigo) || !/^\d{8}$/.test(item.ncm)) return false;
   if (!item.classe?.trim() || !item.versao?.trim() || !item.vigencia?.trim() || !item.rules) return false;
-  return regimes.every((regime) => isRule(item.rules[regime]));
+  return regimes.every((regime) => isRule(item.rules[regime], item.ncm));
 }
 
-function isRule(value: unknown): value is Rule {
+function isRule(value: unknown, ncm: string): value is Rule {
   if (!value || typeof value !== "object") return false;
   const item = value as Rule;
   const rates = [item.icms, item.mva, item.pis, item.cofins, item.cbs, item.ibs, item.reducao];
-  return Boolean(item.cfop?.trim() && item.cstIcms?.trim() && item.csosn?.trim() && item.cstPis?.trim() && item.cstCofins?.trim() && item.cstReforma?.trim() && item.classificacao?.trim())
+  const classification = getIbsCbsClassification(item.cClassTrib);
+  const natureIsValid = !item.natureza || revenueNatureSuggestions(ncm, item.cstPisCofins).some((option) => option.code === item.natureza);
+  return Boolean(/^[0-9]{4}$/.test(item.cfop) && isFiscalOption(ICMS_CSTS, item.cstIcms) && (item.csosn === "—" || isFiscalOption(CSOSNS, item.csosn))
+    && isFiscalOption(PIS_COFINS_CSTS, item.cstPisCofins) && natureIsValid && classification && classification.cst === item.cstReforma)
     && rates.every((rate) => Number.isFinite(rate) && rate >= 0 && rate <= 10)
     && typeof item.compensarCbs === "boolean";
 }

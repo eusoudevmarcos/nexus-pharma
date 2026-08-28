@@ -15,6 +15,13 @@
       "when": 1787501500704,
       "tag": "0001_steep_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787940285443,
+      "tag": "0002_omniscient_kang",
+      "breakpoints": true
     }
   ]
 }

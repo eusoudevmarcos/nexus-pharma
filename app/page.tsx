@@ -12,6 +12,15 @@ import {
   type Regime,
   type Rule,
 } from "./catalog-data";
+import {
+  CSOSNS,
+  ICMS_CSTS,
+  IBS_CBS_CLASSIFICATIONS,
+  PIS_COFINS_CSTS,
+  getIbsCbsClassification,
+  ibsCbsSuggestions,
+  revenueNatureSuggestions,
+} from "./fiscal-catalog";
 
 type CartItem = Product & { quantidade: number };
 type WorkspaceContext = {
@@ -960,11 +969,11 @@ function Fiscal({
                   {r.cstIcms} / {r.csosn}
                 </span>
                 <span>
-                  {r.cstPis} / {r.cstCofins}
+                  CST {r.cstPisCofins}
                 </span>
                 <span>
                   <strong>{r.cstReforma}</strong>
-                  <small>{r.classificacao}</small>
+                  <small>cClassTrib {r.cClassTrib}</small>
                 </span>
                 <span>{c.vigencia}</span>
               </div>
@@ -1022,7 +1031,7 @@ function FiscalAssistant({
     category.ncm.length !== 8 && "NCM",
     !category.cest && "CEST",
     !category.rules[regime].cfop && "CFOP",
-    !category.rules[regime].classificacao && "classificação IBS/CBS",
+    !category.rules[regime].cClassTrib && "cClassTrib IBS/CBS",
   ].filter(Boolean);
   const run = () => setAnalyzed(true);
 
@@ -1455,10 +1464,9 @@ function Products({
               <span>CST ICMS {category.rules[regime].cstIcms}</span>
               <span>CSOSN {category.rules[regime].csosn}</span>
               <span>
-                PIS/COFINS {category.rules[regime].cstPis}/
-                {category.rules[regime].cstCofins}
+                PIS/COFINS CST {category.rules[regime].cstPisCofins}
               </span>
-              <span>Class. {category.rules[regime].cstReforma}</span>
+              <span>cClassTrib {category.rules[regime].cClassTrib}</span>
             </div>
           </div>
         )}
@@ -1494,6 +1502,9 @@ function Categories({
   const category = categories.find((c) => c.id === selected) ?? categories[0];
   const creating = draftCategoryId === selected;
   const r = category.rules[regime];
+  const natureSuggestions = revenueNatureSuggestions(category.ncm, r.cstPisCofins);
+  const reformSuggestions = ibsCbsSuggestions(category.ncm);
+  const selectedReform = getIbsCbsClassification(r.cClassTrib);
   const updateCategory = (key: keyof Category, value: string) =>
     setCategories((all) =>
       all.map((c) => (c.id === selected ? { ...c, [key]: value } : c)),
@@ -1673,16 +1684,26 @@ function Categories({
               />
             </Field>
             <Field label="CST ICMS">
-              <input
+              <select
                 value={r.cstIcms}
                 onChange={(e) => updateRule("cstIcms", e.target.value)}
-              />
+              >
+                {ICMS_CSTS.map((item) => (
+                  <option value={item.code} key={item.code}>{item.code} — {item.description}</option>
+                ))}
+              </select>
             </Field>
             <Field label="CSOSN">
-              <input
+              <select
                 value={r.csosn}
                 onChange={(e) => updateRule("csosn", e.target.value)}
-              />
+                disabled={regime !== "SIMPLES_NACIONAL"}
+              >
+                {regime !== "SIMPLES_NACIONAL" && <option value="—">Não se aplica ao regime</option>}
+                {CSOSNS.map((item) => (
+                  <option value={item.code} key={item.code}>{item.code} — {item.description}</option>
+                ))}
+              </select>
               <small>Obrigatório no Simples Nacional.</small>
             </Field>
             <Field label="Alíquota ICMS">
@@ -1697,24 +1718,38 @@ function Categories({
           </div>
         )}
         {tab === "pis" && (
-          <div className="form-grid">
-            <Field label="CST PIS">
-              <input
-                value={r.cstPis}
-                onChange={(e) => updateRule("cstPis", e.target.value)}
-              />
-            </Field>
-            <Field label="CST COFINS">
-              <input
-                value={r.cstCofins}
-                onChange={(e) => updateRule("cstCofins", e.target.value)}
-              />
+          <div>
+            <div className="fiscal-source-card">
+              <strong>PIS e COFINS unificados por CST</strong>
+              <span>Seleção controlada pelas tabelas 4.3.3 e 4.3.4 da EFD-Contribuições. As alíquotas continuam separadas.</span>
+            </div>
+            <div className="form-grid">
+            <Field label="CST PIS/COFINS" wide>
+              <select
+                value={r.cstPisCofins}
+                onChange={(e) => {
+                  updateRule("cstPisCofins", e.target.value);
+                  if (!revenueNatureSuggestions(category.ncm, e.target.value).some((item) => item.code === r.natureza)) updateRule("natureza", "");
+                }}
+              >
+                {PIS_COFINS_CSTS.map((item) => (
+                  <option value={item.code} key={item.code}>{item.code} — {item.description}</option>
+                ))}
+              </select>
+              <small>Um único código validado é aplicado às duas contribuições federais.</small>
             </Field>
             <Field label="Natureza da receita" wide>
-              <input
+              <select
                 value={r.natureza}
                 onChange={(e) => updateRule("natureza", e.target.value)}
-              />
+                disabled={natureSuggestions.length === 0}
+              >
+                <option value="">{natureSuggestions.length ? "Selecione a natureza sugerida" : "Sem natureza compatível para CST e NCM"}</option>
+                {natureSuggestions.map((item) => (
+                  <option value={item.code} key={item.code}>{item.code} — {item.description}</option>
+                ))}
+              </select>
+              <small>{natureSuggestions.length ? `${natureSuggestions[0].sourceVersion}. Confirme que a operação é revenda e a empresa não é fabricante/importadora.` : "A tabela é filtrada simultaneamente pelo CST e pelo NCM exato."}</small>
             </Field>
             <Field label="Alíquota PIS">
               <RateInput value={r.pis} set={(v) => updateRule("pis", v)} />
@@ -1725,6 +1760,13 @@ function Categories({
                 set={(v) => updateRule("cofins", v)}
               />
             </Field>
+            </div>
+            {category.ncm === "33049990" && (
+              <div className="fiscal-validation ok">
+                <Icon name="check" />
+                <span><strong>Sugestão PIS/COFINS:</strong> CST 04 + Natureza 202 para revenda varejista. O NCM 3304 está no grupo de perfumaria, toucador e higiene da Tabela 4.3.10.</span>
+              </div>
+            )}
           </div>
         )}
         {tab === "reforma" && (
@@ -1738,16 +1780,30 @@ function Categories({
             </div>
             <div className="form-grid">
               <Field label="CST IBS/CBS">
-                <input
-                  value={r.cstReforma}
-                  onChange={(e) => updateRule("cstReforma", e.target.value)}
-                />
+                <input value={r.cstReforma} readOnly />
+                <small>Derivado do cClassTrib selecionado.</small>
               </Field>
-              <Field label="Classificação tributária" wide>
-                <input
-                  value={r.classificacao}
-                  onChange={(e) => updateRule("classificacao", e.target.value)}
-                />
+              <Field label="cClassTrib" wide>
+                <select
+                  value={r.cClassTrib}
+                  onChange={(e) => {
+                    const selected = getIbsCbsClassification(e.target.value);
+                    if (!selected) return;
+                    updateRule("cClassTrib", selected.code);
+                    updateRule("cstReforma", selected.cst);
+                    updateRule("reducao", selected.reduction);
+                  }}
+                >
+                  {reformSuggestions.length > 0 && (
+                    <optgroup label="Sugestões compatíveis com o NCM">
+                      {reformSuggestions.map((item) => <option value={item.code} key={`suggested-${item.code}`}>{item.code} — {item.description}</option>)}
+                    </optgroup>
+                  )}
+                  <optgroup label="Tabela interna versionada">
+                    {IBS_CBS_CLASSIFICATIONS.map((item) => <option value={item.code} key={item.code}>{item.code} — {item.description}</option>)}
+                  </optgroup>
+                </select>
+                <small>{selectedReform?.legalBasis ?? "Selecione uma classificação válida."}</small>
               </Field>
               <Field label="Alíquota CBS">
                 <RateInput value={r.cbs} set={(v) => updateRule("cbs", v)} />
@@ -1765,6 +1821,18 @@ function Categories({
                 <input value={category.vigencia} readOnly />
               </Field>
             </div>
+            {category.nome.toLowerCase().includes("higiene") && category.ncm === "33049990" && (
+              <div className="fiscal-validation warn">
+                <strong>IBS/CBS: benefício não sugerido</strong>
+                <span>O NCM 33049990 não consta no Anexo VIII da LC 214/2025. O cClassTrib 200035 só é sugerido para 34011190, 33061000, 96032100, 48181000, 38089419, 34011900 ou 96190000.</span>
+              </div>
+            )}
+            {selectedReform?.requiresAnvisa && (
+              <div className="fiscal-validation warn">
+                <strong>Condição documental obrigatória</strong>
+                <span>O cClassTrib 200032 depende de registro Anvisa ou produção por farmácia de manipulação e da exclusão das hipóteses de alíquota zero. A IA deve solicitar essa evidência antes da aprovação.</span>
+              </div>
+            )}
           </div>
         )}
         <div className="regime-context">

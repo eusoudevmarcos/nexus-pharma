@@ -2,8 +2,8 @@ export type Regime = "SIMPLES_NACIONAL" | "LUCRO_PRESUMIDO" | "LUCRO_REAL";
 
 export type Rule = {
   cfop: string; cstIcms: string; csosn: string; icms: number; mva: number;
-  cstPis: string; cstCofins: string; natureza: string; pis: number; cofins: number;
-  cstReforma: string; classificacao: string; cbs: number; ibs: number; reducao: number; compensarCbs: boolean;
+  cstPisCofins: string; natureza: string; pis: number; cofins: number;
+  cstReforma: string; cClassTrib: string; cbs: number; ibs: number; reducao: number; compensarCbs: boolean;
 };
 
 export type Category = {
@@ -18,7 +18,7 @@ export type Product = {
 };
 
 export function rule(overrides: Partial<Rule> = {}): Rule {
-  return { cfop: "5102", cstIcms: "00", csosn: "102", icms: 0, mva: 0, cstPis: "01", cstCofins: "01", natureza: "", pis: .0065, cofins: .03, cstReforma: "000", classificacao: "TRIBUTAÇÃO INTEGRAL", cbs: .009, ibs: .001, reducao: 0, compensarCbs: true, ...overrides };
+  return { cfop: "5102", cstIcms: "00", csosn: "102", icms: 0, mva: 0, cstPisCofins: "01", natureza: "", pis: .0065, cofins: .03, cstReforma: "000", cClassTrib: "000001", cbs: .009, ibs: .001, reducao: 0, compensarCbs: true, ...overrides };
 }
 
 export function rulesFor(overrides: Partial<Rule> = {}): Record<Regime, Rule> {
@@ -30,13 +30,13 @@ export function rulesFor(overrides: Partial<Rule> = {}): Record<Regime, Rule> {
 }
 
 export const initialCategories: Category[] = [
-  { id: "med", nome: "Medicamentos", codigo: "MEDICAMENTOS", ncm: "30049069", cest: "1300402", classe: "Lista positiva", descricao: "Medicamentos de uso humano e genéricos", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ cfop: "5405", cstIcms: "60", csosn: "500", mva: .38, cstPis: "05", cstCofins: "05", natureza: "101", pis: 0, cofins: 0, cstReforma: "200", classificacao: "MEDICAMENTO REDUZIDO", cbs: .009, ibs: .001, reducao: .6 }) },
-  { id: "ant", nome: "Antibióticos", codigo: "ANTIBIOTICOS", ncm: "30042099", cest: "1300200", classe: "Lista positiva", descricao: "Antimicrobianos sujeitos a controle", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ cfop: "5405", cstIcms: "60", csosn: "500", mva: .38, cstPis: "05", cstCofins: "05", natureza: "101", pis: 0, cofins: 0, cstReforma: "200", classificacao: "MEDICAMENTO REDUZIDO", cbs: .009, ibs: .001, reducao: .6 }) },
-  { id: "hig", nome: "Higiene pessoal", codigo: "HIGIENE", ncm: "33049990", cest: "2001500", classe: "Tributação normal", descricao: "Cuidados pessoais, higiene bucal e corporal", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ mva: .42 }) },
-  { id: "maq", nome: "Maquiagens", codigo: "MAQUIAGEM", ncm: "33049910", cest: "2001500", classe: "Tributação normal", descricao: "Cosméticos e maquiagem", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ mva: .52 }) },
+  { id: "med", nome: "Medicamentos", codigo: "MEDICAMENTOS", ncm: "30049069", cest: "1300402", classe: "Lista positiva", descricao: "Medicamentos de uso humano e genéricos", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ cfop: "5405", cstIcms: "60", csosn: "500", mva: .38, cstPisCofins: "04", natureza: "201", pis: 0, cofins: 0, cstReforma: "200", cClassTrib: "200032", cbs: .009, ibs: .001, reducao: .6 }) },
+  { id: "ant", nome: "Antibióticos", codigo: "ANTIBIOTICOS", ncm: "30042099", cest: "1300200", classe: "Lista positiva", descricao: "Antimicrobianos sujeitos a controle", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ cfop: "5405", cstIcms: "60", csosn: "500", mva: .38, cstPisCofins: "04", natureza: "201", pis: 0, cofins: 0, cstReforma: "200", cClassTrib: "200032", cbs: .009, ibs: .001, reducao: .6 }) },
+  { id: "hig", nome: "Higiene pessoal", codigo: "HIGIENE", ncm: "33049990", cest: "2001500", classe: "Monofásico", descricao: "Cuidados pessoais, higiene bucal e corporal", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ mva: .42, cstPisCofins: "04", natureza: "202", pis: 0, cofins: 0 }) },
+  { id: "maq", nome: "Maquiagens", codigo: "MAQUIAGEM", ncm: "33049910", cest: "2001500", classe: "Monofásico", descricao: "Cosméticos e maquiagem", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ mva: .52, cstPisCofins: "04", natureza: "202", pis: 0, cofins: 0 }) },
   { id: "sup", nome: "Suplementos e esporte", codigo: "SUPLEMENTOS", ncm: "21069030", cest: "—", classe: "Tributação normal", descricao: "Nutrição esportiva, vitaminas e proteínas", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor() },
-  { id: "per", nome: "Perfumaria", codigo: "PERFUMARIA", ncm: "33030020", cest: "2000700", classe: "Tributação normal", descricao: "Perfumes, colônias e cuidados", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ mva: .55 }) },
-  { id: "bal", nome: "Balas e confeitos", codigo: "BALAS", ncm: "17049020", cest: "1700400", classe: "Monofásico", descricao: "Balas, pastilhas e confeitos", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ cstPis: "04", cstCofins: "04", pis: 0, cofins: 0 }) },
+  { id: "per", nome: "Perfumaria", codigo: "PERFUMARIA", ncm: "33030020", cest: "2000700", classe: "Monofásico", descricao: "Perfumes, colônias e cuidados", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor({ mva: .55, cstPisCofins: "04", natureza: "202", pis: 0, cofins: 0 }) },
+  { id: "bal", nome: "Balas e confeitos", codigo: "BALAS", ncm: "17049020", cest: "1700400", classe: "Tributação normal", descricao: "Balas, pastilhas e confeitos", versao: "2026.08", vigencia: "01/08/2026", rules: rulesFor() },
 ];
 
 export const initialProducts: Product[] = [
