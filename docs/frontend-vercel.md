@@ -5,10 +5,11 @@ O próximo frontend será criado em `web/` como um projeto Next.js independente.
 ## Variáveis
 
 ```text
-NEXT_PUBLIC_API_URL=https://api.seudominio.com.br
+NEXUS_API_URL=https://api.seudominio.com.br
+NEXT_PUBLIC_SITE_URL=https://app.seudominio.com.br
 ```
 
-Somente a URL pública da API pode usar o prefixo `NEXT_PUBLIC_`. Segredos, `DATABASE_URL` e `JWT_SECRET` pertencem exclusivamente ao Render.
+`NEXUS_API_URL` é usada apenas pelas rotas server-side do Next.js. `NEXT_PUBLIC_SITE_URL` identifica a origem pública confiável. Segredos, `DATABASE_URL` e `JWT_SECRET` pertencem exclusivamente ao Render.
 
 ## Rotas planejadas
 
@@ -29,10 +30,9 @@ Nesta primeira fundação, a API devolve `access_token` curto e `refresh_token` 
 
 Após escolher uma empresa, cada chamada operacional envia `x-company-id`. O backend confere a associação e o papel do usuário, não confiando apenas no valor enviado pela interface.
 
-## Ordem da próxima etapa
+## Estado atual
 
-1. landing page institucional responsiva;
-2. páginas de recursos, segurança e planos;
-3. login e recuperação de acesso;
-4. shell dos portais por perfil;
-5. integração gradual dos módulos existentes.
+- landing page, recursos, segurança, planos e login concluídos;
+- sessão em cookies `HttpOnly`, `Secure`, `SameSite=Strict` concluída;
+- portais de clientes e operação interna separados por perfil;
+- Vercel deve usar `web/` como Root Directory e apontar para a API HTTPS da Render.

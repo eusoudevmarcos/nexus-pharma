@@ -2,18 +2,18 @@
 
 ## Serviços
 
-- **Web institucional e portal SaaS:** Next.js na Vercel, em um projeto `web/` que será criado na próxima etapa.
+- **Web institucional e portal SaaS:** Next.js na Vercel, dentro de `web/`.
 - **API:** Fastify + TypeScript no Render, dentro de `api/`.
 - **Banco:** PostgreSQL gerenciado pelo Render.
 - **ORM e migrations:** Prisma. `api/prisma/schema.prisma` é a fonte única do modelo relacional.
-- **Demonstração atual:** permanece isolada na raiz enquanto o novo portal é construído e conectado.
+- **Demonstração Sites:** permanece isolada na raiz; o portal de produção está em `web/`.
 
 ## Fluxo de implantação
 
 1. O Render cria o PostgreSQL e injeta `DATABASE_URL` na API.
 2. Antes de publicar a API, `prisma migrate deploy` aplica apenas migrations pendentes.
 3. O seed idempotente garante os planos comerciais e, quando configurado, o primeiro administrador interno.
-4. A Vercel recebe somente a URL pública da API em `NEXT_PUBLIC_API_URL`; nunca recebe a conexão do banco.
+4. A Vercel recebe a URL pública da API em `NEXUS_API_URL`, usada no servidor Next.js; nunca recebe a conexão do banco.
 5. O navegador autentica na API e envia `Authorization: Bearer <token>` e `x-company-id` nas operações de uma empresa.
 
 ## Perfis

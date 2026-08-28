@@ -9,7 +9,7 @@ services:
     buildCommand: npm ci && npm run build
     preDeployCommand: npm run prisma:migrate:deploy && npm run prisma:seed
     startCommand: npm start
-    healthCheckPath: /health
+    healthCheckPath: /health/ready
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -17,6 +17,8 @@ services:
           property: connectionString
       - key: NODE_VERSION
         value: 22.13.0
+      - key: DEPLOYMENT_STAGE
+        value: staging
       - key: JWT_SECRET
         generateValue: true
       - key: ACCESS_TOKEN_TTL

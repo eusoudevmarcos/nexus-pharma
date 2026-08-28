@@ -7,6 +7,7 @@ import { authenticate, requireSystemRoles } from "../security/auth.js";
 import { runtimeSnapshot } from "../services/observability.js";
 import { closeMonthlyInvoice, ensureCustomerBillingStructure, normalizeBillingPeriod } from "../services/monthly-billing.js";
 import { securityActions } from "../services/security-events.js";
+import { getProductionReadiness } from "../services/production-readiness.js";
 
 const money = (value: unknown) => Number(value ?? 0);
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -41,6 +42,12 @@ const activationSchema = z.object({ ativo: z.boolean() });
 const sessionRevokeSchema = z.object({ motivo: z.string().trim().min(3).max(80).default("ADMIN_REVOKED") });
 
 export async function internalRoutes(app: FastifyInstance) {
+  app.get(
+    "/go-live",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
+    async () => getProductionReadiness(),
+  );
+
   app.get(
     "/seguranca",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },

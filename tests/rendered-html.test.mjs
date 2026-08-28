@@ -511,3 +511,37 @@ test("opera direitos dos titulares, retenção mínima e recuperação comprová
   assert.match(render, /plano gratuito não oferece restauração gerenciada/);
   assert.match(runbook, /A exclusão nunca é automática/);
 });
+
+test("bloqueia o go-live até comprovar ambiente, migrations e integrações", async () => {
+  const [readiness, command, internal, apiPackage, render, shell, page, guide, workflow, vercelGuide] = await Promise.all([
+    readFile(new URL("../api/src/services/production-readiness.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/commands/production-preflight.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/internal.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/package.json", import.meta.url), "utf8"),
+    readFile(new URL("../render.yaml", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/internal-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/interno/go-live/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../docs/GO-LIVE.md", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/quality.yml", import.meta.url), "utf8"),
+    readFile(new URL("../docs/frontend-vercel.md", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(readiness, /_prisma_migrations/);
+  assert.match(readiness, /DATABASE_RECOVERY_MODE === "PITR"/);
+  assert.match(readiness, /EMAIL_RELAY_URL && config\.EMAIL_RELAY_KEY/);
+  assert.match(readiness, /BILLING_WEBHOOK_SECRET/);
+  assert.match(readiness, /systemRole: "INTERNAL_ADMIN"/);
+  assert.match(readiness, /summary\.blocked === 0/);
+  assert.match(command, /process\.exitCode = 1/);
+  assert.match(internal, /"\/go-live"/);
+  assert.match(apiPackage, /"preflight:production"/);
+  assert.match(render, /healthCheckPath: \/health\/ready/);
+  assert.match(render, /DEPLOYMENT_STAGE/);
+  assert.match(shell, /\/portal\/interno\/go-live/);
+  assert.match(page, /Gate de liberação/);
+  assert.match(page, /Próxima ação/);
+  assert.match(guide, /npm run preflight:production/);
+  assert.match(workflow, /npm run prisma:validate/);
+  assert.match(workflow, /npm run lint/);
+  assert.match(vercelGuide, /NEXUS_API_URL/);
+});
