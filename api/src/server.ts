@@ -9,6 +9,7 @@ import { authRoutes } from "./routes/auth.routes.js";
 import { billingWebhookRoutes } from "./routes/billing-webhooks.routes.js";
 import { cadastrosRoutes } from "./routes/cadastros.routes.js";
 import { fiscalRoutes } from "./routes/fiscal.routes.js";
+import { taxTraceabilityRoutes } from "./routes/tax-traceability.routes.js";
 import { internalRoutes } from "./routes/internal.routes.js";
 import { operationsRoutes } from "./routes/operations.routes.js";
 import { privacyRoutes } from "./routes/privacy.routes.js";
@@ -57,6 +58,9 @@ await app.register(authRoutes, { prefix: "/api/v1/auth" });
 await app.register(billingWebhookRoutes, { prefix: "/api/v1/webhooks" });
 await app.register(cadastrosRoutes, { prefix: "/api/v1/cadastros" });
 await app.register(fiscalRoutes, { prefix: "/api/v1/fiscal" });
+await app.register(taxTraceabilityRoutes, {
+  prefix: "/api/v1/fiscal/rastreabilidade",
+});
 await app.register(internalRoutes, { prefix: "/api/v1/interno" });
 await app.register(vendasRoutes, { prefix: "/api/v1/vendas" });
 await app.register(reportsRoutes, { prefix: "/api/v1/relatorios" });

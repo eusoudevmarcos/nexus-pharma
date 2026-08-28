@@ -1,4 +1,11 @@
+import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
+import {
+  allocateQuantity,
+  evaluateTaxExit,
+  isHighRiskTaxRule,
+  TaxGuardError,
+} from "./tax-chain.service.js";
 
 export type ProcessarVendaInput = {
   empresaId: string;
@@ -6,11 +13,15 @@ export type ProcessarVendaInput = {
   requestId: string;
   idempotencyKey: string;
   modeloNota: "55" | "65";
+  ufDestino?: string | null;
+  tipoOperacao?: string;
   itens: Array<{ ean: string; quantidade: number }>;
 };
 
 const roundMoney = (value: number) =>
   Math.round((value + Number.EPSILON) * 100) / 100;
+const toJson = (value: unknown) =>
+  JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
 export async function processarVenda(input: ProcessarVendaInput) {
   return prisma.$transaction(
@@ -40,6 +51,12 @@ export async function processarVenda(input: ProcessarVendaInput) {
           lots: {
             where: { quantity: { gt: 0 } },
             orderBy: { expiresAt: "asc" },
+            include: {
+              taxProvenances: {
+                where: { status: "APPROVED", remainingQuantity: { gt: 0 } },
+                orderBy: [{ operationDate: "asc" }, { createdAt: "asc" }],
+              },
+            },
           },
         },
       });
@@ -92,6 +109,107 @@ export async function processarVenda(input: ProcessarVendaInput) {
           ? Math.min(cbs, pis + cofins)
           : 0;
         const tax = roundMoney(icms + pis + cofins + cbs + ibs - cbsOffset);
+        const lotAllocation = allocateQuantity(
+          item.quantidade,
+          usableLots,
+          (lot) => Number(lot.quantity),
+        );
+        const highRiskRule = isHighRiskTaxRule({
+          classification: category.classification,
+          cstIcms: rule.cstIcms,
+          csosn: rule.csosn,
+          cstPisCofins: rule.cstPisCofins,
+        });
+        const taxAllocations: Array<{
+          lotId: string | null;
+          provenanceId: string | null;
+          quantity: number;
+          evaluation: ReturnType<typeof evaluateTaxExit>;
+        }> = [];
+        const evaluateAllocation = (
+          quantity: number,
+          lotId: string | null,
+          provenance: (typeof usableLots)[number]["taxProvenances"][number] | null,
+        ) => {
+          const grossAmount = roundMoney(
+            gross * (quantity / item.quantidade),
+          );
+          const evaluation = evaluateTaxExit({
+            productId: product.id,
+            lotId,
+            classification: category.classification,
+            regime: company.taxRegime,
+            operationType: input.tipoOperacao ?? "REVENDA_INTERNA",
+            originState: company.state,
+            destinationState: input.ufDestino ?? company.state,
+            quantity,
+            grossAmount,
+            output: {
+              cfop: rule.cfop,
+              cstIcms: rule.cstIcms,
+              csosn: rule.csosn,
+              cstPisCofins: rule.cstPisCofins,
+              revenueNature: rule.revenueNature,
+              cstIbsCbs: rule.cstIbsCbs,
+              cClassTrib: rule.cClassTrib,
+              icmsRate: Number(rule.icmsRate),
+              pisRate: Number(rule.pisRate),
+              cofinsRate: Number(rule.cofinsRate),
+              cbsRate: Number(rule.cbsRate),
+              ibsRate: Number(rule.ibsRate),
+              ruleVersion: category.ruleVersion,
+            },
+            provenance: provenance
+              ? {
+                  id: provenance.id,
+                  status: provenance.status,
+                  stCollectedPreviously: provenance.stCollectedPreviously,
+                  monophaseApplicable: provenance.monophaseApplicable,
+                  pisCreditTreatment: provenance.pisCreditTreatment,
+                  cofinsCreditTreatment: provenance.cofinsCreditTreatment,
+                  evidence: provenance.evidence,
+                  ruleVersion: provenance.ruleVersion,
+                }
+              : null,
+          });
+          taxAllocations.push({
+            lotId,
+            provenanceId: provenance?.id ?? null,
+            quantity,
+            evaluation,
+          });
+        };
+
+        for (const lotItem of lotAllocation.allocations) {
+          const provenanceAllocation = allocateQuantity(
+            lotItem.quantity,
+            lotItem.source.taxProvenances,
+            (provenance) => Number(provenance.remainingQuantity),
+          );
+          for (const provenanceItem of provenanceAllocation.allocations) {
+            evaluateAllocation(
+              provenanceItem.quantity,
+              lotItem.source.id,
+              provenanceItem.source,
+            );
+          }
+          if (provenanceAllocation.missingQuantity > 0) {
+            evaluateAllocation(
+              provenanceAllocation.missingQuantity,
+              lotItem.source.id,
+              null,
+            );
+          }
+        }
+        if (!usableLots.length) {
+          evaluateAllocation(item.quantidade, null, null);
+        } else if (lotAllocation.missingQuantity > 0 && highRiskRule) {
+          evaluateAllocation(lotAllocation.missingQuantity, null, null);
+        }
+        const unsafeEvaluations = taxAllocations
+          .map((allocation) => allocation.evaluation)
+          .filter((evaluation) => evaluation.status !== "ALLOWED");
+        if (unsafeEvaluations.length) throw new TaxGuardError(unsafeEvaluations);
         return {
           product,
           category,
@@ -109,6 +227,7 @@ export async function processarVenda(input: ProcessarVendaInput) {
           tax,
           profit: roundMoney(gross - cost - tax),
           usableLots,
+          taxAllocations,
         };
       });
 
@@ -152,8 +271,13 @@ export async function processarVenda(input: ProcessarVendaInput) {
           ibsAmount: totals.ibs,
           taxAmount: totals.tax,
           netProfit: totals.profit,
-          items: {
-            create: lines.map((line) => ({
+        },
+      });
+
+      for (const line of lines) {
+        const saleItem = await tx.saleItem.create({
+          data: {
+              saleId: sale.id,
               productId: line.product.id,
               ean: line.product.ean,
               productName: line.product.name,
@@ -190,14 +314,73 @@ export async function processarVenda(input: ProcessarVendaInput) {
                   cbs: Number(line.rule.cbsRate),
                   ibs: Number(line.rule.ibsRate),
                 },
+                tax_traceability: line.taxAllocations.map((allocation) => ({
+                  lot_id: allocation.lotId,
+                  provenance_id: allocation.provenanceId,
+                  decision_hash: allocation.evaluation.decisionHash,
+                  status: allocation.evaluation.status,
+                })),
               },
-            })),
           },
-        },
-      });
+        });
+        for (const allocation of line.taxAllocations) {
+          await tx.taxExitAssessment.create({
+            data: {
+              companyId: input.empresaId,
+              productId: line.product.id,
+              lotId: allocation.lotId,
+              provenanceId: allocation.provenanceId,
+              saleItemId: saleItem.id,
+              requestedById: input.usuarioId,
+              requestId: input.requestId,
+              status: allocation.evaluation.status,
+              operationType: input.tipoOperacao ?? "REVENDA_INTERNA",
+              originState: company.state,
+              destinationState: input.ufDestino ?? company.state,
+              quantity: allocation.quantity,
+              grossAmount: roundMoney(
+                line.gross * (allocation.quantity / line.quantity),
+              ),
+              outputCfop: line.rule.cfop,
+              outputCstIcms: line.rule.cstIcms,
+              outputCsosn: line.rule.csosn,
+              outputCstPisCofins: line.rule.cstPisCofins,
+              outputRevenueNature: line.rule.revenueNature,
+              outputCstIbsCbs: line.rule.cstIbsCbs,
+              outputCClassTrib: line.rule.cClassTrib,
+              icmsRate: line.rule.icmsRate,
+              pisRate: line.rule.pisRate,
+              cofinsRate: line.rule.cofinsRate,
+              cbsRate: line.rule.cbsRate,
+              ibsRate: line.rule.ibsRate,
+              preventedTaxAmount: allocation.evaluation.preventedTaxAmount,
+              findings: toJson(allocation.evaluation.findings),
+              evidence: toJson(allocation.evaluation.evidence),
+              ruleVersion: line.category.ruleVersion,
+              decisionHash: allocation.evaluation.decisionHash,
+            },
+          });
+        }
+      }
 
       const reorderAlerts = [];
       for (const line of lines) {
+        for (const allocation of line.taxAllocations) {
+          if (!allocation.provenanceId) continue;
+          const changed = await tx.taxProvenance.updateMany({
+            where: {
+              id: allocation.provenanceId,
+              companyId: input.empresaId,
+              status: "APPROVED",
+              remainingQuantity: { gte: allocation.quantity },
+            },
+            data: { remainingQuantity: { decrement: allocation.quantity } },
+          });
+          if (changed.count !== 1)
+            throw new Error(
+              `SALDO_FISCAL_INSUFICIENTE:${line.product.ean}`,
+            );
+        }
         const changed = await tx.product.updateMany({
           where: {
             id: line.product.id,
@@ -298,7 +481,17 @@ export async function processarVenda(input: ProcessarVendaInput) {
           entity: "SALE",
           entityId: sale.id,
           requestId: input.requestId,
-          after: { totals, item_count: lines.length },
+          after: {
+            totals,
+            item_count: lines.length,
+            tax_decisions: lines.flatMap((line) =>
+              line.taxAllocations.map((allocation) => ({
+                decision_hash: allocation.evaluation.decisionHash,
+                provenance_id: allocation.provenanceId,
+                status: allocation.evaluation.status,
+              })),
+            ),
+          },
         },
       });
 

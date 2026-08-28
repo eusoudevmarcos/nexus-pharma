@@ -222,6 +222,31 @@ test("entrega o portal multiempresa com relatórios separados por perfil", async
   assert.match(users, /UserAdministration/);
 });
 
+test("rastreia a tributação da entrada até a venda e bloqueia duplicidade", async () => {
+  const [schema, migration, routes, service, sale, fiscalPortal, server] = await Promise.all([
+    readFile(new URL("../api/prisma/schema.prisma", import.meta.url), "utf8"),
+    readFile(new URL("../api/prisma/migrations/20260828210000_tax_traceability/migration.sql", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/routes/tax-traceability.routes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/services/tax-chain.service.ts", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/services/processar-venda.service.ts", import.meta.url), "utf8"),
+    readFile(new URL("../web/app/portal/fiscal/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../api/src/server.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /model TaxProvenance/);
+  assert.match(schema, /model TaxExitAssessment/);
+  assert.match(migration, /remaining_quantity/);
+  assert.match(migration, /tax_provenances_remaining_quantity_check/);
+  assert.match(routes, /EVIDENCIA_FISCAL_OBRIGATORIA/);
+  assert.match(routes, /potencial_tributo_duplicado_bloqueado/);
+  assert.match(service, /MONOFASICO_COM_PIS_COFINS_NA_SAIDA/);
+  assert.match(service, /ICMS_ST_ENTRADA_COM_SAIDA_NORMAL/);
+  assert.match(sale, /TaxGuardError/);
+  assert.match(sale, /remainingQuantity: \{ decrement/);
+  assert.match(fiscalPortal, /Proteção contra tributação duplicada/);
+  assert.match(server, /taxTraceabilityRoutes/);
+});
+
 test("protege convites e alterações de acesso com trilha de auditoria", async () => {
   const [routes, server, administration, acceptance, inviteProxy, logout] = await Promise.all([
     readFile(new URL("../api/src/routes/users.routes.ts", import.meta.url), "utf8"),

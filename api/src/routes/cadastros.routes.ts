@@ -84,6 +84,13 @@ const categorySchema = z
       message: "vigencia_fim deve ser posterior à vigencia_inicio",
       path: ["vigencia_fim"],
     },
+  )
+  .refine(
+    (data) => data.status !== "APPROVED" || data.referencias.length > 0,
+    {
+      message: "uma categoria aprovada exige ao menos uma referência legal",
+      path: ["referencias"],
+    },
   );
 
 function fiscalCatalogErrors(category: z.infer<typeof categorySchema>) {

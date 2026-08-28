@@ -18,6 +18,7 @@ API multiempresa em Fastify + TypeScript, com PostgreSQL e Prisma.
 - `npm run prisma:migrate:deploy`: aplica migrations pendentes sem resetar dados.
 - `npm run prisma:seed`: cria ou atualiza os planos e o administrador opcional.
 - `npm run build`: gera o Prisma Client e compila a API.
+- `npm test`: compila a API e valida as decisões de ST, monofásico, crédito e CFOP.
 
 ## Contrato de acesso
 
@@ -39,6 +40,11 @@ Rotas principais:
 - `GET/POST/PUT /api/v1/cadastros/categorias`
 - `GET/POST/PUT /api/v1/cadastros/produtos`
 - `GET/POST/PUT /api/v1/fiscal/analises`
+- `POST /api/v1/fiscal/rastreabilidade/entradas`
+- `PUT /api/v1/fiscal/rastreabilidade/entradas/:id/revisao`
+- `POST /api/v1/fiscal/rastreabilidade/avaliacoes-saida`
+- `GET /api/v1/fiscal/rastreabilidade/produtos/:productId`
+- `GET /api/v1/fiscal/rastreabilidade/resumo`
 - `POST /api/v1/vendas/processar`
 - `GET/POST /api/v1/suporte/tickets`
 - `GET /api/v1/relatorios/{gestao,operacao,fiscal,usuarios}`
@@ -67,6 +73,14 @@ Rotas principais:
 - `GET /api/v1/operations/metrics`
 
 O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. Convites de acesso usam token único armazenado como hash, expiram em 72 horas e toda mudança de perfil é auditada. O reenvio rotaciona o token e invalida o link anterior. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
+
+## Rastreabilidade tributária
+
+Cada entrada pode manter um extrato fiscal imutável por produto e lote, com o hash do documento de origem, CFOP/CST recebidos, ICMS-ST, PIS/COFINS monofásico, tratamento de créditos, IBS/CBS e evidências. O saldo fiscal aprovado é consumido juntamente com o saldo físico do lote.
+
+Antes de concluir uma venda, o motor valida as UFs, o CFOP de saída e a coerência entre a regra da categoria e a tributação comprovada na entrada. Saídas com CST 60/CSOSN 500 sem retenção anterior, produtos monofásicos com novo débito de PIS/COFINS, crédito monofásico permitido ou operação interestadual usando CFOP interno são bloqueados. O valor mostrado como potencial protegido não é contabilizado automaticamente como economia confirmada; ele depende de revisão fiscal.
+
+O cadastro da origem começa em `DRAFT` e somente `OWNER`, `ADMIN`, `MANAGER` ou `PHARMACIST` pode aprová-lo. Aprovações exigem evidência e, no caso monofásico, natureza da receita e créditos de PIS/COFINS marcados como proibidos. O XML ou snapshot recebido nunca é substituído pela decisão de saída.
 
 ## Identidade e sessões
 

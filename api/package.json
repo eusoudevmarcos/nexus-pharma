@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "start": "node dist/server.js",
     "jobs:daily": "node dist/jobs/run-daily.js",
     "preflight:production": "node dist/commands/production-preflight.js",

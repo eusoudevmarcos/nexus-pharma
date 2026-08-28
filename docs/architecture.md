@@ -31,6 +31,7 @@ Assim, um colaborador interno pode operar suporte, cobrança ou liberações sem
 - planos, assinaturas e faturas;
 - categorias, regras fiscais por regime, produtos, lotes e movimentações;
 - vendas com retrato fiscal imutável, provisão mensal e alertas de reposição;
+- proveniência tributária por lote, saldo fiscal e avaliações de saída vinculadas à venda;
 - análises da IA fiscal com origem, destino, composição, justificativa, evidências e revisão humana;
 - tickets e mensagens para helpdesk;
 - releases, aprovações por área e liberação por cliente;
