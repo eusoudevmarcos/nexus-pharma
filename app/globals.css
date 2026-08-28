@@ -738,10 +738,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .fiscal-validation.ok { border: 1px solid #bdd9cb; background: #edf8f2; color: #245740; }
 .fiscal-validation.warn { border: 1px solid #ead17b; background: #fff8d8; color: #604d08; }
 .fiscal-validation.warn strong { min-width: 190px; color: #493900; }
+.fiscal-validation.actionable { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; }
+.fiscal-validation.actionable button { padding: 9px 12px; border: 0; border-radius: 10px; background: #176044; color: #fff; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.fiscal-validation.actionable button:hover { background: #0f4a33; }
+.rate-input input:read-only { cursor: default; color: #00345f; background: #edf4f8; font-weight: 800; }
 .field select:disabled { cursor: not-allowed; color: #7c8991; background: #edf1f3; }
 
 @media (max-width: 720px) {
   .tax-ai { right: 12px; bottom: 91px; }
   .tax-ai-panel { max-height: calc(100vh - 180px); padding: 17px; border-radius: 18px; }
   .tax-ai-trigger { min-height: 44px; padding-inline: 14px; }
+  .fiscal-validation.actionable { grid-template-columns: 22px 1fr; }
+  .fiscal-validation.actionable button { grid-column: 1 / -1; width: 100%; }
 }

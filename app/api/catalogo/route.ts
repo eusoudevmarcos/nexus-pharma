@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { initialCategories, initialProducts, type Category, type Product, type Regime, type Rule } from "../../catalog-data";
-import { CSOSNS, ICMS_CSTS, IBS_CBS_CLASSIFICATIONS, PIS_COFINS_CSTS, REVENUE_NATURES, getIbsCbsClassification, isFiscalOption, revenueNatureSuggestions } from "../../fiscal-catalog";
+import { CSOSNS, ICMS_CSTS, IBS_CBS_CLASSIFICATIONS, PIS_COFINS_CSTS, REVENUE_NATURES, getIbsCbsClassification, isFiscalOption, resolvePisCofinsRates, revenueNatureSuggestions } from "../../fiscal-catalog";
 import { auditoria, categorias, produtos, referenciasFiscais, regrasFiscais } from "../../../db/schema";
 import { getTenantContext } from "../tenant-context";
 
@@ -35,20 +35,21 @@ function ruleValues(empresaId: string, categoriaId: string, regime: Regime, rule
 }
 
 async function seedFiscalReferences(tenant: Awaited<ReturnType<typeof getTenantContext>> & { empresaId: string }) {
-  const [existing] = await tenant.db.select({ codigo: referenciasFiscais.codigo }).from(referenciasFiscais).limit(1);
-  if (existing) return;
   const spedCstUrl = "https://sped.rfb.gov.br/item/show/1616";
   const entries = [
-    ...PIS_COFINS_CSTS.map((item) => ({ catalogo: "PIS_COFINS_CST", ...item, fonteUrl: spedCstUrl, versaoFonte: "4.3.3/4.3.4-v1.0.0", ncmPatterns: [] as string[], parent: null as string | null })),
-    ...ICMS_CSTS.map((item) => ({ catalogo: "ICMS_CST", ...item, fonteUrl: "https://www.confaz.fazenda.gov.br/legislacao/arquivo-manuais/moc7-anexo-i-leiaute-e-rv.pdf", versaoFonte: "MOC-7.0", ncmPatterns: [] as string[], parent: null as string | null })),
-    ...CSOSNS.map((item) => ({ catalogo: "ICMS_CSOSN", ...item, fonteUrl: "https://www.confaz.fazenda.gov.br/legislacao/arquivo-manuais/moc7-anexo-i-leiaute-e-rv.pdf", versaoFonte: "MOC-7.0", ncmPatterns: [] as string[], parent: null as string | null })),
-    ...REVENUE_NATURES.map((item) => ({ catalogo: "PIS_COFINS_NATUREZA", ...item, fonteUrl: item.sourceUrl, versaoFonte: item.sourceVersion, ncmPatterns: item.ncmPrefixes, parent: item.csts.join(",") })),
-    ...IBS_CBS_CLASSIFICATIONS.map((item) => ({ catalogo: "IBS_CBS_CCLASSTRIB", ...item, fonteUrl: item.sourceUrl, versaoFonte: item.sourceVersion, ncmPatterns: item.ncmPrefixes, parent: item.cst })),
+    ...PIS_COFINS_CSTS.map((item) => ({ catalogo: "PIS_COFINS_CST", ...item, fonteUrl: spedCstUrl, versaoFonte: "4.3.3/4.3.4-v1.0.0", ncmPatterns: [] as string[], parent: null as string | null, parameters: {} })),
+    ...ICMS_CSTS.map((item) => ({ catalogo: "ICMS_CST", ...item, fonteUrl: "https://www.confaz.fazenda.gov.br/legislacao/arquivo-manuais/moc7-anexo-i-leiaute-e-rv.pdf", versaoFonte: "MOC-7.0", ncmPatterns: [] as string[], parent: null as string | null, parameters: {} })),
+    ...CSOSNS.map((item) => ({ catalogo: "ICMS_CSOSN", ...item, fonteUrl: "https://www.confaz.fazenda.gov.br/legislacao/arquivo-manuais/moc7-anexo-i-leiaute-e-rv.pdf", versaoFonte: "MOC-7.0", ncmPatterns: [] as string[], parent: null as string | null, parameters: {} })),
+    ...REVENUE_NATURES.map((item) => ({ catalogo: "PIS_COFINS_NATUREZA", ...item, fonteUrl: item.sourceUrl, versaoFonte: item.sourceVersion, ncmPatterns: item.ncmPrefixes, parent: item.csts.join(","), parameters: { CST02_FABRICANTE_IMPORTADOR: { pis: item.manufacturerPisRate, cofins: item.manufacturerCofinsRate }, CST04_REVENDA: { pis: 0, cofins: 0 } } })),
+    ...IBS_CBS_CLASSIFICATIONS.map((item) => ({ catalogo: "IBS_CBS_CCLASSTRIB", ...item, fonteUrl: item.sourceUrl, versaoFonte: item.sourceVersion, ncmPatterns: item.ncmPrefixes, parent: item.cst, parameters: { ano: 2026, cbs: item.cbsRate, ibs: item.ibsRate, reducao: item.reduction } })),
   ];
   const statements = entries.map((item) => tenant.db.insert(referenciasFiscais).values({
     catalogo: item.catalogo, codigo: item.code, codigoPai: item.parent, descricao: item.description,
-    ncmPadroesJson: JSON.stringify(item.ncmPatterns), fonteUrl: item.fonteUrl, versaoFonte: item.versaoFonte,
-  }).onConflictDoNothing());
+    ncmPadroesJson: JSON.stringify(item.ncmPatterns), parametrosJson: JSON.stringify(item.parameters), fonteUrl: item.fonteUrl, versaoFonte: item.versaoFonte,
+  }).onConflictDoUpdate({
+    target: [referenciasFiscais.catalogo, referenciasFiscais.codigo, referenciasFiscais.versaoFonte],
+    set: { codigoPai: item.parent, descricao: item.description, ncmPadroesJson: JSON.stringify(item.ncmPatterns), parametrosJson: JSON.stringify(item.parameters), fonteUrl: item.fonteUrl, ativo: true, atualizadoEm: new Date().toISOString() },
+  }));
   await tenant.db.batch(statements as [typeof statements[number], ...typeof statements]);
 }
 
@@ -116,11 +117,14 @@ export async function GET() {
     const rulesByCategory = new Map<string, Partial<Record<Regime, Rule>>>();
     for (const row of ruleRows) {
       const current = rulesByCategory.get(row.categoriaId) ?? {};
+      const pisCofinsCst = row.cstPisCofins || (row.cstPis === row.cstCofins ? row.cstPis : "");
+      const resolvedRates = resolvePisCofinsRates(row.regime as Regime, pisCofinsCst, row.natureza);
+      const reform = getIbsCbsClassification(row.cClassTrib || row.classificacao);
       current[row.regime as Regime] = {
         cfop: row.cfop, cstIcms: row.cstIcms, csosn: row.csosn, icms: row.icms, mva: row.mva,
-        cstPisCofins: row.cstPisCofins || (row.cstPis === row.cstCofins ? row.cstPis : ""), natureza: row.natureza, pis: row.pis, cofins: row.cofins,
-        cstReforma: row.cstReforma, cClassTrib: row.cClassTrib || (/^\d{6}$/.test(row.classificacao) ? row.classificacao : "000001"), cbs: row.cbs, ibs: row.ibs,
-        reducao: row.reducao, compensarCbs: row.compensarCbs,
+        cstPisCofins: pisCofinsCst, natureza: row.natureza, pis: resolvedRates?.pis ?? row.pis, cofins: resolvedRates?.cofins ?? row.cofins,
+        cstReforma: reform?.cst ?? row.cstReforma, cClassTrib: reform?.code ?? "000001", cbs: reform?.cbsRate ?? row.cbs, ibs: reform?.ibsRate ?? row.ibs,
+        reducao: reform?.reduction ?? row.reducao, compensarCbs: row.compensarCbs,
       };
       rulesByCategory.set(row.categoriaId, current);
     }

@@ -20,6 +20,8 @@ import {
   getIbsCbsClassification,
   ibsCbsSuggestions,
   revenueNatureSuggestions,
+  resolvePisCofinsRates,
+  suggestNcm,
 } from "./fiscal-catalog";
 
 type CartItem = Product & { quantidade: number };
@@ -997,6 +999,7 @@ function FiscalAssistant({
   categories,
   regime,
   applyCategory,
+  applyNcmSuggestion,
 }: {
   mode: "categoria" | "produto";
   category: Category;
@@ -1004,12 +1007,13 @@ function FiscalAssistant({
   categories: Category[];
   regime: Regime;
   applyCategory?: (id: string) => void;
+  applyNcmSuggestion?: (ncm: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [analyzed, setAnalyzed] = useState(false);
   const text =
-    `${product?.nome ?? category.nome} ${product?.principioAtivo ?? category.descricao}`.toLowerCase();
+    `${product?.nome ?? category.nome} ${product?.principioAtivo ?? category.descricao} ${question}`.toLowerCase();
   const preferredId = /antib|amoxic|azitro/.test(text)
     ? "ant"
     : /vitamin|prote[ií]na|whey|creatina|suplement/.test(text)
@@ -1027,6 +1031,7 @@ function FiscalAssistant({
   const currentTax = product ? calc(product, category, regime).tributo : 0;
   const suggestedTax = product ? calc(product, suggested, regime).tributo : 0;
   const possibleSaving = Math.max(0, currentTax - suggestedTax);
+  const ncmSuggestion = mode === "categoria" ? suggestNcm(text, category.ncm) : null;
   const missing = [
     category.ncm.length !== 8 && "NCM",
     !category.cest && "CEST",
@@ -1110,22 +1115,26 @@ function FiscalAssistant({
                       className="tax-ai-apply"
                       onClick={() => applyCategory(suggested.id)}
                     >
-                      Usar como hipótese
+                      Aplicar categoria e NCM herdado
                     </button>
                   )}
                 </>
               ) : (
                 <>
-                  <span className="tax-ai-kicker">REVISÃO DA CATEGORIA</span>
+                  <span className="tax-ai-kicker">REVISÃO DA CATEGORIA E NCM</span>
                   <strong>
-                    {missing.length
+                    {ncmSuggestion
+                      ? `${ncmSuggestion.ncm} — ${ncmSuggestion.description}`
+                      : missing.length
                       ? `${missing.length} ponto(s) para completar`
                       : "Campos essenciais preenchidos"}
                   </strong>
                   <p>
-                    {missing.length
+                    {ncmSuggestion
+                      ? `${ncmSuggestion.reason}. Confiança ${ncmSuggestion.confidence}; a alteração será aplicada a todos os produtos vinculados.`
+                      : missing.length
                       ? `Revise: ${missing.join(", ")}.`
-                      : `NCM ${category.ncm}, ${category.classe} e CFOP ${category.rules[regime].cfop} estão coerentes com a regra cadastrada.`}
+                      : `NCM ${category.ncm}, ${category.classe} e CFOP ${category.rules[regime].cfop} estão preenchidos. Descreva o produto com precisão para eu sugerir outro NCM.`}
                   </p>
                   <div className="tax-ai-saving">
                     <span>Oportunidade a validar</span>
@@ -1135,6 +1144,14 @@ function FiscalAssistant({
                         : "Vigência e UF"}
                     </b>
                   </div>
+                  {ncmSuggestion && applyNcmSuggestion && (
+                    <button
+                      className="tax-ai-apply"
+                      onClick={() => applyNcmSuggestion(ncmSuggestion.ncm)}
+                    >
+                      Aplicar NCM e recalcular tributos
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -1505,6 +1522,7 @@ function Categories({
   const natureSuggestions = revenueNatureSuggestions(category.ncm, r.cstPisCofins);
   const reformSuggestions = ibsCbsSuggestions(category.ncm);
   const selectedReform = getIbsCbsClassification(r.cClassTrib);
+  const resolvedPisCofins = resolvePisCofinsRates(regime, r.cstPisCofins, r.natureza);
   const updateCategory = (key: keyof Category, value: string) =>
     setCategories((all) =>
       all.map((c) => (c.id === selected ? { ...c, [key]: value } : c)),
@@ -1523,6 +1541,84 @@ function Categories({
           : c,
       ),
     );
+  const applyPisCofins = (cst: string, requestedNature?: string) => {
+    const suggestions = revenueNatureSuggestions(category.ncm, cst);
+    const nature = requestedNature ?? (suggestions.length === 1 ? suggestions[0].code : "");
+    const rates = resolvePisCofinsRates(regime, cst, nature);
+    setCategories((all) => all.map((item) => item.id === selected ? {
+      ...item,
+      classe: cst === "04" ? "Monofásico" : item.classe,
+      rules: {
+        ...item.rules,
+        [regime]: {
+          ...item.rules[regime],
+          cstPisCofins: cst,
+          natureza: nature,
+          ...(rates ? { pis: rates.pis, cofins: rates.cofins } : {}),
+        },
+      },
+    } : item));
+  };
+  const applyReformClassification = (code: string) => {
+    const classification = getIbsCbsClassification(code);
+    if (!classification) return;
+    setCategories((all) => all.map((item) => item.id === selected ? {
+      ...item,
+      rules: {
+        ...item.rules,
+        [regime]: {
+          ...item.rules[regime],
+          cClassTrib: classification.code,
+          cstReforma: classification.cst,
+          cbs: classification.cbsRate,
+          ibs: classification.ibsRate,
+          reducao: classification.reduction,
+        },
+      },
+    } : item));
+  };
+  const applySuggestedNcm = (ncm: string) => {
+    setCategories((all) => all.map((item) => {
+      if (item.id !== selected) return item;
+      const nature = revenueNatureSuggestions(ncm, "04")[0];
+      const reformMatches = ibsCbsSuggestions(ncm);
+      const classification = reformMatches.length === 1
+        ? reformMatches[0]
+        : getIbsCbsClassification("000001")!;
+      const updatedRules = Object.fromEntries((Object.keys(regimes) as Regime[]).map((itemRegime) => {
+        const pisCofins = nature ? resolvePisCofinsRates(itemRegime, "04", nature.code) : null;
+        return [itemRegime, {
+          ...item.rules[itemRegime],
+          ...(nature ? {
+            cstPisCofins: "04",
+            natureza: nature.code,
+            pis: pisCofins?.pis ?? item.rules[itemRegime].pis,
+            cofins: pisCofins?.cofins ?? item.rules[itemRegime].cofins,
+          } : {}),
+          cClassTrib: classification.code,
+          cstReforma: classification.cst,
+          cbs: classification.cbsRate,
+          ibs: classification.ibsRate,
+          reducao: classification.reduction,
+        }];
+      })) as Record<Regime, Rule>;
+      return { ...item, ncm, classe: nature ? "Monofásico" : item.classe, rules: updatedRules };
+    }));
+    notify(`NCM ${ncm} aplicado. CST, natureza, cClassTrib e alíquotas foram recalculados; revise e salve.`);
+  };
+  const normalizedForSave = (): Category => ({
+    ...category,
+    rules: Object.fromEntries((Object.keys(regimes) as Regime[]).map((itemRegime) => {
+      const currentRule = category.rules[itemRegime];
+      const pisCofins = resolvePisCofinsRates(itemRegime, currentRule.cstPisCofins, currentRule.natureza);
+      const reform = getIbsCbsClassification(currentRule.cClassTrib);
+      return [itemRegime, {
+        ...currentRule,
+        ...(pisCofins ? { pis: pisCofins.pis, cofins: pisCofins.cofins } : {}),
+        ...(reform ? { cstReforma: reform.cst, cbs: reform.cbsRate, ibs: reform.ibsRate, reducao: reform.reduction } : {}),
+      }];
+    })) as Record<Regime, Rule>,
+  });
   const createCategory = () => {
     const id = `cat_new_${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`;
     const draft: Category = {
@@ -1591,7 +1687,11 @@ function Categories({
           <button
             className="save-button"
             onClick={async () => {
-              if (await saveCategory(category)) setDraftCategoryId(null);
+              const normalized = normalizedForSave();
+              if (await saveCategory(normalized)) {
+                setCategories((all) => all.map((item) => item.id === normalized.id ? normalized : item));
+                setDraftCategoryId(null);
+              }
             }}
           >
             Salvar e aplicar
@@ -1727,10 +1827,7 @@ function Categories({
             <Field label="CST PIS/COFINS" wide>
               <select
                 value={r.cstPisCofins}
-                onChange={(e) => {
-                  updateRule("cstPisCofins", e.target.value);
-                  if (!revenueNatureSuggestions(category.ncm, e.target.value).some((item) => item.code === r.natureza)) updateRule("natureza", "");
-                }}
+                onChange={(e) => applyPisCofins(e.target.value)}
               >
                 {PIS_COFINS_CSTS.map((item) => (
                   <option value={item.code} key={item.code}>{item.code} — {item.description}</option>
@@ -1741,7 +1838,7 @@ function Categories({
             <Field label="Natureza da receita" wide>
               <select
                 value={r.natureza}
-                onChange={(e) => updateRule("natureza", e.target.value)}
+                onChange={(e) => applyPisCofins(r.cstPisCofins, e.target.value)}
                 disabled={natureSuggestions.length === 0}
               >
                 <option value="">{natureSuggestions.length ? "Selecione a natureza sugerida" : "Sem natureza compatível para CST e NCM"}</option>
@@ -1752,19 +1849,19 @@ function Categories({
               <small>{natureSuggestions.length ? `${natureSuggestions[0].sourceVersion}. Confirme que a operação é revenda e a empresa não é fabricante/importadora.` : "A tabela é filtrada simultaneamente pelo CST e pelo NCM exato."}</small>
             </Field>
             <Field label="Alíquota PIS">
-              <RateInput value={r.pis} set={(v) => updateRule("pis", v)} />
+              <RateInput value={resolvedPisCofins?.pis ?? r.pis} readOnly />
+              <small>{resolvedPisCofins?.basis ?? "Alíquota depende de contexto adicional; revisão obrigatória."}</small>
             </Field>
             <Field label="Alíquota COFINS">
-              <RateInput
-                value={r.cofins}
-                set={(v) => updateRule("cofins", v)}
-              />
+              <RateInput value={resolvedPisCofins?.cofins ?? r.cofins} readOnly />
+              <small>Preenchida automaticamente pelo CST, natureza, regime e perfil de revenda.</small>
             </Field>
             </div>
             {category.ncm === "33049990" && (
-              <div className="fiscal-validation ok">
+              <div className="fiscal-validation ok actionable">
                 <Icon name="check" />
                 <span><strong>Sugestão PIS/COFINS:</strong> CST 04 + Natureza 202 para revenda varejista. O NCM 3304 está no grupo de perfumaria, toucador e higiene da Tabela 4.3.10.</span>
+                <button onClick={() => applyPisCofins("04", "202")}>Aplicar sugestão</button>
               </div>
             )}
           </div>
@@ -1786,13 +1883,7 @@ function Categories({
               <Field label="cClassTrib" wide>
                 <select
                   value={r.cClassTrib}
-                  onChange={(e) => {
-                    const selected = getIbsCbsClassification(e.target.value);
-                    if (!selected) return;
-                    updateRule("cClassTrib", selected.code);
-                    updateRule("cstReforma", selected.cst);
-                    updateRule("reducao", selected.reduction);
-                  }}
+                  onChange={(e) => applyReformClassification(e.target.value)}
                 >
                   {reformSuggestions.length > 0 && (
                     <optgroup label="Sugestões compatíveis com o NCM">
@@ -1806,16 +1897,23 @@ function Categories({
                 <small>{selectedReform?.legalBasis ?? "Selecione uma classificação válida."}</small>
               </Field>
               <Field label="Alíquota CBS">
-                <RateInput value={r.cbs} set={(v) => updateRule("cbs", v)} />
+                <RateInput value={selectedReform?.cbsRate ?? r.cbs} readOnly />
+                <small>Alíquota nominal de transição para 2026.</small>
               </Field>
               <Field label="Alíquota IBS">
-                <RateInput value={r.ibs} set={(v) => updateRule("ibs", v)} />
+                <RateInput value={selectedReform?.ibsRate ?? r.ibs} readOnly />
+                <small>Alíquota nominal de transição para 2026.</small>
               </Field>
               <Field label="Redução de alíquota">
-                <RateInput
-                  value={r.reducao}
-                  set={(v) => updateRule("reducao", v)}
-                />
+                <RateInput value={selectedReform?.reduction ?? r.reducao} readOnly />
+              </Field>
+              <Field label="CBS efetiva">
+                <RateInput value={(selectedReform?.cbsRate ?? r.cbs) * (1 - (selectedReform?.reduction ?? r.reducao))} readOnly />
+                <small>Alíquota nominal após a redução do cClassTrib.</small>
+              </Field>
+              <Field label="IBS efetiva">
+                <RateInput value={(selectedReform?.ibsRate ?? r.ibs) * (1 - (selectedReform?.reduction ?? r.reducao))} readOnly />
+                <small>Alíquota nominal após a redução do cClassTrib.</small>
               </Field>
               <Field label="Vigência">
                 <input value={category.vigencia} readOnly />
@@ -1847,6 +1945,7 @@ function Categories({
           category={category}
           categories={categories}
           regime={regime}
+          applyNcmSuggestion={applySuggestedNcm}
         />
       </section>
     </div>
@@ -1872,9 +1971,11 @@ function Field({
 function RateInput({
   value,
   set,
+  readOnly = false,
 }: {
   value: number;
-  set: (v: number) => void;
+  set?: (v: number) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="rate-input">
@@ -1882,7 +1983,8 @@ function RateInput({
         type="number"
         step="0.01"
         value={(value * 100).toFixed(2)}
-        onChange={(e) => set(+e.target.value / 100)}
+        readOnly={readOnly}
+        onChange={(e) => set?.(+e.target.value / 100)}
       />
       <b>%</b>
     </div>

@@ -14,12 +14,12 @@ export const revenueNatureRules = new Map<string, RevenueNatureRule>([
   ["202", { csts: ["02", "04"], ncmPrefixes: ["3303", "3304", "3305", "3306", "3307", "34011190", "34012010", "96032100"] }],
 ]);
 
-type IbsCbsRule = { cst: string; ncmPrefixes: string[]; requiresEvidence?: boolean };
+type IbsCbsRule = { cst: string; ncmPrefixes: string[]; cbsRate: number; ibsRate: number; reduction: number; requiresEvidence?: boolean };
 export const ibsCbsRules = new Map<string, IbsCbsRule>([
-  ["000001", { cst: "000", ncmPrefixes: ["*"] }],
-  ["200013", { cst: "200", ncmPrefixes: ["96190000"] }],
-  ["200032", { cst: "200", ncmPrefixes: ["3001", "3002", "3003", "3004", "3005", "3006"], requiresEvidence: true }],
-  ["200035", { cst: "200", ncmPrefixes: ["34011190", "33061000", "96032100", "48181000", "38089419", "34011900", "96190000"] }],
+  ["000001", { cst: "000", ncmPrefixes: ["*"], cbsRate: 0.009, ibsRate: 0.001, reduction: 0 }],
+  ["200013", { cst: "200", ncmPrefixes: ["96190000"], cbsRate: 0.009, ibsRate: 0.001, reduction: 1 }],
+  ["200032", { cst: "200", ncmPrefixes: ["3001", "3002", "3003", "3004", "3005", "3006"], cbsRate: 0.009, ibsRate: 0.001, reduction: 0.6, requiresEvidence: true }],
+  ["200035", { cst: "200", ncmPrefixes: ["34011190", "33061000", "96032100", "48181000", "38089419", "34011900", "96190000"], cbsRate: 0.009, ibsRate: 0.001, reduction: 0.6 }],
 ]);
 
 function matchesNcm(ncm: string, prefixes: string[]) {
@@ -35,4 +35,16 @@ export function validateRevenueNature(ncm: string, cst: string, nature: string |
 export function validateIbsCbsClassification(ncm: string, cst: string, cClassTrib: string) {
   const rule = ibsCbsRules.get(cClassTrib);
   return Boolean(rule && rule.cst === cst && matchesNcm(ncm, rule.ncmPrefixes));
+}
+
+export function resolvePisCofinsRates(regime: string, cst: string, nature: string | null) {
+  if (cst === "04" && nature && revenueNatureRules.has(nature)) return { pis: 0, cofins: 0 };
+  if (["06", "07", "08", "09"].includes(cst)) return { pis: 0, cofins: 0 };
+  if (cst === "01" && regime === "LUCRO_PRESUMIDO") return { pis: 0.0065, cofins: 0.03 };
+  if (cst === "01" && regime === "LUCRO_REAL") return { pis: 0.0165, cofins: 0.076 };
+  return null;
+}
+
+export function getIbsCbsRule(cClassTrib: string) {
+  return ibsCbsRules.get(cClassTrib);
 }

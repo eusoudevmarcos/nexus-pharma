@@ -8,6 +8,8 @@ export type RevenueNature = FiscalOption & {
   ncmPrefixes: string[];
   sourceVersion: string;
   sourceUrl: string;
+  manufacturerPisRate: number;
+  manufacturerCofinsRate: number;
 };
 
 export type IbsCbsClassification = FiscalOption & {
@@ -18,6 +20,15 @@ export type IbsCbsClassification = FiscalOption & {
   legalBasis: string;
   sourceVersion: string;
   sourceUrl: string;
+  cbsRate: number;
+  ibsRate: number;
+};
+
+export type NcmSuggestion = {
+  ncm: string;
+  description: string;
+  reason: string;
+  confidence: "alta" | "média";
 };
 
 export const PIS_COFINS_CSTS: FiscalOption[] = [
@@ -91,6 +102,8 @@ export const REVENUE_NATURES: RevenueNature[] = [
     ncmPrefixes: ["3001", "3003", "3004", "3002101", "3002102", "3002103", "3002201", "3002202", "30029020", "30029092", "30029099", "30051010", "3006301", "3006302", "30066000"],
     sourceVersion: "EFD-Contribuições 4.3.10 v1.25 — 30/03/2026",
     sourceUrl: "https://sped.rfb.gov.br/item/show/8124",
+    manufacturerPisRate: 0.021,
+    manufacturerCofinsRate: 0.099,
   },
   {
     code: "202",
@@ -99,6 +112,8 @@ export const REVENUE_NATURES: RevenueNature[] = [
     ncmPrefixes: ["3303", "3304", "3305", "3306", "3307", "34011190", "34012010", "96032100"],
     sourceVersion: "EFD-Contribuições 4.3.10 v1.25 — 30/03/2026",
     sourceUrl: "https://sped.rfb.gov.br/item/show/8124",
+    manufacturerPisRate: 0.022,
+    manufacturerCofinsRate: 0.103,
   },
 ];
 
@@ -114,6 +129,8 @@ export const IBS_CBS_CLASSIFICATIONS: IbsCbsClassification[] = [
     legalBasis: "Regra geral de tributação integral",
     sourceVersion: "Portal Conformidade Fácil — consulta em 28/08/2026",
     sourceUrl: IBS_CBS_SOURCE,
+    cbsRate: 0.009,
+    ibsRate: 0.001,
   },
   {
     code: "200013",
@@ -124,6 +141,8 @@ export const IBS_CBS_CLASSIFICATIONS: IbsCbsClassification[] = [
     legalBasis: "LC 214/2025, art. 147",
     sourceVersion: "Portal Conformidade Fácil — consulta em 28/08/2026",
     sourceUrl: IBS_CBS_SOURCE,
+    cbsRate: 0.009,
+    ibsRate: 0.001,
   },
   {
     code: "200032",
@@ -135,6 +154,8 @@ export const IBS_CBS_CLASSIFICATIONS: IbsCbsClassification[] = [
     legalBasis: "LC 214/2025, art. 133",
     sourceVersion: "Portal Conformidade Fácil — consulta em 28/08/2026",
     sourceUrl: IBS_CBS_SOURCE,
+    cbsRate: 0.009,
+    ibsRate: 0.001,
   },
   {
     code: "200035",
@@ -145,6 +166,8 @@ export const IBS_CBS_CLASSIFICATIONS: IbsCbsClassification[] = [
     legalBasis: "LC 214/2025, art. 136 e Anexo VIII",
     sourceVersion: "Portal Conformidade Fácil — consulta em 28/08/2026",
     sourceUrl: IBS_CBS_SOURCE,
+    cbsRate: 0.009,
+    ibsRate: 0.001,
   },
 ];
 
@@ -162,6 +185,37 @@ export function ibsCbsSuggestions(ncm: string) {
 
 export function getIbsCbsClassification(code: string) {
   return IBS_CBS_CLASSIFICATIONS.find((item) => item.code === code);
+}
+
+export function resolvePisCofinsRates(regime: "SIMPLES_NACIONAL" | "LUCRO_PRESUMIDO" | "LUCRO_REAL", cst: string, nature: string) {
+  if (cst === "04" && REVENUE_NATURES.some((item) => item.code === nature)) {
+    return { pis: 0, cofins: 0, basis: "Revenda monofásica a alíquota zero" };
+  }
+  if (["06", "07", "08", "09"].includes(cst)) {
+    return { pis: 0, cofins: 0, basis: `CST ${cst} sem débito das contribuições` };
+  }
+  if (cst === "01" && regime === "LUCRO_PRESUMIDO") {
+    return { pis: 0.0065, cofins: 0.03, basis: "Regime cumulativo — alíquotas básicas" };
+  }
+  if (cst === "01" && regime === "LUCRO_REAL") {
+    return { pis: 0.0165, cofins: 0.076, basis: "Regime não cumulativo — alíquotas básicas" };
+  }
+  return null;
+}
+
+export function suggestNcm(text: string, currentNcm: string): NcmSuggestion | null {
+  const normalized = text.toLowerCase();
+  const candidates: Array<{ pattern: RegExp; suggestion: NcmSuggestion }> = [
+    { pattern: /dentifr[ií]cio|creme dental|pasta dental/, suggestion: { ncm: "33061000", description: "Dentifrícios", reason: "Descrição específica compatível com dentifrícios do NCM 3306.10.00", confidence: "alta" } },
+    { pattern: /escova(s)? de dente/, suggestion: { ncm: "96032100", description: "Escovas de dentes", reason: "Descrição específica compatível com escovas de dentes do NCM 9603.21.00", confidence: "alta" } },
+    { pattern: /sabonete de toucador/, suggestion: { ncm: "34011190", description: "Sabões de toucador", reason: "Descrição específica compatível com sabões de toucador do NCM 3401.11.90", confidence: "alta" } },
+    { pattern: /papel higi[eê]nico/, suggestion: { ncm: "48181000", description: "Papel higiênico", reason: "Descrição específica compatível com papel higiênico do NCM 4818.10.00", confidence: "alta" } },
+    { pattern: /[áa]gua sanit[áa]ria/, suggestion: { ncm: "38089419", description: "Água sanitária", reason: "Descrição específica compatível com água sanitária do NCM 3808.94.19", confidence: "alta" } },
+    { pattern: /sab[aã]o em barra/, suggestion: { ncm: "34011900", description: "Sabões em barra", reason: "Descrição específica compatível com sabões em barra do NCM 3401.19.00", confidence: "alta" } },
+    { pattern: /fralda|absorvente|coletor menstrual/, suggestion: { ncm: "96190000", description: "Artigos higiênicos", reason: "Descrição compatível com artigos higiênicos do NCM 9619.00.00; exige revisão do cClassTrib porque há mais de uma hipótese legal", confidence: "média" } },
+  ];
+  const match = candidates.find((item) => item.pattern.test(normalized))?.suggestion;
+  return match && match.ncm !== currentNcm ? match : null;
 }
 
 export function isFiscalOption(catalog: FiscalOption[], code: string) {

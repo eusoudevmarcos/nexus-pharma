@@ -6,6 +6,8 @@ import {
   csosnCodes,
   icmsCstCodes,
   pisCofinsCstCodes,
+  getIbsCbsRule,
+  resolvePisCofinsRates,
   validateIbsCbsClassification,
   validateRevenueNature,
 } from "../fiscal/catalogs.js";
@@ -93,6 +95,14 @@ function fiscalCatalogErrors(category: z.infer<typeof categorySchema>) {
     }
     if (!validateIbsCbsClassification(category.ncm, rule.cst_ibs_cbs, rule.cclass_trib)) {
       errors.push(`${regime}: cClassTrib incompatível com o CST IBS/CBS ou o NCM`);
+    }
+    const pisCofins = resolvePisCofinsRates(regime, rule.cst_pis_cofins, rule.natureza_receita);
+    if (pisCofins && (Math.abs(rule.aliquota_pis - pisCofins.pis) > 0.000001 || Math.abs(rule.aliquota_cofins - pisCofins.cofins) > 0.000001)) {
+      errors.push(`${regime}: alíquotas de PIS/COFINS divergentes do CST, natureza e regime`);
+    }
+    const reform = getIbsCbsRule(rule.cclass_trib);
+    if (reform && (Math.abs(rule.aliquota_cbs - reform.cbsRate) > 0.000001 || Math.abs(rule.aliquota_ibs - reform.ibsRate) > 0.000001 || Math.abs(rule.reducao_cbs - reform.reduction) > 0.000001 || Math.abs(rule.reducao_ibs - reform.reduction) > 0.000001)) {
+      errors.push(`${regime}: alíquotas ou reduções de IBS/CBS divergentes do cClassTrib e da vigência 2026`);
     }
   }
   return errors;

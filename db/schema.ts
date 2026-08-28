@@ -99,6 +99,7 @@ export const referenciasFiscais = sqliteTable("referencias_fiscais", {
   codigoPai: text("codigo_pai"),
   descricao: text("descricao").notNull(),
   ncmPadroesJson: text("ncm_padroes_json").notNull().default("[]"),
+  parametrosJson: text("parametros_json").notNull().default("{}"),
   fonteUrl: text("fonte_url").notNull(),
   versaoFonte: text("versao_fonte").notNull(),
   vigenciaInicio: text("vigencia_inicio"),

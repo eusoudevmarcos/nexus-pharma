@@ -6,6 +6,8 @@ import {
   PIS_COFINS_CSTS,
   ibsCbsSuggestions,
   revenueNatureSuggestions,
+  resolvePisCofinsRates,
+  suggestNcm,
 } from "../app/fiscal-catalog.ts";
 import { initialCategories } from "../app/catalog-data.ts";
 
@@ -36,7 +38,23 @@ test("benefício IBS/CBS de higiene só é sugerido para NCM do Anexo VIII", () 
 test("cClassTrib sempre deriva o próprio CST IBS/CBS", () => {
   for (const item of IBS_CBS_CLASSIFICATIONS) {
     assert.equal(item.code.slice(0, 3), item.cst);
+    assert.equal(item.cbsRate, 0.009);
+    assert.equal(item.ibsRate, 0.001);
   }
+});
+
+test("CST 04 com natureza monofásica preenche PIS e COFINS com alíquota zero", () => {
+  assert.deepEqual(resolvePisCofinsRates("SIMPLES_NACIONAL", "04", "202"), {
+    pis: 0,
+    cofins: 0,
+    basis: "Revenda monofásica a alíquota zero",
+  });
+});
+
+test("IA só sugere NCM quando a descrição do produto é específica", () => {
+  assert.equal(suggestNcm("categoria de higiene pessoal", "33049990"), null);
+  assert.equal(suggestNcm("creme dental com flúor", "33049990")?.ncm, "33061000");
+  assert.equal(suggestNcm("escova de dentes macia", "33049990")?.ncm, "96032100");
 });
 
 test("dados demonstrativos não propagam os antigos enquadramentos incorretos", () => {

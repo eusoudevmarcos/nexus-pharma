@@ -835,6 +835,7 @@ model FiscalCatalogEntry {
   parentCode    String?   @map("parent_code") @db.VarChar(40)
   description   String    @db.VarChar(800)
   ncmPatterns   Json      @default("[]") @map("ncm_patterns")
+  parameters    Json      @default("{}")
   sourceUrl     String    @map("source_url") @db.VarChar(500)
   sourceVersion String    @map("source_version") @db.VarChar(120)
   validFrom     DateTime? @map("valid_from") @db.Date
