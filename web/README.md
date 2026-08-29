@@ -8,7 +8,7 @@ Site institucional e porta de entrada do SaaS, preparado para Vercel.
 2. Configure `NEXUS_API_URL` com a API do Render.
 3. Execute `npm install` e `npm run dev`.
 
-Na Vercel, configure o diretório raiz do projeto como `web` e cadastre `NEXUS_API_URL` e `NEXT_PUBLIC_SITE_URL`. A conexão do banco e os segredos de autenticação permanecem somente no Render.
+Na Vercel, configure o diretório raiz do projeto como `web`, mantenha o Output Directory no padrão do Next.js e cadastre `NEXUS_API_URL` e `NEXT_PUBLIC_SITE_URL`. Não preencha o Output Directory manualmente com `.next`. A conexão do banco e os segredos de autenticação permanecem somente no Render. Se o projeto já estiver conectado pela raiz do repositório, o `vercel.json` da raiz encaminha o build para este diretório.
 
 O portal inclui seleção de empresa, painéis por perfil, gestão de usuários, geração e reenvio de convite de uso único, aceite de conta e alteração auditada de permissões. Quando o relay transacional está configurado, o convite é entregue automaticamente; sem ele, o portal apresenta o link seguro para envio manual.
 
