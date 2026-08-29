@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
+import { publicSiteUrl } from "@/lib/runtime-config";
 
 export default function robots(): MetadataRoute.Robots {
-  return { rules: { userAgent: "*", allow: "/", disallow: ["/portal", "/api/"] }, sitemap: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3100"}/sitemap.xml` };
+  return { rules: { userAgent: "*", allow: "/", disallow: ["/portal", "/api/"] }, sitemap: `${publicSiteUrl()}/sitemap.xml` };
 }

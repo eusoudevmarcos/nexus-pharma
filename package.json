@@ -11,7 +11,8 @@
     "start": "vinext start",
     "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",
     "lint": "eslint app tests eslint.config.mjs",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "verify:production": "node scripts/verify-production.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

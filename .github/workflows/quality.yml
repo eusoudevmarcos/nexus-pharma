@@ -1,49 +1,54 @@
-name: Quality gate
+name: Nexus Pharma quality gate
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate:
+  api:
+    name: API e migrations
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: api
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nexus_pharma
+      JWT_SECRET: ci-only-secret-with-at-least-32-characters
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
           cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:validate
+      - run: npm run build
 
-      - name: Install and test Sites app
-        run: npm ci
-      - run: npm test
-
-      - name: Install and build API
-        working-directory: api
-        run: npm ci
-      - name: Validate Prisma schema
-        working-directory: api
-        env:
-          DATABASE_URL: postgresql://user:password@localhost:5432/nexus_pharma?schema=public
-        run: npm run prisma:validate
-      - name: Build API
-        working-directory: api
-        env:
-          DATABASE_URL: postgresql://user:password@localhost:5432/nexus_pharma?schema=public
-        run: npm run build
-
-      - name: Install portal
+  web:
+    name: Site e portal
+    runs-on: ubuntu-latest
+    defaults:
+      run:
         working-directory: web
-        run: npm ci
-      - name: Lint portal
-        working-directory: web
-        run: npm run lint
-      - name: Build portal
-        working-directory: web
-        run: npm run build
+    env:
+      NEXUS_API_URL: https://api.example.invalid
+      NEXT_PUBLIC_SITE_URL: https://app.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build

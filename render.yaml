@@ -2,14 +2,16 @@ services:
   - type: web
     name: nexus-pharma-api
     runtime: node
-    plan: free
+    plan: starter
     region: virginia
     rootDir: api
-    autoDeploy: false
+    autoDeployTrigger: checksPass
     buildCommand: npm ci && npm run build
-    preDeployCommand: npm run prisma:migrate:deploy && npm run prisma:seed
+    preDeployCommand: npm run prisma:migrate:deploy
+    initialDeployHook: npm run prisma:seed
     startCommand: npm start
     healthCheckPath: /health/ready
+    maxShutdownDelaySeconds: 60
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -18,7 +20,9 @@ services:
       - key: NODE_VERSION
         value: 22.13.0
       - key: DEPLOYMENT_STAGE
-        value: staging
+        value: production
+      - key: NODE_ENV
+        value: production
       - key: JWT_SECRET
         generateValue: true
       - key: ACCESS_TOKEN_TTL
@@ -38,9 +42,9 @@ services:
       - key: ONE_TIME_TOKEN_RETENTION_DAYS
         value: "30"
       - key: DATABASE_RECOVERY_MODE
-        value: NONE
+        value: PITR
       - key: DATABASE_RECOVERY_WINDOW_DAYS
-        value: "0"
+        value: "3"
       - key: TRUST_PROXY
         value: "true"
       - key: LOG_LEVEL
@@ -63,6 +67,26 @@ services:
         sync: false
       - key: OBSERVABILITY_TOKEN
         generateValue: true
+      - key: DFE_CERTIFICATE_ENCRYPTION_KEY
+        generateValue: true
+      - key: DFE_ENABLE_SEFAZ_TRANSMISSION
+        value: "false"
+      - key: DFE_DISTRIBUTION_URL_HOMOLOGATION
+        sync: false
+      - key: DFE_DISTRIBUTION_URL_PRODUCTION
+        sync: false
+      - key: DFE_EVENT_URL_HOMOLOGATION
+        sync: false
+      - key: DFE_EVENT_URL_PRODUCTION
+        sync: false
+      - key: DFE_MAX_RESPONSE_BYTES
+        value: "10000000"
+      - key: NFCE_ENABLE_SEFAZ_TRANSMISSION
+        value: "false"
+      - key: NFCE_ALLOW_PRODUCTION_PREPARATION
+        value: "false"
+      - key: NFCE_SCHEMA_VERSION
+        value: local-2026.08
       - key: SEED_ADMIN_EMAIL
         sync: false
       - key: SEED_ADMIN_PASSWORD
@@ -94,10 +118,12 @@ services:
 
 databases:
   - name: nexus-pharma-db
-    # Bloqueador de go-live: o plano gratuito não oferece restauração gerenciada.
-    # Suba para um plano pago e ajuste DATABASE_RECOVERY_MODE=PITR antes de clientes reais.
-    plan: free
+    # Plano mínimo com backup e PITR; confirme preço e capacidade antes de sincronizar o Blueprint.
+    plan: basic-256mb
     region: virginia
+    postgresMajorVersion: "18"
+    connectionPool: none
+    storageAutoscalingEnabled: true
     databaseName: nexus_pharma
     user: nexus_pharma
     ipAllowList: []

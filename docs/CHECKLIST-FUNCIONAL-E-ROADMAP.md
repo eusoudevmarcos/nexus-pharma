@@ -9,13 +9,25 @@ Este documento separa o que existe no código do que ainda depende de integraç�
 - [ ] Não implementado.
 - **Bloqueador:** precisa estar concluído antes do primeiro cliente real.
 
+## Prioridade executiva atual
+
+O caminho crítico foi reorganizado para concluir primeiro o diferencial operacional e fiscal do Nexus Pharma:
+
+1. cadastros produtivos de produtos e categorias, estratégia comercial e IA orientada por evidências;
+2. sincronização offline segura dos caixas;
+3. SEFAZ, NFC-e e catálogos oficiais versionados;
+4. migrations e homologação no Render, seguidas da publicação do portal na Vercel;
+5. piloto controlado e expansão por UF.
+
+A contabilidade avançada (plano de contas, centro de custo e DRE contábil formal) fica fora do caminho crítico. Permanecem no escopo atual contas a pagar, contas a receber, caixa, compras, perdas, margem e relatórios gerenciais suficientes para conduzir a operação.
+
 ## 1. Arquitetura SaaS, banco e multiempresa
 
 ### Já está pronto
 
 - [x] API modular em Fastify e TypeScript.
 - [x] PostgreSQL com Prisma como fonte do modelo de produção.
-- [x] Dez migrations versionadas para identidade, operação, fiscal, faturamento, segurança, privacidade e rastreabilidade.
+- [x] Migrations versionadas para identidade, operação, fiscal, faturamento, segurança, privacidade, rastreabilidade e DF-e.
 - [x] Estrutura declarativa do Render para API, banco e rotina diária.
 - [x] Portal Next.js separado e preparado para Vercel.
 - [x] Isolamento de dados por empresa e seleção explícita da empresa ativa.
@@ -103,10 +115,14 @@ Este documento separa o que existe no código do que ainda depende de integraç�
 - [x] Validação de coerência entre NCM, natureza, CST IBS/CBS e cClassTrib.
 - [x] Cadastro de produto com EAN, custo, preço, margem, estoque, lote, fabricação e vencimento na demonstração.
 - [x] API persistente para criar, consultar e atualizar categorias e produtos.
+- [x] Telas produtivas `/portal/produtos` e `/portal/categorias`, conectadas à API e separadas por abas operacionais.
+- [x] Estoque protegido contra edição direta no cadastro; saldo muda somente pelos fluxos auditáveis de movimentação.
+- [x] Estratégia comercial por produto: destaque, promoção, alta margem, alto giro, queima, prioridade por validade e lançamento.
+- [x] Promoção vigente calculada novamente pela API no fechamento da venda e contexto comercial preservado no item.
+- [x] Produtos estratégicos identificados e priorizados no seletor do caixa sem ignorar estoque, validade ou controle sanitário.
 
 ### Roadmap do que falta
 
-- [ ] **Bloqueador operacional:** levar os formulários completos de categorias, produtos e lotes da demonstração para o portal de produção.
 - [ ] Criar importação em massa por CSV/XLSX com pré-validação e relatório de erros.
 - [ ] Criar histórico temporal e comparação visual entre versões de uma regra.
 - [ ] Implementar aprovação em quatro olhos antes de aplicar alteração em massa.
@@ -122,12 +138,14 @@ Este documento separa o que existe no código do que ainda depende de integraç�
 - [x] Conjunto inicial de naturezas de receita para medicamentos e higiene/perfumaria.
 - [x] Conjunto inicial de cClassTrib e alíquotas IBS/CBS.
 - [x] Testes que impedem combinações inválidas no conjunto atualmente coberto.
+- [x] Matriz versionada por `NCM + CEST + UF origem + UF destino + regime + tipo de operação + vigência`, com prioridade, resultado e fontes.
+- [x] Regra aprovada não pode ser alterada na mesma versão; qualquer revisão exige nova versão.
 
 ### Roadmap do que falta
 
 - [ ] **Bloqueador fiscal:** substituir o conjunto inicial por tabelas oficiais completas, versionadas e homologadas.
 - [ ] Criar sincronização e diff das tabelas oficiais de cClassTrib, CST IBS/CBS, alíquotas e notas técnicas.
-- [ ] Modelar regras efetivas por `NCM + CEST + UF origem + UF destino + regime + tipo de operação + vigência`.
+- [x] Modelar regras efetivas por `NCM + CEST + UF origem + UF destino + regime + tipo de operação + vigência`.
 - [ ] Mapear ICMS-ST, MVA, FCP, benefícios, reduções, diferimento e antecipação por UF.
 - [ ] Começar pelo Distrito Federal e pelos grupos de higiene, maquiagem e medicamentos; ampliar por UF somente após homologação.
 - [ ] Guardar fonte oficial, dispositivo legal, hash do documento, data de captura e responsável pela aprovação.
@@ -152,11 +170,12 @@ Referências oficiais a acompanhar:
 - [x] Bloqueio de crédito indevido em operação monofásica.
 - [x] Validação de CFOP interno versus operação interestadual.
 - [x] Retrato fiscal imutável vinculado à venda e cálculo separado de potencial protegido.
-- [x] Oito testes específicos das decisões críticas da cadeia tributária.
+- [x] Onze testes específicos das decisões críticas da cadeia tributária e do núcleo DF-e.
+- [x] A entrada concluída por NF-e cria lote, movimento de estoque e proveniência tributária vinculados ao hash do XML.
 
 ### Roadmap do que falta
 
-- [ ] Conectar a rastreabilidade ao XML oficial de entrada, e não a cadastro manual.
+- [x] Conectar a rastreabilidade ao XML importado/recebido e preservar a alternativa manual somente como contingência controlada.
 - [ ] Homologar todas as decisões com contador/tributarista e casos reais anonimizados.
 - [ ] Ampliar testes para devolução, transferência, bonificação, perda, uso/consumo e operações interestaduais.
 - [ ] Criar reconciliação entre entrada, estoque, saída, SPED e apuração mensal.
@@ -169,20 +188,26 @@ Referências oficiais a acompanhar:
 
 ### Já está pronto
 
-- [~] O banco consegue armazenar hash, snapshot, evidências e decisão fiscal depois que a origem é recebida.
-- [~] A cadeia de revisão e aprovação pode ser reutilizada para documentos importados.
+- [x] Cofre de certificado A1 por empresa com AES-256-GCM, fingerprint, validade, ambiente e rotação do certificado ativo.
+- [x] Cliente SOAP/mTLS configurável para `NFeDistribuicaoDFe`, com cursor por empresa/ambiente, `ultNSU`, `maxNSU` e intervalo de segurança.
+- [x] Importação manual de XML para homologação e contingência sem depender de credenciais externas.
+- [x] XML bruto e SHA-256 persistidos; trigger PostgreSQL impede alteração posterior da fonte.
+- [x] Parser de resumo, NF-e completa e evento, com itens e grupos tributários separados das sugestões.
+- [x] Eventos de Ciência, Confirmação, Desconhecimento e Operação não Realizada, assinados com o A1 e transmitidos somente quando a integração é explicitamente habilitada.
+- [x] Conferência física por item com produto, quantidade, lote, fabricação, validade e custo; conclusão atualiza estoque e proveniência de forma transacional.
+- [x] Painel do portal para fila de NF-e, XML, consulta SEFAZ, certificado, divergências e conferência.
 
 ### Roadmap do que falta
 
-- [ ] Criar cofre e rotação para certificado digital A1 por empresa.
-- [ ] Implementar cliente SOAP/mTLS do `NFeDistribuicaoDFe` no Ambiente Nacional.
-- [ ] Persistir `ultNSU`, `maxNSU`, documentos compactados, tentativas e bloqueios de consumo indevido.
-- [ ] Validar cada XML com o XSD oficial vigente e armazenar XML bruto imutável.
-- [ ] Implementar eventos de Ciência da Operação, Confirmação, Desconhecimento e Operação não Realizada.
-- [ ] Criar fila de conferência física antes da manifestação conclusiva.
+- [x] Criar cofre e rotação para certificado digital A1 por empresa.
+- [x] Implementar cliente SOAP/mTLS do `NFeDistribuicaoDFe` no Ambiente Nacional.
+- [x] Persistir `ultNSU`, `maxNSU`, documentos processados e bloqueios de consumo indevido.
+- [~] Armazenar XML bruto imutável e validar estrutura/tipo; falta incorporar e versionar o pacote XSD oficial para validação completa offline.
+- [x] Implementar eventos de Ciência da Operação, Confirmação, Desconhecimento e Operação não Realizada.
+- [x] Criar fila de conferência física antes da manifestação conclusiva.
 - [ ] Tratar cancelamento, carta de correção, duplicidade, indisponibilidade e reprocessamento idempotente.
 - [ ] Separar NF-e, CT-e e MDF-e: possuem documentos, eventos e serviços próprios; não devem compartilhar regras técnicas por suposição.
-- [ ] Criar painel de certificado, NSU, documentos pendentes e falhas de comunicação.
+- [~] Documentos e certificado já possuem tela; falta histórico técnico detalhado de cada chamada SOAP e do cursor NSU.
 
 Referências oficiais:
 
@@ -196,13 +221,15 @@ Referências oficiais:
 
 - [x] Funções de decisão para ST, monofásico, crédito e coerência do CFOP de saída.
 - [x] Registro de divergência, evidência, revisão e regra aplicada.
-- [~] A estrutura suporta o “de-para”, mas ainda recebe dados já estruturados pela API.
+- [x] Parser seguro normaliza emitente, destinatário, itens, NCM, CEST, CFOP e grupos de ICMS/PIS/COFINS sem reescrever a origem.
+- [x] O “de-para” compara a NF-e com a matriz vigente e registra divergências com fonte, regra e valor sugerido.
+- [x] A decisão humana “aceitar sugestão” ou “manter origem” alimenta a proveniência aplicada no estoque.
 
 ### Roadmap do que falta
 
-- [ ] Criar parser seguro do XML e normalizador de emitente, destinatário, itens, impostos, lotes e totais.
-- [ ] Comparar o XML do fornecedor com a matriz vigente na data da operação.
-- [ ] Implementar cenários de conversão controlada de CFOP/CST sem alterar o XML original.
+- [x] Criar parser seguro do XML e normalizador de emitente, destinatário, itens, impostos e totais; lote/fabricação/validade são confirmados fisicamente.
+- [x] Comparar o XML do fornecedor com a matriz vigente na data da operação.
+- [x] Implementar conversão controlada de CFOP/CST por sugestão aprovada sem alterar o XML original.
 - [ ] Criar pendência financeira quando houver imposto aparentemente cobrado de forma indevida.
 - [ ] Criar regras de exceção por fornecedor, produto, UF e vigência.
 - [ ] Impedir que um “de-para” automático transforme hipótese em fato sem evidência e aprovação.
@@ -217,17 +244,23 @@ Referências oficiais:
 - [x] Botões explícitos para aceitar categoria/NCM e recalcular campos.
 - [x] Persistência de análises, confiança, justificativa, evidências e revisão humana na API.
 - [x] Aviso de que a sugestão depende de validação profissional.
+- [x] Assistente local sem custo externo que recupera categoria, regra do regime, matriz de UF/operação e fontes aprovadas.
+- [x] Confiança limitada, riscos explícitos e bloqueio de aprovação quando não existe fonte legal cadastrada.
+- [x] Revisão humana auditada, rejeição justificada e substituição controlada de análises antigas.
+- [x] Métricas de cobertura de fontes, confiança e concordância humana por empresa.
 
 ### Roadmap do que falta
 
 - [ ] Conectar um modelo de IA real; hoje a sugestão visual é determinística e limitada ao catálogo local.
 - [ ] Implementar RAG somente sobre fontes fiscais aprovadas e vigentes.
-- [ ] Exigir citação verificável de fonte, trecho, vigência, UF e premissas em cada sugestão.
-- [ ] Bloquear respostas que prometam “não pagar imposto” sem hipótese legal comprovada.
+- [x] Implementar a etapa local de recuperação somente sobre fontes e regras cadastradas; conexão semântica/RAG externo permanece opcional.
+- [~] Citação, vigência, UF e premissas já são estruturadas; falta guardar o trecho legal versionado para validação textual.
+- [x] O motor local não gera promessa livre de “não pagar imposto” e mantém economia em zero sem cálculo homologado.
 - [ ] Criar avaliação de compatibilidade entre descrição, composição, registro e NCM.
 - [ ] Aprender com correções humanas sem transformar repetição em regra legal automática.
+- [x] Registrar decisões e justificativas humanas sem promover repetição a regra legal automática.
 - [ ] Criar conjunto de avaliação com casos aprovados, contraditórios e adversariais.
-- [ ] Monitorar confiança, concordância humana, economia homologada e incidentes por versão do modelo.
+- [~] Confiança, concordância e cobertura de fontes já são monitoradas; falta correlacionar incidentes e economia homologada por versão.
 
 ## 11. Venda, estoque, lotes e PDV
 
@@ -239,33 +272,70 @@ Referências oficiais:
 - [x] Provisão mensal e criação de alerta de reposição.
 - [x] Demonstração de frente de caixa e cálculo de margem/tributo.
 - [x] Cadastro persistente de matriz, filiais e PDVs ativos.
+- [x] Sessão operacional com abertura e limite de um caixa aberto por PDV.
+- [x] Venda e pagamentos registrados na mesma transação do estoque e da memória fiscal.
+- [x] Suprimento e sangria idempotentes, com motivo, usuário e auditoria.
+- [x] Fechamento conciliado por dinheiro, Pix, crédito, débito, vale e outros.
+- [x] Diferenças por meio não são mascaradas por compensação no total geral.
+- [x] Conciliação imutável por hash e revisão gerencial separada.
+- [x] Janela `/portal/caixa` com carrinho, recebimentos, gaveta, fechamento e histórico.
+- [x] Desconto com preço original preservado, limite por perfil e validação novamente na API.
+- [x] Cancelamento total e devolução parcial sem apagar a venda original.
+- [x] Recomposição transacional de produto, lote, proveniência fiscal, movimento, provisão e caixa.
+- [x] Itens avariados, vencidos ou não vendáveis ficam registrados sem retornar ao estoque disponível.
+- [x] Reembolso em dinheiro afeta a gaveta; Pix/cartões ficam bloqueados até confirmação real do provedor.
+- [x] NFC-e autorizada gera pendência fiscal e nunca é marcada como cancelada sem evento oficial.
+- [x] Janela `/portal/pos-venda` separa operação, pendências fiscais e reembolsos externos.
+- [x] Consumidor opcional na venda comum e obrigatório quando a política do produto exigir identificação.
+- [x] Vendedor ativo registrado na venda e preservado no snapshot operacional.
+- [x] Credencial farmacêutica com conselho, registro, UF, vigência, status e verificação gerencial.
+- [x] Política de controle por produto com versão, fundamento, identificação, receita, retenção, idade e farmacêutico.
+- [x] Prescrição e confirmação de retenção gravadas em registro imutável por item controlado.
+- [x] Bloqueio transacional quando comprador, idade, prescrição ou responsável não atendem à política.
+- [x] Janela `/portal/controle-medicamentos` para políticas, credenciais e trilha de vendas controladas.
 
 ### Roadmap do que falta
 
-- [ ] **Bloqueador operacional:** construir a frente de caixa de produção conectada à API.
-- [ ] Implementar abertura, sangria, suprimento, fechamento e conciliação de caixa.
-- [ ] Integrar meios de pagamento, TEF/Pix, descontos, cancelamentos e devoluções.
-- [ ] Criar cliente, CPF na nota, vendedor, farmacêutico e regras para produtos controlados quando aplicável.
-- [ ] Criar reserva, transferência, inventário, perdas e ajuste de estoque com autorização.
-- [ ] Implementar compras, fornecedores, pedidos, recebimento e contas a pagar.
-- [ ] Definir operação offline e sincronização segura para indisponibilidade de internet.
+- [~] A frente de caixa está conectada à API; falta piloto em dispositivos e operação real da loja.
+- [x] Implementar abertura, sangria, suprimento, fechamento e conciliação de caixa.
+- [~] Dinheiro, Pix, cartões, vale e outros já são registrados; descontos e estornos locais estão prontos, mas confirmação/desfazimento TEF e Pix ainda dependem do provedor.
+- [~] Consumidor/CPF, vendedor, farmacêutico e regras configuráveis estão prontos; falta integrar os registros oficiais externos exigidos para cada classe após homologação profissional.
+- [x] Criar reserva, transferência, inventário, perdas e ajuste de estoque com autorização.
+- [x] Separar saldo físico, reservado, disponível e em trânsito por loja e lote.
+- [x] Exigir segundo usuário no recebimento de transferência e na aprovação de divergências.
+- [x] Fornecedores, pedidos, aprovação, recebimento fiscal e contas a pagar integrados.
+- [x] Operação offline segura com app shell instalável e rota local `/caixa-offline` para reabrir a interface sem conexão.
+- [x] Banco local IndexedDB criptografado com AES-GCM, fila de comandos e identificadores idempotentes gerados no dispositivo.
+- [x] Snapshot versionado de catálogo, preços, regras fiscais, saldo disponível e bloqueios sanitários.
+- [x] Revalidação no servidor e conflito explícito sem sobrescrever venda, saldo ou evidência confirmados.
+- [x] Estado online/offline, validade do snapshot, tamanho da fila e ação de sincronização visíveis no caixa.
+- [x] Venda controlada, pagamento externo, regra divergente, snapshot vencido e saldo não confiável são bloqueados offline.
+- [x] Fechamento do caixa bloqueado enquanto existirem comandos offline locais ou recebidos ainda pendentes.
+- [x] Gestão administrativa no caixa para suspender, revogar e reativar dispositivos; dispositivo bloqueado não sincroniza.
+- [x] App shell offline instalável, cache restrito à interface genérica e ativos estáticos, sem armazenar HTML autenticado do portal.
+- [x] PIN local de seis dígitos derivado com PBKDF2 e payload criptografado por AES-GCM; dados não são exibidos antes do desbloqueio.
+- [ ] Executar piloto em dispositivos reais, incluindo queda de energia, relógio incorreto, fila longa e conexão intermitente.
 
 ## 12. Emissão de NFC-e
 
 ### Já está pronto
 
-- [~] A venda já produz dados fiscais e uma memória imutável que poderão alimentar a emissão.
-- [~] A arquitetura suporta adaptador de serviço externo, idempotência e auditoria.
+- [x] A venda produz dados fiscais e uma memória imutável que alimenta a preparação sem recálculo paralelo.
+- [x] Documento local, série, numeração serializada, chave de 44 dígitos, status e tentativas foram modelados.
+- [x] Preparação idempotente por venda/ambiente, payload SHA-256 e trigger de imutabilidade.
+- [x] CPF/CNPJ do consumidor, meio de pagamento, emissão normal e contingência offline entram na pré-validação.
+- [x] Central `/portal/nfce` separa vendas elegíveis, rascunhos e bloqueios operacionais.
+- [x] Transmissão permanece bloqueada por padrão e cada tentativa é auditada.
 
 ### Roadmap do que falta
 
-- [ ] Modelar documento fiscal, numeração, série, status, protocolo, recibo e eventos.
+- [~] Completar eventos, recibos e transições após integrar o autorizador homologado.
 - [ ] Implementar certificado, CSC, QR Code, assinatura XML e autorização por UF.
-- [ ] Gerar e validar XML conforme MOC, XSD e notas técnicas vigentes.
+- [~] O XML local de conferência está disponível; gerar, assinar e validar o XML oficial exige incorporar o XSD vigente.
 - [ ] Implementar autorização, rejeição, cancelamento, inutilização e consulta.
-- [ ] Implementar contingência offline, reconciliação posterior e prevenção de duplicidade.
+- [~] A contingência já pode ser preparada e distinguida na chave; falta transmissão posterior e reconciliação com a SEFAZ.
 - [ ] Gerar DANFE NFC-e e disponibilizar impressão e envio digital.
-- [ ] Incluir os campos IBS/CBS e validações vigentes da Reforma Tributária.
+- [~] IBS/CBS e `cClassTrib` são preservados no payload; falta validar o leiaute oficial vigente.
 - [ ] Homologar em ambiente de testes de cada UF antes de liberar produção.
 
 Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=ndIjl%2BiEFdE%3D)
@@ -281,15 +351,35 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 - [x] Sinalização de faturas vencidas.
 - [x] Encerramento automático quando a condição deixa de existir.
 - [x] Central de alertas com reconhecimento pelo usuário.
+- [x] Central de compras por loja com saldo físico, reservado, disponível e pedidos aprovados em trânsito.
+- [x] Fornecedor, prazo de entrega, pedido mínimo, embalagem, último custo e vínculo preferencial por produto.
+- [x] Pedido em rascunho, aprovação gerencial, cancelamento justificado e recebimento parcial/concluído.
+- [x] Vínculo seguro com NF-e conferida, validando CNPJ e sem duplicar a entrada no estoque.
+- [x] Título em rascunho criado pela NF-e recebida, sem presumir vencimento ou forma de pagamento.
+- [x] Parcelamento validado, baixa total/parcial, cancelamento sem pagamento e estorno por segundo usuário.
+- [x] Janela própria do financeiro do cliente com vencidos, próximos vencimentos, saldo aberto e histórico.
+- [x] Cotação concorrencial por loja, produto e quantidade com no mínimo dois fornecedores.
+- [x] Proposta com preço, frete, descontos, bonificação, tributo não recuperável, condição e prazo.
+- [x] Custo líquido total/unitário, rateios auditáveis, comparação e estimativa de margem.
+- [x] Proposta vencedora convertida em pedido aprovado, preservando memória das demais propostas.
+- [x] Devolução vinculada à NF-e com escolha de um, alguns ou todos os itens.
+- [x] Quantidade total ou fracionada por item, limitada pelo saldo físico, reservado e fiscal.
+- [x] Reversão transacional de estoque, lote, pedido, proveniência e saldo financeiro ainda aberto.
+- [x] Crédito pendente ao fornecedor quando o valor já foi pago ou não existe título disponível.
+- [x] Rascunho fiscal de devolução com chave e item da NF-e original, sem simular autorização SEFAZ.
 
 ### Roadmap do que falta
 
-- [ ] Calibrar parâmetros por empresa, loja, sazonalidade e prazo do fornecedor.
-- [ ] Criar previsão por produto/loja e explicar os fatores usados.
-- [ ] Integrar fornecedores, cotação, pedido de compra e acompanhamento de entrega.
-- [ ] Considerar estoque em trânsito, múltiplas filiais, mínimo de compra e bonificações.
-- [ ] Criar aprovação de pedido e limite financeiro por papel.
+- [~] Loja, cobertura, prazo e embalagem já calibram a sugestão; sazonalidade e promoções seguem pendentes.
+- [~] A previsão por produto/loja explica saldo, reservas, trânsito, venda em 30 dias, cobertura, margem e prazo; falta modelo sazonal.
+- [~] Fornecedores, cotação, pedidos e recebimento estão integrados; falta acompanhamento externo da entrega.
+- [x] Estoque em trânsito, múltiplas filiais, mínimo de compra e bonificações entram na operação.
+- [~] Aprovação de pedido por papel está pronta; limite financeiro configurável segue pendente.
 - [ ] Medir ruptura evitada, perda evitada, giro e acurácia da recomendação.
+- [ ] Integrar conta bancária, boleto/Pix, conciliação e confirmação externa dos pagamentos.
+- [ ] **Adiado:** centro de custo, plano de contas, retenções e DRE contábil formal; não bloqueiam o ecossistema operacional atual.
+- [ ] Autorizar a NF-e de devolução modelo 55 na SEFAZ após homologação do emissor e das regras tributárias.
+- [ ] Compensar e conciliar externamente os créditos de devoluções já pagas.
 
 ## 14. Relatórios do cliente
 
@@ -304,12 +394,12 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 
 ### Roadmap do que falta
 
-- [ ] Criar filtros consistentes por período, loja, PDV, categoria e produto em todas as janelas.
-- [ ] Adicionar drill-down até venda, item, lote, regra e evidência.
-- [ ] Criar exportações PDF, XLSX e CSV com auditoria.
+- [~] Gestão possui filtros por período, loja, PDV, categoria, produto e vendedor; falta padronizar as demais janelas.
+- [~] Drill-down gerencial chega à venda; falta detalhar item, lote, regra e evidência.
+- [~] Exportação CSV auditada pronta; PDF e XLSX permanecem pendentes.
 - [ ] Criar relatórios agendados e distribuição por e-mail.
-- [ ] Implementar DRE gerencial, fluxo de caixa, curva ABC, giro, ruptura e perdas.
-- [ ] Criar fechamento e reconciliação fiscal por competência.
+- [~] DRE gerencial, recebimentos, curva ABC e perdas prontos; giro e ruptura históricos permanecem pendentes.
+- [~] Fechamento gerencial imutável por competência pronto; reconciliação fiscal oficial permanece pendente.
 - [ ] Definir indicadores, fórmulas e permissões em um dicionário de dados.
 
 ## 15. Comercial, onboarding, planos e faturamento SaaS
@@ -431,45 +521,93 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 - [x] Executar os testes fiscais existentes.
 - [ ] Congelar um conjunto de casos fiscais reais anonimizados para homologação.
 
-### Fase 1 — colocar a fundação em ambiente de homologação
+### Fase 1 — cadastros produtivos e estratégia comercial
 
-- [ ] Render + PostgreSQL + migrations + seed.
-- [ ] Vercel + domínio de homologação + conexão segura com a API.
+- [x] Categorias e produtos persistentes no portal de produção.
+- [x] Catálogos controlados e herança fiscal por categoria.
+- [x] Estratégia comercial, vigência e preço promocional auditável.
+- [x] Identificação dos produtos estratégicos no caixa.
+- [ ] Importação em massa e simulação de propagação fiscal.
+
+### Fase 2 — caixa offline e sincronização
+
+- [x] Banco local criptografado, fila idempotente e sessão do PDV vinculada ao dispositivo.
+- [x] Snapshot versionado de catálogo, preço, regra, controle sanitário e saldo vendável.
+- [x] Protocolo de envio, confirmação, retentativa e resolução explícita de conflitos.
+- [x] Indicadores operacionais e bloqueio seguro quando o snapshot estiver vencido.
+- [x] App shell instalável, PIN local e gestão administrativa dos dispositivos.
+- [ ] Piloto de resiliência em hardware real antes de liberar o modo offline comercialmente.
+
+### Fase 3 — SEFAZ, NFC-e e catálogos oficiais
+
+- [x] Configuração separada por empresa, UF e ambiente, com endpoints HTTPS, série, QR Code v2/v3 e CSC criptografado quando aplicável.
+- [x] Checklist de prontidão unificando cadastro fiscal, certificado A1, configuração, catálogos ativos e homologação.
+- [x] Ciclo versionado dos catálogos oficiais: descoberta, importação com hash, comparação, revisão, ativação e substituição.
+- [ ] Homologar certificado, QR Code, assinatura, XSDs e endpoints reais por UF.
+- [ ] Completar autorização, rejeição, cancelamento, inutilização, DANFE e reconciliação da contingência.
+- [~] Fontes oficiais de IBS/CBS, cClassTrib e meios de pagamento estão registradas e versionáveis; falta importar e homologar o conteúdo integral publicado.
+- [ ] Popular e homologar a matriz tributária do escopo piloto com evidências.
+
+### Fase 4 — IA fiscal e comercial evoluída
+
+- [x] Sugestão local explicável, aplicação humana e métricas de decisão.
+- [ ] Compatibilidade entre descrição, composição, registro sanitário e NCM.
+- [ ] Aprendizado assistido por correções, sem transformar repetição em lei.
+- [ ] Ranking comercial combinando margem, giro, ruptura, validade e aderência, com justificativa visível.
+- [ ] Conjunto de avaliação fiscal e comercial com casos aprovados, contraditórios e adversariais.
+
+### Fase 5 — fundação em ambiente de homologação
+
+- [x] Blueprint Render com PostgreSQL pago, PITR declarado, migrations em pre-deploy, seed inicial e Cron Job.
+- [x] Contrato Vercel com build Next.js, região alinhada à API e verificação da ponte `/api/health`.
+- [x] Quality gate de API, Prisma e frontend preparado para o repositório Git.
+- [ ] Conectar o repositório, confirmar os custos e criar os projetos reais na Render e na Vercel.
+- [ ] Definir domínios e segredos reais e executar o primeiro deploy.
 - [ ] E-mail, gateway, observabilidade e backups.
 - [ ] Executar preflight até não existir item `BLOCKED`.
 
-### Fase 2 — completar a operação do cliente no portal de produção
+### Fase 6 — completar a operação do cliente no portal de produção
 
-- [ ] Produtos, categorias, lotes, estoque, compras e PDV conectados à API.
-- [ ] Relatórios com filtros, drill-down e exportação.
+- [x] Produtos, categorias, lotes, estoque, cotação, compras, contas a pagar e PDV estão conectados à API.
+- [~] Gestão possui filtros, drill-down até venda e CSV auditado; faltam detalhe fiscal completo, PDF e XLSX.
 - [ ] Helpdesk do cliente e fluxos de aprovação.
 
-### Fase 3 — saneador fiscal MVP do Distrito Federal
+### Fase 7 — saneador fiscal MVP do Distrito Federal
 
 - [ ] Catálogo oficial versionado para higiene, maquiagem e medicamentos.
-- [ ] Matriz DF por origem/destino, regime, NCM, CEST, operação e vigência.
+- [x] Estrutura, API e cruzamento da matriz DF por origem/destino, regime, NCM, CEST, operação e vigência.
+- [ ] Popular e homologar o conteúdo legal efetivo da matriz do DF.
 - [ ] Casos de ST, monofásico e IBS/CBS homologados com evidências.
 - [ ] Regra de bloqueio e simulação antes da alteração em massa.
 
-### Fase 4 — DF-e, manifestação e saneamento de entrada
+### Fase 8 — DF-e, manifestação e saneamento de entrada
 
-- [ ] Certificado A1, distribuição por NSU e XML imutável.
-- [ ] Ciência, conferência física e manifestação conclusiva.
-- [ ] Parser, de-para, divergência de fornecedor e rastreabilidade até a saída.
+- [x] Cofre A1, cliente de distribuição por NSU e XML imutável.
+- [x] Ciência, conferência física e manifestação conclusiva.
+- [x] Parser, de-para, divergência de fornecedor e rastreabilidade até a saída.
+- [ ] Homologar certificado, endpoints, XSDs e eventos reais antes de ativar transmissão.
 
-### Fase 5 — IA fiscal auditável
+### Fase 9 — IA fiscal auditável
 
-- [ ] RAG sobre fonte aprovada, citação e vigência obrigatórias.
-- [ ] Sugestão aplicável somente com revisão humana.
-- [ ] Avaliações, métricas de confiança e aprendizado controlado.
+- [x] Recuperação local sobre fonte aprovada, citação e vigência cadastradas, sem API paga.
+- [x] Sugestão aplicável somente com revisão humana e sem alteração automática do cadastro.
+- [x] Métricas de confiança, cobertura de fontes, concordância e decisões humanas auditadas.
+- [ ] Avaliar RAG semântico externo apenas quando o catálogo homologado justificar o custo.
 
-### Fase 6 — NFC-e e frente de caixa fiscal
+### Fase 10 — NFC-e e frente de caixa fiscal
 
-- [ ] Emissão, autorização, contingência, cancelamento, inutilização e DANFE.
+- [x] Fundamento local: numeração, chave, payload, XML de conferência, idempotência, hash e auditoria.
+- [x] Proteções: preparação de produção e transmissão SEFAZ desligadas por padrão.
+- [x] Governança: configuração homologatória auditada, segredo protegido, painel de prontidão e catálogo oficial que só entra no cálculo após ativação interna.
+- [~] Emissão: preparação e contingência local prontas; autorização, cancelamento, inutilização e DANFE dependem da homologação externa.
+- [x] Caixa local: abertura, venda transacional, recebimentos, sangria, suprimento, fechamento e conciliação por meio.
+- [x] Gestão: histórico de fechamentos, divergência justificada e revisão gerencial auditada.
+- [x] Pós-venda local: desconto por perfil, cancelamento total, devolução parcial, recomposição de origem e pendências externas explícitas.
+- [x] Contexto da dispensação: consumidor, vendedor, farmacêutico verificado e política controlada por produto.
 - [ ] Homologação por UF e Reforma Tributária.
-- [ ] Conciliação entre venda, pagamento, NFC-e, estoque e apuração.
+- [~] Venda, pagamento e estoque já estão conciliados; falta autorização NFC-e e fechamento fiscal por competência.
 
-### Fase 7 — escala comercial
+### Fase 11 — escala comercial
 
 - [ ] Piloto controlado, contrato, onboarding e suporte com SLA.
 - [ ] Rollout gradual por cliente e feature flags.
@@ -487,4 +625,3 @@ O sistema só deve ser considerado pronto quando todos os itens abaixo estiverem
 - [ ] E-mail, cobrança e observabilidade funcionando com provedores reais.
 - [ ] Termos, privacidade, suporte, SLA e responsabilidades contratuais aprovados.
 - [ ] Piloto sem dados sensíveis concluído antes do primeiro cliente real.
-

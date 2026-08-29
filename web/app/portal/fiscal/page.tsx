@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { portalFetch, requireCompany } from "@/lib/portal";
 import { currency, date, EmptyReport, MetricCard, number, percent } from "../report-ui";
+import { FiscalAssistant, type AssistantAnalysis, type AssistantCategory, type AssistantMetrics, type AssistantProduct } from "./fiscal-assistant";
 
 export const metadata: Metadata = { title: "Motor fiscal" };
 
@@ -26,10 +27,14 @@ function statusCount(
 }
 
 export default async function FiscalPage() {
-  await requireCompany(["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST", "VIEWER"]);
-  const [report, traceability] = await Promise.all([
+  const session = await requireCompany(["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST", "VIEWER"]);
+  const [report, traceability, analyses, assistantMetrics, products, categories] = await Promise.all([
     portalFetch<FiscalReport>("/api/v1/relatorios/fiscal"),
     portalFetch<TraceabilitySummary>("/api/v1/fiscal/rastreabilidade/resumo"),
+    portalFetch<AssistantAnalysis[]>("/api/v1/fiscal/analises"),
+    portalFetch<AssistantMetrics>("/api/v1/fiscal/assistente/metricas"),
+    portalFetch<AssistantProduct[]>("/api/v1/cadastros/produtos"),
+    portalFetch<AssistantCategory[]>("/api/v1/cadastros/categorias"),
   ]);
   return <section className="report-page">
     <div className="report-heading"><div><span>INTELIGÊNCIA COM RASTREABILIDADE</span><h1>Motor fiscal</h1><p>Classificações, evidências legais e oportunidades aguardando revisão humana.</p></div><div className="report-period">Governança ativa</div></div>
@@ -52,6 +57,13 @@ export default async function FiscalPage() {
       <article className="report-panel full"><div className="panel-title"><div><span>TRILHA DE DECISÃO</span><h2>Análises recentes</h2></div><strong>{report.recentAnalyses.length} registros</strong></div>
         {report.recentAnalyses.length ? <div className="analysis-list">{report.recentAnalyses.map((analysis) => <div key={analysis.id}><span className={`status-pill ${analysis.status.toLowerCase()}`}>{analysis.status}</span><div><strong>{analysis.product?.name ?? analysis.category?.name ?? "Análise geral"}</strong><small>{analysis.category?.ncm ? `NCM ${analysis.category.ncm}` : analysis.product?.ean ?? "Sem item vinculado"} · {analysis.originState ?? "--"} → {analysis.destinationState ?? "--"}</small></div><span>{analysis.evidenceCount} fontes<br/><small>{date(analysis.createdAt)}</small></span><b>{percent(analysis.confidence)}<small>{currency(analysis.estimatedSavings)}</small></b></div>)}</div> : <EmptyReport />}
       </article>
+      {assistantMetrics && <FiscalAssistant
+        categories={categories ?? []}
+        initialAnalyses={analyses ?? []}
+        initialMetrics={assistantMetrics}
+        products={products ?? []}
+        role={session.membership.role}
+      />}
     </>}
   </section>;
 }

@@ -4,15 +4,16 @@ O primeiro cliente real só deve ser liberado quando `npm run preflight:producti
 
 ## 1. Render: API e PostgreSQL
 
-1. Criar o Blueprint a partir de `render.yaml`.
-2. Trocar a API e o PostgreSQL para planos adequados à produção. O banco gratuito não oferece recuperação gerenciada.
+1. Conectar o repositório Git e criar o Blueprint a partir de `render.yaml`.
+2. Confirmar os custos antes da primeira sincronização: o Blueprint usa serviço `starter`, PostgreSQL `basic-256mb` e Cron Job `starter` para permitir pre-deploy, PITR e automação diária.
 3. Configurar `WEB_ORIGIN` com a origem HTTPS exata do portal Vercel.
 4. Configurar `WEB_APP_URL` com a mesma URL pública do portal.
 5. Configurar e-mail, gateway financeiro e observabilidade.
-6. No primeiro deploy, manter temporariamente `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`.
+6. No primeiro deploy, manter temporariamente `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. O `initialDeployHook` executa o seed uma vez; as migrations são executadas em todo deploy pelo `preDeployCommand`.
 7. Confirmar o administrador ativo e remover imediatamente as duas variáveis do ambiente.
-8. Ajustar `DEPLOYMENT_STAGE=production`, `DATABASE_RECOVERY_MODE=PITR` e a janela realmente contratada.
+8. Confirmar `DEPLOYMENT_STAGE=production`, `DATABASE_RECOVERY_MODE=PITR` e a janela realmente contratada. O valor inicial documentado é de três dias e precisa corresponder ao plano do workspace.
 9. Manter `ipAllowList: []` e usar somente a conexão interna entre API e banco.
+10. Configurar os endpoints oficiais DF-e e manter as chaves `DFE_ENABLE_SEFAZ_TRANSMISSION`, `NFCE_ENABLE_SEFAZ_TRANSMISSION` e `NFCE_ALLOW_PRODUCTION_PREPARATION` desligadas até a homologação fiscal.
 
 O deploy aplica migrations pendentes com `prisma migrate deploy`; não use `migrate dev` em produção.
 
@@ -23,6 +24,7 @@ O deploy aplica migrations pendentes com `prisma migrate deploy`; não use `migr
 3. Definir `NEXT_PUBLIC_SITE_URL` para o domínio HTTPS do portal.
 4. Publicar primeiro em Preview e validar login, seleção de empresa, troca de empresa e logout.
 5. Só então promover a mesma revisão para Production.
+6. Validar `GET /api/health`: a resposta só fica `200` quando o portal consegue alcançar `/health/ready` na API.
 
 ## 3. Integrações
 
@@ -48,6 +50,12 @@ O deploy aplica migrations pendentes com `prisma migrate deploy`; não use `migr
 4. Cadastrar uma empresa piloto sem dados sensíveis reais.
 5. Simular convite, venda, baixa de estoque, fechamento fiscal, cobrança e atendimento.
 6. Somente depois liberar o primeiro cliente real.
+
+## 6. Verificação depois da publicação
+
+Na raiz, execute `npm run verify:production -- https://api.seudominio.com.br https://app.seudominio.com.br`. O diagnóstico verifica API, PostgreSQL, ponte do portal, cabeçalhos de segurança, robots e sitemap sem receber senhas.
+
+O deploy de infraestrutura não significa que a operação fiscal está liberada. Enquanto o preflight indicar `nfce-sefaz` como `BLOCKED`, o ambiente serve somente para homologação interna e piloto sem emissão fiscal real.
 
 ## Rollback
 

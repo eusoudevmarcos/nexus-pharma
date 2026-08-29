@@ -1,6 +1,7 @@
 import { fallbackPlans, type CommercialPlan } from "./content";
+import { nexusApiUrl } from "./runtime-config";
 
-export const apiUrl = () => process.env.NEXUS_API_URL?.replace(/\/$/, "") ?? "";
+export const apiUrl = nexusApiUrl;
 
 export async function getPlans(): Promise<CommercialPlan[]> {
   const base = apiUrl();

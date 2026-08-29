@@ -5,7 +5,9 @@ import { prisma } from "../infra/prisma.js";
 import {
   csosnCodes,
   icmsCstCodes,
+  ibsCbsRules,
   pisCofinsCstCodes,
+  revenueNatureRules,
   getIbsCbsRule,
   resolvePisCofinsRates,
   validateIbsCbsClassification,
@@ -16,6 +18,7 @@ import {
   requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
+import { incrementStoreBalance } from "../services/inventory-workflow.service.js";
 
 const regimes = ["SIMPLES_NACIONAL", "LUCRO_PRESUMIDO", "LUCRO_REAL"] as const;
 const classifications = [
@@ -25,6 +28,7 @@ const classifications = [
   "MONOFASICO",
   "TRIBUTACAO_NORMAL",
 ] as const;
+const salesStrategies = ["NORMAL", "FEATURED", "PROMOTION", "HIGH_MARGIN", "FAST_MOVING", "CLEARANCE", "EXPIRY_PRIORITY", "LAUNCH"] as const;
 const rate = z.number().min(0).max(1);
 const toJson = (value: unknown) =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -128,6 +132,26 @@ const lotSchema = z
     path: ["data_vencimento"],
   });
 
+const productControlSchema = z.object({
+  nivel: z.enum(["NONE", "PRESCRIPTION_PRESENTATION", "PRESCRIPTION_RETENTION", "SPECIAL_CONTROL"]).default("NONE"),
+  identificar_comprador: z.boolean().default(false),
+  exigir_prescricao: z.boolean().default(false),
+  exigir_farmaceutico: z.boolean().default(false),
+  reter_prescricao: z.boolean().default(false),
+  idade_minima: z.number().int().min(0).max(130).nullable().default(null),
+  versao_regra: z.string().max(30).nullable().default(null),
+  base_legal: z.string().max(500).nullable().default(null),
+  metadata: z.record(z.unknown()).default({}),
+}).superRefine((control, context) => {
+  if (control.reter_prescricao && !control.exigir_prescricao) context.addIssue({ code: z.ZodIssueCode.custom, message: "retenção exige prescrição", path: ["reter_prescricao"] });
+  if (control.nivel === "NONE" && (control.identificar_comprador || control.exigir_prescricao || control.exigir_farmaceutico || control.reter_prescricao || control.idade_minima !== null)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "selecione um nível de controle para ativar requisitos", path: ["nivel"] });
+  }
+  if (control.nivel !== "NONE" && (!control.versao_regra?.trim() || (control.base_legal?.trim().length ?? 0) < 10)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "produto controlado exige versão e base legal", path: ["base_legal"] });
+  }
+});
+
 const productSchema = z.object({
   ean: z.string().regex(/^[0-9]{8,14}$/),
   nome: z.string().min(2).max(180),
@@ -140,8 +164,30 @@ const productSchema = z.object({
   estoque_minimo_critico: z.number().min(0).default(0),
   media_venda_diaria: z.number().min(0).default(0),
   ativo: z.boolean().default(true),
+  estrategia_comercial: z.object({
+    tipo: z.enum(salesStrategies).default("NORMAL"),
+    preco_promocional: z.number().min(0).nullable().default(null),
+    inicio: z.coerce.date().nullable().default(null),
+    fim: z.coerce.date().nullable().default(null),
+    motivo: z.string().trim().max(500).nullable().default(null),
+    metadata: z.record(z.unknown()).default({}),
+  }).default({ tipo: "NORMAL", preco_promocional: null, inicio: null, fim: null, motivo: null, metadata: {} }),
+  controle_venda: productControlSchema.default({
+    nivel: "NONE", identificar_comprador: false, exigir_prescricao: false, exigir_farmaceutico: false,
+    reter_prescricao: false, idade_minima: null, versao_regra: null, base_legal: null, metadata: {},
+  }),
   lote_inicial: lotSchema.optional(),
 });
+
+function productBusinessErrors(product: z.infer<typeof productSchema>) {
+  const errors: string[] = [];
+  const strategy = product.estrategia_comercial;
+  if (strategy.tipo === "PROMOTION" && strategy.preco_promocional === null) errors.push("promoção exige preço promocional");
+  if (strategy.preco_promocional !== null && strategy.preco_promocional > product.preco_venda) errors.push("preço promocional não pode superar o preço de venda");
+  if (strategy.inicio && strategy.fim && strategy.fim < strategy.inicio) errors.push("fim da estratégia deve ser posterior ao início");
+  if (strategy.tipo !== "NORMAL" && (strategy.motivo?.length ?? 0) < 5) errors.push("estratégia comercial exige um motivo");
+  return errors;
+}
 
 function validationError(reply: FastifyReply, error: z.ZodError) {
   return reply
@@ -182,6 +228,17 @@ export async function cadastrosRoutes(app: FastifyInstance) {
     requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"]),
   ];
 
+  app.get("/catalogos", { preHandler: tenantGuards }, async () => ({
+    regimes,
+    classificacoes: classifications,
+    cst_pis_cofins: [...pisCofinsCstCodes].sort(),
+    cst_icms: [...icmsCstCodes].sort(),
+    csosn: [...csosnCodes].sort(),
+    naturezas_receita: [...revenueNatureRules.entries()].map(([codigo, rule]) => ({ codigo, csts: rule.csts, prefixos_ncm: rule.ncmPrefixes })),
+    cclass_trib: [...ibsCbsRules.entries()].map(([codigo, rule]) => ({ codigo, cst: rule.cst, prefixos_ncm: rule.ncmPrefixes, aliquota_cbs: rule.cbsRate, aliquota_ibs: rule.ibsRate, reducao: rule.reduction, exige_evidencia: Boolean(rule.requiresEvidence) })),
+    estrategias_comerciais: salesStrategies,
+  }));
+
   app.get("/categorias", { preHandler: tenantGuards }, async (request) =>
     prisma.fiscalCategory.findMany({
       where: { companyId: request.tenant!.companyId },
@@ -204,6 +261,8 @@ export async function cadastrosRoutes(app: FastifyInstance) {
       if (!parsed.data.regras_por_regime.SIMPLES_NACIONAL.csosn) {
         return reply.status(400).send({ erro: "CSOSN_OBRIGATORIO_NO_SIMPLES" });
       }
+      const duplicate = await prisma.fiscalCategory.findFirst({ where: { companyId: request.tenant!.companyId, code: parsed.data.codigo }, select: { id: true } });
+      if (duplicate) return reply.status(409).send({ erro: "CODIGO_DA_CATEGORIA_JA_EXISTE" });
 
       const category = await prisma.$transaction(async (tx) => {
         const created = await tx.fiscalCategory.create({
@@ -265,6 +324,8 @@ export async function cadastrosRoutes(app: FastifyInstance) {
       });
       if (!existing)
         return reply.status(404).send({ erro: "CATEGORIA_NAO_ENCONTRADA" });
+      const duplicate = await prisma.fiscalCategory.findFirst({ where: { companyId: request.tenant!.companyId, code: parsed.data.codigo, id: { not: id.data } }, select: { id: true } });
+      if (duplicate) return reply.status(409).send({ erro: "CODIGO_DA_CATEGORIA_JA_EXISTE" });
       const category = await prisma.$transaction(async (tx) => {
         const updated = await tx.fiscalCategory.update({
           where: { id: id.data },
@@ -325,6 +386,10 @@ export async function cadastrosRoutes(app: FastifyInstance) {
   app.post("/produtos", { preHandler: writeGuards }, async (request, reply) => {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return validationError(reply, parsed.error);
+    const businessErrors = productBusinessErrors(parsed.data);
+    if (businessErrors.length) return reply.status(400).send({ erro: "ESTRATEGIA_COMERCIAL_INVALIDA", detalhes: businessErrors });
+    const duplicate = await prisma.product.findFirst({ where: { companyId: request.tenant!.companyId, ean: parsed.data.ean }, select: { id: true } });
+    if (duplicate) return reply.status(409).send({ erro: "EAN_JA_CADASTRADO" });
     const category = await prisma.fiscalCategory.findFirst({
       where: {
         id: parsed.data.categoria_fiscal_id,
@@ -350,9 +415,29 @@ export async function cadastrosRoutes(app: FastifyInstance) {
             parsed.data.lote_inicial?.quantidade ?? parsed.data.estoque_atual,
           minimumStock: parsed.data.estoque_minimo_critico,
           dailySalesAverage: parsed.data.media_venda_diaria,
+          active: parsed.data.ativo,
+          salesStrategy: parsed.data.estrategia_comercial.tipo,
+          promotionPrice: parsed.data.estrategia_comercial.preco_promocional,
+          strategyStartsAt: parsed.data.estrategia_comercial.inicio,
+          strategyEndsAt: parsed.data.estrategia_comercial.fim,
+          strategyReason: parsed.data.estrategia_comercial.motivo,
+          strategyMetadata: toJson(parsed.data.estrategia_comercial.metadata),
+          strategyUpdatedAt: new Date(),
+          controlLevel: parsed.data.controle_venda.nivel,
+          requiresBuyerId: parsed.data.controle_venda.identificar_comprador,
+          requiresPrescription: parsed.data.controle_venda.exigir_prescricao,
+          requiresPharmacist: parsed.data.controle_venda.exigir_farmaceutico,
+          retainsPrescription: parsed.data.controle_venda.reter_prescricao,
+          minimumBuyerAge: parsed.data.controle_venda.idade_minima,
+          controlRuleVersion: parsed.data.controle_venda.versao_regra,
+          controlLegalBasis: parsed.data.controle_venda.base_legal,
+          controlMetadata: toJson(parsed.data.controle_venda.metadata),
         },
       });
       if (parsed.data.lote_inicial) {
+        const destinationStore = await tx.store.findFirst({ where: { companyId: request.tenant!.companyId, active: true, type: "MAIN" }, orderBy: { createdAt: "asc" } })
+          ?? await tx.store.findFirst({ where: { companyId: request.tenant!.companyId, active: true }, orderBy: { createdAt: "asc" } });
+        if (!destinationStore) throw new Error("LOJA_ATIVA_NAO_ENCONTRADA");
         const lot = await tx.inventoryLot.create({
           data: {
             productId: created.id,
@@ -364,9 +449,11 @@ export async function cadastrosRoutes(app: FastifyInstance) {
           },
         });
         if (parsed.data.lote_inicial.quantidade > 0) {
+          await incrementStoreBalance(tx, { companyId: request.tenant!.companyId, storeId: destinationStore.id, productId: created.id, lotId: lot.id, quantity: parsed.data.lote_inicial.quantidade });
           await tx.stockMovement.create({
             data: {
               companyId: request.tenant!.companyId,
+              storeId: destinationStore.id,
               productId: created.id,
               lotId: lot.id,
               type: "ENTRY",
@@ -405,6 +492,8 @@ export async function cadastrosRoutes(app: FastifyInstance) {
         .safeParse(request.body);
       if (!id.success) return reply.status(400).send({ erro: "ID_INVALIDO" });
       if (!parsed.success) return validationError(reply, parsed.error);
+      const businessErrors = productBusinessErrors(parsed.data);
+      if (businessErrors.length) return reply.status(400).send({ erro: "ESTRATEGIA_COMERCIAL_INVALIDA", detalhes: businessErrors });
       const [existing, category] = await Promise.all([
         prisma.product.findFirst({
           where: { id: id.data, companyId: request.tenant!.companyId },
@@ -421,6 +510,8 @@ export async function cadastrosRoutes(app: FastifyInstance) {
         return reply.status(404).send({ erro: "PRODUTO_NAO_ENCONTRADO" });
       if (!category)
         return reply.status(409).send({ erro: "CATEGORIA_FISCAL_INVALIDA" });
+      const duplicate = await prisma.product.findFirst({ where: { companyId: request.tenant!.companyId, ean: parsed.data.ean, id: { not: id.data } }, select: { id: true } });
+      if (duplicate) return reply.status(409).send({ erro: "EAN_JA_CADASTRADO" });
 
       const product = await prisma.$transaction(async (tx) => {
         const updated = await tx.product.update({
@@ -433,10 +524,25 @@ export async function cadastrosRoutes(app: FastifyInstance) {
             laboratory: parsed.data.laboratorio,
             currentCost: parsed.data.valor_entrada_unitario,
             salePrice: parsed.data.preco_venda,
-            stockQuantity: parsed.data.estoque_atual,
             minimumStock: parsed.data.estoque_minimo_critico,
             dailySalesAverage: parsed.data.media_venda_diaria,
             active: parsed.data.ativo,
+            salesStrategy: parsed.data.estrategia_comercial.tipo,
+            promotionPrice: parsed.data.estrategia_comercial.preco_promocional,
+            strategyStartsAt: parsed.data.estrategia_comercial.inicio,
+            strategyEndsAt: parsed.data.estrategia_comercial.fim,
+            strategyReason: parsed.data.estrategia_comercial.motivo,
+            strategyMetadata: toJson(parsed.data.estrategia_comercial.metadata),
+            strategyUpdatedAt: new Date(),
+            controlLevel: parsed.data.controle_venda.nivel,
+            requiresBuyerId: parsed.data.controle_venda.identificar_comprador,
+            requiresPrescription: parsed.data.controle_venda.exigir_prescricao,
+            requiresPharmacist: parsed.data.controle_venda.exigir_farmaceutico,
+            retainsPrescription: parsed.data.controle_venda.reter_prescricao,
+            minimumBuyerAge: parsed.data.controle_venda.idade_minima,
+            controlRuleVersion: parsed.data.controle_venda.versao_regra,
+            controlLegalBasis: parsed.data.controle_venda.base_legal,
+            controlMetadata: toJson(parsed.data.controle_venda.metadata),
           },
         });
         await tx.auditLog.create({

@@ -49,6 +49,37 @@ const schema = z.object({
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.string().min(32).optional(),
   ),
+  DFE_CERTIFICATE_ENCRYPTION_KEY: optionalText,
+  DFE_ENABLE_SEFAZ_TRANSMISSION: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  DFE_DISTRIBUTION_URL_HOMOLOGATION: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().url().optional(),
+  ),
+  DFE_DISTRIBUTION_URL_PRODUCTION: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().url().optional(),
+  ),
+  DFE_EVENT_URL_HOMOLOGATION: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().url().optional(),
+  ),
+  DFE_EVENT_URL_PRODUCTION: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().url().optional(),
+  ),
+  DFE_MAX_RESPONSE_BYTES: z.coerce.number().int().min(1024).max(50_000_000).default(10_000_000),
+  NFCE_ENABLE_SEFAZ_TRANSMISSION: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  NFCE_ALLOW_PRODUCTION_PREPARATION: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  NFCE_SCHEMA_VERSION: z.string().min(3).max(20).default("local-2026.08"),
   SEED_ADMIN_EMAIL: optionalText,
   SEED_ADMIN_PASSWORD: optionalText,
 });

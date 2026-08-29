@@ -4,7 +4,7 @@ import { allowedOrigins, config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
 
 export type ReadinessStatus = "PASS" | "WARN" | "BLOCKED";
-export type ReadinessCategory = "ACCESS" | "DATABASE" | "RECOVERY" | "INTEGRATIONS" | "OPERATIONS";
+export type ReadinessCategory = "ACCESS" | "DATABASE" | "RECOVERY" | "INTEGRATIONS" | "OPERATIONS" | "FISCAL";
 export type ReadinessCheck = {
   id: string;
   category: ReadinessCategory;
@@ -32,6 +32,10 @@ async function expectedMigrations() {
 
 export async function getProductionReadiness() {
   const checks: ReadinessCheck[] = [];
+  const productionStage = config.DEPLOYMENT_STAGE === "production";
+  checks.push(check("deployment-stage", "OPERATIONS", productionStage ? "PASS" : "BLOCKED", "Ambiente de execução", productionStage ? "API declarada como produção." : `Ambiente atual: ${config.DEPLOYMENT_STAGE}.`, productionStage ? null : "Defina DEPLOYMENT_STAGE=production somente no ambiente final."));
+  const versionReady = !["development", "unknown"].includes(config.SERVICE_VERSION.toLowerCase());
+  checks.push(check("service-version", "OPERATIONS", versionReady ? "PASS" : "BLOCKED", "Versão implantada", versionReady ? `Revisão ${config.SERVICE_VERSION.slice(0, 12)} identificada.` : "A revisão implantada não pode ser rastreada.", versionReady ? null : "Publique a partir de um commit e preserve RENDER_GIT_COMMIT."));
   const originsReady = allowedOrigins.length > 0 && allowedOrigins.every(publicHttps);
   checks.push(check("web-origin", "ACCESS", originsReady ? "PASS" : "BLOCKED", "Origem do portal", originsReady ? `${allowedOrigins.length} origem(ns) HTTPS restrita(s).` : "Há origem local, HTTP ou inválida configurada.", originsReady ? null : "Defina WEB_ORIGIN somente com o domínio HTTPS da Vercel."));
   const appUrlReady = publicHttps(config.WEB_APP_URL);
@@ -44,6 +48,11 @@ export async function getProductionReadiness() {
   checks.push(check("billing-gateway", "INTEGRATIONS", billingReady ? "PASS" : "BLOCKED", "Gateway de cobrança", billingReady ? "Envio e retorno financeiro autenticados." : "Cobrança automática ainda não está completamente conectada.", billingReady ? null : "Configure o relay de cobrança e o segredo do webhook."));
   const recoveryReady = config.DATABASE_RECOVERY_MODE === "PITR" && config.DATABASE_RECOVERY_WINDOW_DAYS > 0;
   checks.push(check("managed-recovery", "RECOVERY", recoveryReady ? "PASS" : "BLOCKED", "Recuperação do banco", recoveryReady ? `PITR declarado por ${config.DATABASE_RECOVERY_WINDOW_DAYS} dia(s).` : "Nenhuma janela de restauração gerenciada declarada.", recoveryReady ? null : "Migre o PostgreSQL para plano pago, ative PITR e atualize as variáveis de recuperação."));
+  checks.push(check("fiscal-secret-vault", "FISCAL", config.DFE_CERTIFICATE_ENCRYPTION_KEY ? "PASS" : "BLOCKED", "Cofre do certificado fiscal", config.DFE_CERTIFICATE_ENCRYPTION_KEY ? "Chave de criptografia configurada fora do código." : "Certificado A1 e CSC não podem ser protegidos.", config.DFE_CERTIFICATE_ENCRYPTION_KEY ? null : "Gere DFE_CERTIFICATE_ENCRYPTION_KEY no Render e não a copie para a Vercel."));
+  const dfeReady = Boolean(config.DFE_ENABLE_SEFAZ_TRANSMISSION && config.DFE_DISTRIBUTION_URL_PRODUCTION && config.DFE_EVENT_URL_PRODUCTION);
+  checks.push(check("dfe-sefaz", "FISCAL", dfeReady ? "PASS" : "BLOCKED", "Distribuição e manifestação DF-e", dfeReady ? "Transmissão e endpoints de produção habilitados." : "Distribuição ou manifestação SEFAZ ainda está bloqueada.", dfeReady ? null : "Homologue certificado e endpoints; só depois habilite DFE_ENABLE_SEFAZ_TRANSMISSION."));
+  const nfceConfigured = config.NFCE_ENABLE_SEFAZ_TRANSMISSION && config.NFCE_ALLOW_PRODUCTION_PREPARATION && !config.NFCE_SCHEMA_VERSION.startsWith("local-");
+  checks.push(check("nfce-sefaz", "FISCAL", "BLOCKED", "Emissão NFC-e", nfceConfigured ? "Variáveis externas foram habilitadas, mas o adaptador do código ainda bloqueia a transmissão." : "O emissor permanece local, sem assinatura/XSD/autorização SEFAZ.", "Implemente assinatura, XSD, QR Code/DANFE e autorização em homologação; depois substitua o bloqueio explícito do adaptador."));
 
   try {
     const started = performance.now();

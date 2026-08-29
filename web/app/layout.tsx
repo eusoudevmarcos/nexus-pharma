@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import "@fontsource-variable/roboto";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
+import { publicSiteUrl } from "@/lib/runtime-config";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3100"),
+  metadataBase: new URL(publicSiteUrl()),
   title: {
     default: "Nexus Pharma | Inteligência fiscal para farmácias",
     template: "%s | Nexus Pharma",

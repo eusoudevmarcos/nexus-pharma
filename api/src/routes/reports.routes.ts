@@ -6,6 +6,7 @@ import {
   requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
+import { buildManagerialReport, closeManagerialPeriod, managerialReportCsv } from "../services/managerial-report.service.js";
 
 const periodSchema = z.object({
   inicio: z.coerce.date().optional(),
@@ -46,8 +47,49 @@ function getPeriod(query: unknown) {
 }
 
 const money = (value: unknown) => Number(value ?? 0);
+const analyticalFilterSchema = z.object({
+  inicio: z.coerce.date(), fim: z.coerce.date(), loja_id: z.string().uuid().optional(), pdv_id: z.string().uuid().optional(), categoria_id: z.string().uuid().optional(), produto_id: z.string().uuid().optional(), vendedor_id: z.string().uuid().optional(),
+}).refine((data) => data.inicio <= data.fim && data.fim.getTime() - data.inicio.getTime() <= 366 * 86_400_000, { message: "período inválido" });
+
+function managerialFilters(value: z.infer<typeof analyticalFilterSchema>) {
+  const start = new Date(value.inicio); start.setHours(0, 0, 0, 0);
+  const end = new Date(value.fim); end.setHours(23, 59, 59, 999);
+  return { start, end, storeId: value.loja_id, pointOfSaleId: value.pdv_id, categoryId: value.categoria_id, productId: value.produto_id, sellerId: value.vendedor_id };
+}
 
 export async function reportsRoutes(app: FastifyInstance) {
+  app.get("/gerencial/opcoes", { preHandler: [authenticate, tenantContext, requireTenantRoles(managementRoles)] }, async (request) => {
+    const companyId = request.tenant!.companyId;
+    const [stores, categories, products, sellers] = await Promise.all([
+      prisma.store.findMany({ where: { companyId, active: true }, select: { id: true, code: true, name: true, pointsOfSale: { where: { active: true }, select: { id: true, code: true, name: true } } }, orderBy: { name: "asc" } }),
+      prisma.fiscalCategory.findMany({ where: { companyId, active: true }, select: { id: true, code: true, name: true }, orderBy: { name: "asc" } }),
+      prisma.product.findMany({ where: { companyId, active: true }, select: { id: true, ean: true, name: true, categoryId: true }, orderBy: { name: "asc" } }),
+      prisma.membership.findMany({ where: { companyId, active: true, role: { in: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"] } }, select: { role: true, user: { select: { id: true, name: true } } }, orderBy: { user: { name: "asc" } } }),
+    ]);
+    return { stores, categories, products, sellers: sellers.map((entry) => ({ ...entry.user, role: entry.role })) };
+  });
+
+  app.get("/gerencial", { preHandler: [authenticate, tenantContext, requireTenantRoles(managementRoles)] }, async (request, reply) => {
+    const parsed = analyticalFilterSchema.safeParse(request.query);
+    if (!parsed.success) return reply.status(400).send({ erro: "FILTROS_GERENCIAIS_INVALIDOS", detalhes: parsed.error.flatten() });
+    return reply.send(await buildManagerialReport(request.tenant!.companyId, managerialFilters(parsed.data)));
+  });
+
+  app.post("/gerencial/exportar", { preHandler: [authenticate, tenantContext, requireTenantRoles(managementRoles)] }, async (request, reply) => {
+    const parsed = analyticalFilterSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ erro: "FILTROS_GERENCIAIS_INVALIDOS" });
+    const report = await buildManagerialReport(request.tenant!.companyId, managerialFilters(parsed.data));
+    await prisma.auditLog.create({ data: { companyId: request.tenant!.companyId, userId: request.user.sub, action: "MANAGERIAL_REPORT_EXPORTED", entity: "ManagerialReport", requestId: request.id, after: { filters: parsed.data, rows: report.sales.length, format: "CSV" } } });
+    return reply.header("content-type", "text/csv; charset=utf-8").header("content-disposition", `attachment; filename="nexus-gerencial-${parsed.data.inicio.toISOString().slice(0, 10)}-${parsed.data.fim.toISOString().slice(0, 10)}.csv"`).send(managerialReportCsv(report));
+  });
+
+  app.post("/gerencial/fechar", { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])] }, async (request, reply) => {
+    const parsed = z.object({ competencia: z.string().regex(/^\d{4}-\d{2}$/), observacao: z.string().trim().min(10).max(1000) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ erro: "FECHAMENTO_GERENCIAL_INVALIDO", detalhes: parsed.error.flatten() });
+    const period = new Date(`${parsed.data.competencia}-01T00:00:00.000Z`);
+    return reply.status(201).send(await closeManagerialPeriod({ companyId: request.tenant!.companyId, period, note: parsed.data.observacao, userId: request.user.sub, requestId: request.id }));
+  });
+
   app.get(
     "/alertas",
     { preHandler: [authenticate, tenantContext] },

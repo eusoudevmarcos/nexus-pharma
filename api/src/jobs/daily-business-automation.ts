@@ -1,6 +1,7 @@
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 import { recordOperationalIncident } from "../services/observability.js";
+import { releaseExpiredReservations } from "../services/inventory-workflow.service.js";
 
 const DAY = 86_400_000;
 const money = (value: unknown) => Number(value ?? 0);
@@ -49,11 +50,12 @@ export async function runDailyBusinessAutomation(referenceDate = new Date()) {
     ? await prisma.backgroundJobRun.update({ where: { id: previous.id }, data: { status: "RUNNING", attempts: { increment: 1 }, error: null, startedAt: new Date(), finishedAt: null } })
     : await prisma.backgroundJobRun.create({ data: { jobName: "DAILY_BUSINESS_AUTOMATION", idempotencyKey } });
 
-  const counters = { companies: 0, reorder: 0, expiry: 0, billing: 0, resolved: 0 };
+  const counters = { companies: 0, reorder: 0, expiry: 0, billing: 0, reservationsReleased: 0, resolved: 0 };
   try {
     const companies = await prisma.company.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
     const companyIds = companies.map((company) => company.id);
     counters.companies = companyIds.length;
+    for (const companyId of companyIds) counters.reservationsReleased += await releaseExpiredReservations(companyId);
     const [products, lots, invoices] = await Promise.all([
       prisma.product.findMany({ where: { companyId: { in: companyIds }, active: true } }),
       prisma.inventoryLot.findMany({
