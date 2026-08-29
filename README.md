@@ -37,3 +37,5 @@ A camada de identidade agora vincula cada JWT a uma sessão persistida e revogá
 6. Revisar o custo do Cron Job do Render e ativar a rotina diária na implantação comercial.
 
 Consulte [api/README.md](api/README.md) para a API, [web/README.md](web/README.md) para o frontend e [docs/architecture.md](docs/architecture.md) para a arquitetura alvo.
+
+O inventário consolidado do produto, com o que está implementado, o que está parcial e a ordem recomendada das próximas fases, está em [docs/CHECKLIST-FUNCIONAL-E-ROADMAP.md](docs/CHECKLIST-FUNCIONAL-E-ROADMAP.md).
