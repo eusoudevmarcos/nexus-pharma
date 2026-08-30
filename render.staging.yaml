@@ -10,7 +10,6 @@ services:
     initialDeployHook: npm run prisma:seed
     startCommand: npm start
     healthCheckPath: /health/ready
-    maxShutdownDelaySeconds: 60
     envVars:
       - key: DATABASE_URL
         fromDatabase:
