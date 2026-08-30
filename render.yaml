@@ -87,11 +87,6 @@ services:
         value: "false"
       - key: NFCE_SCHEMA_VERSION
         value: local-2026.08
-      - key: SEED_ADMIN_EMAIL
-        sync: false
-      - key: SEED_ADMIN_PASSWORD
-        sync: false
-
   - type: cron
     name: nexus-pharma-daily-automation
     runtime: node
