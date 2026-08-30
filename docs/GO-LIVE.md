@@ -4,6 +4,19 @@ O primeiro cliente real só deve ser liberado quando `npm run preflight:producti
 
 ## 1. Render: API e PostgreSQL
 
+### Homologação sem custo
+
+O arquivo `render.staging.yaml` conecta a API ao PostgreSQL gratuito existente chamado
+`nexus-pharma`, na região Oregon. Ele cria somente o Web Service gratuito, aplica as
+migrations do Prisma durante o build e executa o seed inicial uma única vez.
+
+Ao criar o Blueprint, informe `render.staging.yaml` como caminho e preencha apenas
+`SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Esse ambiente é de homologação: o banco
+gratuito expira, não possui PITR e o serviço pode suspender por inatividade.
+
+O `render.yaml` permanece como arquitetura de produção e não deve ser sincronizado
+sem aprovar previamente os custos do banco e dos serviços pagos.
+
 1. Conectar o repositório Git e criar o Blueprint a partir de `render.yaml`.
 2. Confirmar os custos antes da primeira sincronização: o Blueprint usa serviço `starter`, PostgreSQL `basic-256mb` e Cron Job `starter` para permitir pre-deploy, PITR e automação diária.
 3. Configurar `WEB_ORIGIN` com a origem HTTPS exata do portal Vercel.
