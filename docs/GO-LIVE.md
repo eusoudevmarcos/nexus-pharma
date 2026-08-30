@@ -22,11 +22,11 @@ O deploy aplica migrations pendentes com `prisma migrate deploy`; não use `migr
 1. Criar o projeto com Root Directory `web`.
 2. Definir `NEXUS_API_URL` para o domínio HTTPS da API.
 3. Manter Framework Preset como `Next.js` e Output Directory no padrão do framework; não configurar `.next` manualmente.
-4. Se o projeto já tiver sido criado com Root Directory `/`, o `vercel.json` da raiz direciona instalação, build e saída para `web/`. A configuração recomendada continua sendo Root Directory `web`.
-3. Definir `NEXT_PUBLIC_SITE_URL` para o domínio HTTPS do portal.
-4. Publicar primeiro em Preview e validar login, seleção de empresa, troca de empresa e logout.
-5. Só então promover a mesma revisão para Production.
-6. Validar `GET /api/health`: a resposta só fica `200` quando o portal consegue alcançar `/health/ready` na API.
+4. Não usar `/` como Root Directory: a raiz contém a demonstração Vinext e não gera o artefato `.next` esperado pela Vercel.
+5. Definir `NEXT_PUBLIC_SITE_URL` para o domínio HTTPS do portal.
+6. Publicar primeiro em Preview e validar login, seleção de empresa, troca de empresa e logout.
+7. Só então promover a mesma revisão para Production.
+8. Validar `GET /api/health`: a resposta só fica `200` quando o portal consegue alcançar `/health/ready` na API.
 
 ## 3. Integrações
 
