@@ -6,7 +6,7 @@ services:
     region: virginia
     rootDir: api
     autoDeployTrigger: checksPass
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     preDeployCommand: npm run prisma:migrate:deploy
     initialDeployHook: npm run prisma:seed
     startCommand: npm start
@@ -100,7 +100,7 @@ services:
     rootDir: api
     autoDeploy: false
     schedule: "0 10 * * *"
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run jobs:daily
     envVars:
       - key: DATABASE_URL
