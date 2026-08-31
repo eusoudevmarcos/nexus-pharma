@@ -302,6 +302,7 @@ main { overflow: hidden; }
 .header-inner { height: 88px; display: flex; align-items: center; gap: 42px; }
 .brand { width: 205px; height: 58px; display: flex; align-items: center; flex: 0 0 auto; }
 .brand img { width: 100%; height: 100%; object-fit: contain; object-position: center; background: transparent; }
+.brand .brand-image-compact { display: none; }
 .brand-compact { width: 48px; }
 .header-inner nav { display: flex; gap: 34px; margin-left: auto; }
 .header-inner nav a, .link-button { color: #3d4c56; font-weight: 650; font-size: .95rem; transition: color .2s ease; }
@@ -1503,3 +1504,143 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
 
 @media (max-width: 900px) { .offline-sync { grid-template-columns: 1fr 90px 105px; }.offline-sync > button, .offline-sync > a { width: 100%; }.offline-devices article { grid-template-columns: 1fr 90px; }.offline-devices article > small, .offline-devices article > div:last-child { grid-column: 1 / -1; }.offline-cash-app { grid-template-columns: 1fr; }.offline-cash-app > aside { grid-column: 1; }.offline-cash-app > header { grid-template-columns: 1fr auto; }.offline-cash-app > header > a { grid-column: 1 / -1; text-align: center; } }
 @media (max-width: 600px) { .offline-sync { grid-template-columns: 1fr 80px; }.offline-pin { grid-column: 1 / -1; }.offline-pin input { width: 100%; }.offline-cash-app { padding: 10px; }.offline-cash-app > header { padding: 15px; }.offline-product-picker { grid-template-columns: 1fr 80px; }.offline-product-picker button { min-height: 44px; grid-column: 1 / -1; }.offline-sale-panel { padding: 14px; }.offline-sale-panel footer { grid-template-columns: 1fr 1fr; }.offline-sale-panel footer button { grid-column: 1 / -1; }.offline-cart article { grid-template-columns: 34px 1fr auto 28px; } }
+
+/* Identidade visual consolidada do portal produtivo */
+.portal-app {
+  grid-template-columns: 306px minmax(0, 1fr);
+  background:
+    radial-gradient(circle at 78% -8%, rgba(6, 58, 92, .1), transparent 31%),
+    radial-gradient(circle at 46% 0, rgba(255, 202, 5, .12), transparent 23%),
+    #f2f6f8;
+}
+.portal-sidebar,
+.internal-sidebar {
+  padding: 14px 18px 16px;
+  color: var(--navy-deep);
+  border-right: 1px solid rgba(6, 58, 92, .1);
+  background: linear-gradient(165deg, #edf4f7 0%, #d8e6ed 70%, #c7dae4 100%);
+  box-shadow: 16px 0 44px rgba(36, 75, 98, .12);
+}
+.portal-sidebar .brand-stacked {
+  width: 224px;
+  height: 158px;
+  margin: -8px auto 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.portal-sidebar .brand-stacked .brand-image-primary { display: block; }
+.portal-company {
+  margin-top: -2px;
+  padding: 15px 17px;
+  color: white;
+  border-color: rgba(6, 58, 92, .12);
+  background: linear-gradient(145deg, #075083 0%, #03283f 100%);
+  box-shadow: 0 12px 27px rgba(3, 40, 63, .14);
+}
+.portal-company span,
+.internal-app .portal-company span { color: var(--yellow); }
+.portal-company small { color: #c8dce8; }
+.portal-sidebar nav {
+  min-height: 0;
+  margin-top: 17px;
+  padding-right: 4px;
+  flex: 1;
+  gap: 5px;
+  overflow-y: auto;
+  scrollbar-color: rgba(6, 58, 92, .24) transparent;
+  scrollbar-width: thin;
+}
+.portal-sidebar nav a {
+  min-height: 47px;
+  padding: 0 14px;
+  color: var(--navy);
+  border-radius: 13px;
+  font-size: .88rem;
+}
+.portal-sidebar nav a > span { color: #a77e00; }
+.portal-sidebar nav a:hover {
+  color: var(--navy-deep);
+  background: rgba(120, 150, 167, .2);
+}
+.portal-sidebar nav a[aria-current="page"],
+.internal-app .portal-sidebar nav a[aria-current="page"] {
+  color: white;
+  background: var(--navy);
+  box-shadow: 0 10px 24px rgba(0, 41, 70, .2);
+}
+.portal-sidebar nav a[aria-current="page"] > span,
+.internal-app .portal-sidebar nav a[aria-current="page"] > span {
+  color: var(--yellow);
+}
+.portal-user {
+  margin-top: 14px;
+  color: white;
+  background: var(--navy);
+  box-shadow: 0 12px 27px rgba(3, 40, 63, .14);
+}
+.portal-user small { color: #c8dce8; }
+.portal-sidebar-actions { padding-inline: 5px; }
+.portal-sidebar-actions button { color: var(--navy); font-weight: 750; }
+.portal-sidebar-actions button:hover { color: var(--navy-deep); }
+.portal-workspace > header {
+  height: 82px;
+  border-color: rgba(6, 58, 92, .1);
+  background: rgba(255, 255, 255, .8);
+}
+.portal-status {
+  border: 1px solid #cbe8dc;
+  background: #eef9f4;
+}
+
+@media (max-width: 960px) {
+  .portal-app { grid-template-columns: 94px minmax(0, 1fr); }
+  .portal-sidebar,
+  .internal-sidebar { padding-inline: 13px; }
+  .portal-sidebar .brand-stacked { width: 62px; height: 58px; margin: 0 auto 14px; }
+  .portal-sidebar .brand-stacked .brand-image-primary { display: none; }
+  .portal-sidebar .brand-stacked .brand-image-compact { display: block; }
+  .portal-company { margin-top: 0; padding: 12px 8px; text-align: center; }
+  .portal-company span,
+  .portal-company small,
+  .portal-user > div { display: none; }
+  .portal-company strong { font-size: .7rem; white-space: normal; }
+  .portal-sidebar nav { margin-top: 14px; padding-right: 0; }
+  .portal-sidebar nav a { justify-content: center; padding: 0; font-size: 0; }
+  .portal-sidebar nav a > span { width: auto; font-size: 1.05rem; }
+  .portal-user { display: flex; justify-content: center; padding: 9px; }
+  .portal-sidebar-actions { display: grid; gap: 5px; text-align: center; }
+}
+
+@media (max-width: 640px) {
+  .portal-app { display: block; }
+  .portal-sidebar,
+  .internal-sidebar {
+    width: 100%;
+    height: auto;
+    min-height: 68px;
+    padding: 9px 12px;
+    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(6, 58, 92, .12);
+    box-shadow: 0 10px 28px rgba(36, 75, 98, .12);
+  }
+  .portal-sidebar .brand-stacked { width: 54px; height: 46px; margin: 0; }
+  .portal-company,
+  .portal-user,
+  .portal-sidebar-actions { display: none; }
+  .portal-sidebar nav {
+    margin: 0;
+    padding: 0 0 2px;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .portal-sidebar nav a {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .portal-workspace > header { height: 64px; padding-inline: 18px; }
+}

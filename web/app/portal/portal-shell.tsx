@@ -38,7 +38,7 @@ export function PortalShell({ profile, membership, children }: { profile: Portal
   }
   return <div className="portal-app">
     <aside className="portal-sidebar">
-      <Brand />
+      <Brand variant="stacked" />
       <div className="portal-company"><span>EMPRESA ATIVA</span><strong>{membership.company.tradeName}</strong><small>{membership.role}</small></div>
       <nav aria-label="Módulos do portal">
         {links.filter((link) => link.roles.includes(membership.role)).map((link) => <Link aria-current={pathname === link.href ? "page" : undefined} href={link.href} key={link.href}><span>{link.icon}</span>{link.label}</Link>)}
