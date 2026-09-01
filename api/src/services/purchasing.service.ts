@@ -12,6 +12,9 @@ export type ReorderSuggestion = {
   onHand: number;
   reserved: number;
   available: number;
+  effectiveAvailable: number;
+  expiryRiskQuantity: number;
+  nearestExpiryAt: Date | null;
   incoming: number;
   soldLast30Days: number;
   revenueLast30Days: number;
@@ -34,6 +37,7 @@ export function calculateReorderSuggestion(input: {
     id: string; ean: string; name: string; currentCost: unknown; salePrice: unknown;
     minimumStock: unknown; dailySalesAverage: unknown; category: { name: string };
     storeStockBalances: Array<{ onHand: unknown; reserved: unknown }>;
+    lots: Array<{ expiresAt: Date; storeStockBalances: Array<{ onHand: unknown; reserved: unknown }> }>;
     supplierProducts: Array<{ preferred: boolean; packageQuantity: unknown; supplier: { id: string; tradeName: string; leadTimeDays: number } }>;
   };
   soldLast30Days: number;
@@ -49,15 +53,39 @@ export function calculateReorderSuggestion(input: {
   const preferred = input.product.supplierProducts.find((entry) => entry.preferred) ?? input.product.supplierProducts[0];
   const leadTimeDays = preferred?.supplier.leadTimeDays ?? 7;
   const minimumStock = quantity(input.product.minimumStock);
-  const targetStock = Math.max(minimumStock, dailyAverage * (input.targetDays + leadTimeDays));
-  const rawSuggestion = Math.max(0, targetStock - available - input.incoming);
+  const planningDays = input.targetDays + leadTimeDays;
+  const planningEndsAt = new Date(Date.now() + planningDays * 86_400_000);
+  let consumedBeforeExpiry = 0;
+  let trackedAvailable = 0;
+  let usableTrackedStock = 0;
+  let nearestExpiryAt: Date | null = null;
+  for (const lot of [...input.product.lots].sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime())) {
+    const lotAvailable = Math.max(0, lot.storeStockBalances.reduce((sum, balance) => sum + quantity(balance.onHand) - quantity(balance.reserved), 0));
+    if (lotAvailable <= 0) continue;
+    trackedAvailable += lotAvailable;
+    if (lot.expiresAt > planningEndsAt) {
+      usableTrackedStock += lotAvailable;
+      continue;
+    }
+    const daysUntilExpiry = Math.max(0, (lot.expiresAt.getTime() - Date.now()) / 86_400_000);
+    const salesCapacityUntilExpiry = dailyAverage * daysUntilExpiry;
+    const usableFromLot = Math.min(lotAvailable, Math.max(0, salesCapacityUntilExpiry - consumedBeforeExpiry));
+    usableTrackedStock += usableFromLot;
+    consumedBeforeExpiry += usableFromLot;
+    if (usableFromLot < lotAvailable && (!nearestExpiryAt || lot.expiresAt < nearestExpiryAt)) nearestExpiryAt = lot.expiresAt;
+  }
+  const untrackedAvailable = Math.max(0, available - trackedAvailable);
+  const effectiveAvailable = Math.min(available, untrackedAvailable + usableTrackedStock);
+  const expiryRiskQuantity = Math.max(0, available - effectiveAvailable);
+  const targetStock = Math.max(minimumStock, dailyAverage * planningDays);
+  const rawSuggestion = Math.max(0, targetStock - effectiveAvailable - input.incoming);
   if (rawSuggestion <= 0) return null;
   const packageQuantity = Math.max(1, quantity(preferred?.packageQuantity));
   const suggestedQuantity = Math.ceil(rawSuggestion / packageQuantity) * packageQuantity;
   const currentCost = quantity(input.product.currentCost);
   const salePrice = quantity(input.product.salePrice);
   const marginPercent = salePrice > 0 ? ((salePrice - currentCost) / salePrice) * 100 : 0;
-  const coverageDays = dailyAverage > 0 ? available / dailyAverage : null;
+  const coverageDays = dailyAverage > 0 ? effectiveAvailable / dailyAverage : null;
   return {
     productId: input.product.id,
     ean: input.product.ean,
@@ -66,6 +94,9 @@ export function calculateReorderSuggestion(input: {
     onHand,
     reserved,
     available,
+    effectiveAvailable: Number(effectiveAvailable.toFixed(3)),
+    expiryRiskQuantity: Number(expiryRiskQuantity.toFixed(3)),
+    nearestExpiryAt,
     incoming: input.incoming,
     soldLast30Days: input.soldLast30Days,
     revenueLast30Days: roundMoney(input.revenueLast30Days),
@@ -79,7 +110,7 @@ export function calculateReorderSuggestion(input: {
     marginPercent: Number(marginPercent.toFixed(2)),
     estimatedInvestment: roundMoney(suggestedQuantity * currentCost),
     estimatedGrossProfit: roundMoney(suggestedQuantity * Math.max(0, salePrice - currentCost)),
-    urgency: available <= 0 ? "CRITICAL" : coverageDays !== null && coverageDays <= leadTimeDays ? "HIGH" : "NORMAL",
+    urgency: effectiveAvailable <= 0 ? "CRITICAL" : coverageDays !== null && coverageDays <= leadTimeDays ? "HIGH" : "NORMAL",
     supplier: preferred ? { id: preferred.supplier.id, name: preferred.supplier.tradeName } : null,
   };
 }
@@ -100,6 +131,13 @@ export async function getPurchasingDashboard(input: { companyId: string; storeId
       include: {
         category: { select: { name: true } },
         storeStockBalances: { where: input.storeId ? { storeId: input.storeId } : undefined, select: { onHand: true, reserved: true } },
+        lots: {
+          where: { storeStockBalances: { some: { companyId: input.companyId, ...(input.storeId ? { storeId: input.storeId } : {}) } } },
+          select: {
+            expiresAt: true,
+            storeStockBalances: { where: { companyId: input.companyId, ...(input.storeId ? { storeId: input.storeId } : {}) }, select: { onHand: true, reserved: true } },
+          },
+        },
         supplierProducts: { where: { active: true, supplier: { status: "ACTIVE" } }, include: { supplier: { select: { id: true, tradeName: true, leadTimeDays: true } } }, orderBy: { preferred: "desc" } },
       },
       orderBy: { name: "asc" },

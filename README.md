@@ -23,9 +23,11 @@ A central de observabilidade acompanha prontidão da API e PostgreSQL, desempenh
 
 A automação diária cria uma fila inteligente para estoque baixo, oportunidades de compra com boa margem, lotes em vencimento e cobranças atrasadas. Cada execução possui histórico, proteção contra duplicidade e tratamento automático das condições já normalizadas.
 
+O **Painel Prime** transforma sinais operacionais das farmácias vinculadas em uma rede B2B de abastecimento para laboratórios e distribuidores. O radar identifica ruptura, baixa cobertura, vencimento e alta demanda por cliente, loja, cidade e UF, calcula reposição sugerida, trabalha com janela logística configurável de dois a cinco dias e mantém uma fila comercial auditada sem expor preço de venda, margem, fiscal, financeiro ou consumidores.
+
 O motor comercial SaaS possui os planos Basic, Smart, Fiscal Inteligente e Ultimate, onboarding financeiro, matriz e primeiro PDV inclusos, cobrança de filiais e PDVs extras e memória mensal discriminada. O Success Fee só é calculado sobre economia tributária e perdas de estoque evitadas depois da homologação humana com evidências. A área Comercial ativa o contrato e gera o cronograma de setup; a janela interna de Faturamento homologa a economia, fecha a competência e entrega uma cobrança idempotente ao adaptador do gateway.
 
-A camada de identidade agora vincula cada JWT a uma sessão persistida e revogável. Tokens de renovação são rotacionados com detecção de reutilização e concorrência, sessões excedentes são encerradas automaticamente e eventos de login, bloqueio e acesso multiempresa ficam disponíveis na central interna de Segurança. O portal utiliza cookies `HttpOnly` com prefixo `__Host-` em produção, proteção de origem para operações mutáveis e headers restritivos de navegador.
+A camada de identidade agora vincula cada JWT a uma sessão persistida e revogável. Tokens de renovação são rotacionados com detecção de reutilização e concorrência, sessões excedentes são encerradas automaticamente e eventos de login, bloqueio e acesso multiempresa ficam disponíveis na central interna de Segurança. Proprietários, administradores e equipe interna utilizam MFA TOTP, códigos de recuperação de uso único e confirmação reforçada por sessão nas ações críticas. O portal utiliza cookies `HttpOnly` com prefixo `__Host-` em produção, proteção de origem para operações mutáveis e headers restritivos de navegador.
 
 ## Próximas etapas
 

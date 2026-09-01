@@ -42,7 +42,7 @@ export function AlertCenter({ alerts, currentRole }: { alerts: BusinessAlert[]; 
   const [error, setError] = useState("");
   const visible = useMemo(() => alerts.filter((alert) => belongs(alert.type, group)), [alerts, group]);
   const canResolve = ["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST"].includes(currentRole);
-  const canAcknowledge = canResolve || currentRole === "OPERATOR";
+  const canAcknowledge = canResolve || currentRole === "BUYER";
   async function update(id: string, status: "ACKNOWLEDGED" | "RESOLVED" | "DISMISSED") {
     setBusy(id); setError("");
     const response = await fetch(`/api/portal/alerts/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });

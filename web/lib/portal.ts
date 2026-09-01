@@ -17,6 +17,7 @@ export type PortalProfile = {
   systemRole: string;
   status: string;
   memberships: CompanyMembership[];
+  primeMemberships: Array<{ role: string; organization: { id: string; code: string; tradeName: string; kind: string; status: string } }>;
 };
 
 export const internalRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"];
@@ -49,7 +50,8 @@ export async function requireCompany(roles?: string[]) {
 
 export function defaultArea(role: string) {
   if (["PHARMACIST"].includes(role)) return "/portal/fiscal";
-  if (["OPERATOR"].includes(role)) return "/portal/operacao";
+  if (["OPERATOR"].includes(role)) return "/portal/caixa";
+  if (["BUYER"].includes(role)) return "/portal/operacao";
   return "/portal/gestao";
 }
 
@@ -68,6 +70,39 @@ export async function requireInternal(roles?: string[]) {
     redirect(defaultInternalArea(session.profile.systemRole));
   }
   return { ...session, profile: session.profile };
+}
+
+export async function requireIdentity() {
+  const session = await getPortalSession();
+  if (!session.token) redirect("/entrar");
+  if (!session.profile) redirect("/entrar");
+  return { ...session, profile: session.profile };
+}
+
+export async function requirePrime() {
+  if (process.env.NEXT_PUBLIC_PRIME_ENABLED !== "true") redirect("/portal");
+  const session = await getPortalSession();
+  if (!session.token) redirect("/entrar");
+  if (!session.profile) redirect("/entrar");
+  const governance = ["INTERNAL_ADMIN", "COMMERCIAL"].includes(session.profile.systemRole);
+  if (!governance && !session.profile.primeMemberships?.length) redirect("/portal");
+  return { ...session, profile: session.profile, governance };
+}
+
+export async function primeFetch<T>(path: string): Promise<T | null> {
+  const session = await requirePrime();
+  if (!apiUrl()) return null;
+  const jar = await cookies();
+  const selected = jar.get("nexus_prime_org")?.value ?? session.profile.primeMemberships?.[0]?.organization.id;
+  const response = await fetch(`${apiUrl()}${path}`, { headers: { authorization: `Bearer ${session.token}`, ...(selected ? { "x-prime-organization-id": selected } : {}) }, cache: "no-store" }).catch(() => null);
+  return response?.ok ? ((await response.json()) as T) : null;
+}
+
+export async function identityFetch<T>(path: string): Promise<T | null> {
+  const session = await requireIdentity();
+  if (!apiUrl()) return null;
+  const response = await fetch(`${apiUrl()}${path}`, { headers: { authorization: `Bearer ${session.token}` }, cache: "no-store" }).catch(() => null);
+  return response?.ok ? ((await response.json()) as T) : null;
 }
 
 export async function portalFetch<T>(path: string): Promise<T | null> {

@@ -9,12 +9,18 @@ import type { PortalProfile } from "@/lib/portal";
 const links = [
   { href: "/portal/interno/monitoramento", label: "Monitoramento", icon: "●", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
   { href: "/portal/interno/seguranca", label: "Segurança", icon: "◆", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
+  { href: "/portal/interno/perfis", label: "Perfis e permissões", icon: "◫", roles: ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"] },
+  { href: "/portal/minha-seguranca", label: "Minha segurança", icon: "◇", roles: ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"] },
   { href: "/portal/interno/privacidade", label: "Privacidade & DR", icon: "◈", roles: ["INTERNAL_ADMIN"] },
   { href: "/portal/interno/go-live", label: "Go-live", icon: "✓", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
+  { href: "/portal/interno/catalogos-fiscais", label: "Catálogos fiscais", icon: "§", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
   { href: "/portal/interno/suporte", label: "Helpdesk", icon: "?", roles: ["INTERNAL_ADMIN", "HELPDESK"] },
   { href: "/portal/interno/financeiro", label: "Financeiro", icon: "$", roles: ["INTERNAL_ADMIN", "FINANCE"] },
   { href: "/portal/interno/faturamento", label: "Faturamento SaaS", icon: "R$", roles: ["INTERNAL_ADMIN", "FINANCE"] },
   { href: "/portal/interno/comercial", label: "Comercial", icon: "↗", roles: ["INTERNAL_ADMIN", "COMMERCIAL"] },
+  ...(process.env.NEXT_PUBLIC_PRIME_ENABLED === "true"
+    ? [{ href: "/prime", label: "Painel Prime", icon: "P", roles: ["INTERNAL_ADMIN", "COMMERCIAL"] }]
+    : []),
   { href: "/portal/interno/desenvolvimento", label: "Desenvolvimento", icon: "⌘", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
 ];
 const roleLabels: Record<string, string> = { INTERNAL_ADMIN: "Administração geral", DEVELOPER: "Desenvolvimento", HELPDESK: "Helpdesk", FINANCE: "Financeiro", COMMERCIAL: "Comercial" };

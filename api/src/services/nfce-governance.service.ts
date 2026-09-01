@@ -5,7 +5,37 @@ import { prisma } from "../infra/prisma.js";
 import { certificateEncryptionKey, encryptSensitivePayload } from "./dfe-certificate.service.js";
 
 export const requiredOfficialCatalogs = ["CCLASS_TRIB", "ALIQUOTAS_CBS", "MEIOS_PAGAMENTO"] as const;
-const officialCatalogHosts = new Set(["www.nfe.fazenda.gov.br", "nfe.fazenda.gov.br"]);
+export const managedOfficialCatalogs = [
+  "NCM",
+  "CEST",
+  "CST_ICMS",
+  "CSOSN",
+  "CST_PIS_COFINS",
+  "PIS_COFINS",
+  "NATUREZA_RECEITA",
+  "CCLASS_TRIB",
+  "ALIQUOTAS_IBS_CBS",
+  "ALIQUOTAS_CBS",
+  "MEIOS_PAGAMENTO",
+  "DF_ICMS_ST",
+  "DF_MVA",
+  "DF_FCP",
+  "DF_REDUCOES",
+  "DF_BENEFICIOS",
+  "SCHEMA_NFCE",
+] as const;
+
+const officialCatalogHosts = new Set([
+  "www.nfe.fazenda.gov.br",
+  "nfe.fazenda.gov.br",
+  "www.confaz.fazenda.gov.br",
+  "confaz.fazenda.gov.br",
+  "www.sinj.df.gov.br",
+  "sinj.df.gov.br",
+  "www.gov.br",
+  "gov.br",
+  "classif.siscomex.gov.br",
+]);
 
 export type CatalogImportItem = {
   code: string;
@@ -42,9 +72,11 @@ function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function sourceUrl(value: string) {
+export function officialSourceUrl(value: string) {
   const parsed = new URL(value);
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || !officialCatalogHosts.has(parsed.hostname.toLowerCase())) {
+  const hostname = parsed.hostname.toLowerCase();
+  const governmentHost = hostname.endsWith(".gov.br") || officialCatalogHosts.has(hostname);
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || !governmentHost) {
     throw new Error("CATALOGO_FONTE_OFICIAL_INVALIDA");
   }
   return parsed.toString();
@@ -67,7 +99,7 @@ export async function listOfficialCatalogReleases() {
     include: { _count: { select: { entries: true } }, reviewedBy: { select: { name: true } } },
     orderBy: [{ catalog: "asc" }, { sourcePublishedAt: "desc" }, { createdAt: "desc" }],
   });
-  return requiredOfficialCatalogs.map((catalog) => ({
+  return managedOfficialCatalogs.map((catalog) => ({
     catalog,
     active: releases.find((release) => release.catalog === catalog && release.status === "ACTIVE") ?? null,
     releases: releases.filter((release) => release.catalog === catalog),
@@ -84,7 +116,7 @@ export async function importOfficialCatalog(input: {
   userId: string;
   requestId: string;
 }) {
-  const url = sourceUrl(input.sourceUrl);
+  const url = officialSourceUrl(input.sourceUrl);
   const existingRelease = await prisma.fiscalCatalogRelease.findUnique({ where: { catalog_sourceVersion: { catalog: input.catalog, sourceVersion: input.sourceVersion } }, select: { status: true } });
   if (existingRelease?.status === "ACTIVE") throw new Error("CATALOGO_VERSAO_ATIVA_IMUTAVEL");
   const normalized = [...input.items].map((item) => ({
@@ -96,6 +128,8 @@ export async function importOfficialCatalog(input: {
     validFrom: item.validFrom ?? null,
     validUntil: item.validUntil ?? null,
   })).sort((left, right) => left.code.localeCompare(right.code));
+  if (normalized.some((item) => !item.code || !item.description)) throw new Error("CATALOGO_ITEM_INCOMPLETO");
+  if (normalized.some((item) => item.validFrom && item.validUntil && item.validUntil < item.validFrom)) throw new Error("CATALOGO_VIGENCIA_INVALIDA");
   if (new Set(normalized.map((item) => item.code)).size !== normalized.length) throw new Error("CATALOGO_CODIGO_DUPLICADO");
   const payloadHash = createHash("sha256").update(stable(normalized)).digest("hex");
   return prisma.$transaction(async (tx) => {
@@ -157,6 +191,15 @@ export async function activateOfficialCatalog(input: { releaseId: string; userId
   const diff = await catalogReleaseDiff(input.releaseId);
   if (diff.release.itemCount === 0) throw new Error("CATALOGO_SEM_ITENS_NAO_PODE_SER_ATIVADO");
   if (diff.release.status !== "UNDER_REVIEW") throw new Error("CATALOGO_PRECISA_ESTAR_EM_REVISAO");
+  const candidate = await prisma.fiscalCatalogRelease.findUnique({
+    where: { id: input.releaseId },
+    include: { entries: { select: { validFrom: true, validUntil: true } } },
+  });
+  if (!candidate) throw new Error("CATALOGO_VERSAO_NAO_ENCONTRADA");
+  if (!candidate.sourcePublishedAt || !candidate.payloadHash || !candidate.importedById) throw new Error("CATALOGO_EVIDENCIA_INCOMPLETA");
+  if (candidate.importedById === input.userId) throw new Error("CATALOGO_APROVACAO_QUATRO_OLHOS");
+  if (candidate.entries.length !== candidate.itemCount) throw new Error("CATALOGO_CONTAGEM_DIVERGENTE");
+  if (candidate.entries.some((entry) => entry.validFrom && entry.validUntil && entry.validUntil < entry.validFrom)) throw new Error("CATALOGO_VIGENCIA_INVALIDA");
   return prisma.$transaction(async (tx) => {
     const now = new Date();
     const previous = await tx.fiscalCatalogRelease.findMany({ where: { catalog: diff.release.catalog, status: "ACTIVE", id: { not: input.releaseId } }, select: { id: true } });

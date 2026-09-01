@@ -7,6 +7,7 @@ import {
   tenantContext,
 } from "../security/auth.js";
 import { buildManagerialReport, closeManagerialPeriod, managerialReportCsv } from "../services/managerial-report.service.js";
+import { getPurchasingDashboard } from "../services/purchasing.service.js";
 
 const periodSchema = z.object({
   inicio: z.coerce.date().optional(),
@@ -18,8 +19,9 @@ const operationRoles = [
   "OWNER",
   "ADMIN",
   "MANAGER",
+  "BUYER",
+  "FINANCE",
   "PHARMACIST",
-  "OPERATOR",
   "VIEWER",
 ];
 const fiscalRoles = [
@@ -92,7 +94,7 @@ export async function reportsRoutes(app: FastifyInstance) {
 
   app.get(
     "/alertas",
-    { preHandler: [authenticate, tenantContext] },
+    { preHandler: [authenticate, tenantContext, requireTenantRoles(operationRoles)] },
     async (request) => {
       const companyId = request.tenant!.companyId;
       const [summary, alerts, lastRun] = await Promise.all([
@@ -279,22 +281,7 @@ export async function reportsRoutes(app: FastifyInstance) {
             _count: true,
             _sum: { grossAmount: true },
           }),
-          prisma.reorderAlert.findMany({
-            where: { companyId, status: { in: ["OPEN", "ACKNOWLEDGED"] } },
-            include: {
-              product: {
-                select: {
-                  name: true,
-                  ean: true,
-                  stockQuantity: true,
-                  dailySalesAverage: true,
-                  salePrice: true,
-                },
-              },
-            },
-            orderBy: { createdAt: "desc" },
-            take: 8,
-          }),
+          getPurchasingDashboard({ companyId, targetDays: 30 }),
           prisma.inventoryLot.findMany({
             where: {
               product: { companyId },
@@ -315,20 +302,23 @@ export async function reportsRoutes(app: FastifyInstance) {
           activeProducts: products,
           todaySalesCount: todaySales._count,
           todayRevenue: money(todaySales._sum.grossAmount),
-          openReorderAlerts: alerts.length,
+          openReorderAlerts: alerts.suggestions.length,
           expiringLots: expiringLots.length,
           todayMovements: movements,
         },
-        reorderAlerts: alerts.map((alert) => ({
-          id: alert.id,
-          reason: alert.reason,
+        reorderAlerts: alerts.suggestions.slice(0, 8).map((alert) => ({
+          id: alert.productId,
+          reason: alert.expiryRiskQuantity > 0
+            ? `${money(alert.expiryRiskQuantity)} unidade(s) podem vencer antes de serem vendidas; a sugestão considera somente o saldo aproveitável.`
+            : `Cobertura calculada pelo giro, prazo do fornecedor, reservas e mercadoria já a receber.`,
           suggestedQuantity: money(alert.suggestedQuantity),
-          estimatedMargin: money(alert.estimatedMargin),
+          estimatedMargin: money(alert.marginPercent) / 100,
           product: {
-            ...alert.product,
-            stockQuantity: money(alert.product.stockQuantity),
-            dailySalesAverage: money(alert.product.dailySalesAverage),
-            salePrice: money(alert.product.salePrice),
+            name: alert.productName,
+            ean: alert.ean,
+            stockQuantity: money(alert.effectiveAvailable),
+            dailySalesAverage: money(alert.dailySalesAverage),
+            salePrice: money(alert.salePrice),
           },
         })),
         expiringLots: expiringLots.map((lot) => ({

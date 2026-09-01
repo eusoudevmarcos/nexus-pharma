@@ -36,9 +36,9 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 
 ### Roadmap do que falta
 
-- [ ] **Bloqueador:** provisionar PostgreSQL e API reais no Render.
-- [ ] **Bloqueador:** aplicar `prisma migrate deploy` no ambiente final e executar o seed controlado.
-- [ ] **Bloqueador:** publicar o portal na Vercel e configurar as origens HTTPS.
+- [x] PostgreSQL e API provisionados no Render.
+- [~] `prisma migrate deploy` e seed estão automatizados no deploy; falta publicar e conferir o lote local mais recente de migrations.
+- [~] Portal publicado na Vercel e conectado à API; falta promover a revisão atual da `main` e validar a versão exibida.
 - [ ] Criar ambientes separados de desenvolvimento, homologação e produção.
 - [ ] Executar testes de carga, concorrência e isolamento entre empresas.
 - [ ] Definir política de versionamento e compatibilidade da API.
@@ -73,13 +73,15 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 - [x] Convites com validade, uso único, hash e reenvio com rotação.
 - [x] Perfis internos e perfis da empresa separados.
 - [x] Central interna de eventos, falhas e sessões.
+- [x] MFA TOTP para proprietários, administradores e equipe interna, com confirmação da senha na ativação.
+- [x] Códigos de recuperação de uso único, segredo criptografado e bloqueio contra reutilização de código.
+- [x] Confirmação reforçada por sessão para ações críticas e cobertura visível na Central de Segurança e no Go-live.
 
 ### Roadmap do que falta
 
 - [ ] **Bloqueador:** configurar segredos fortes e exclusivos no ambiente de produção.
 - [ ] Implementar recuperação e alteração de senha por fluxo seguro.
-- [ ] Implementar MFA para proprietários, administradores e equipe interna.
-- [ ] Adicionar política de senha, bloqueio adaptativo e confirmação de ações críticas.
+- [~] Ampliar política de senha e bloqueio adaptativo; a confirmação de ações críticas já utiliza MFA/step-up.
 - [ ] Executar SAST, DAST, análise de dependências e teste de intrusão independente.
 - [ ] Planejar SSO corporativo e passkeys para uma fase posterior.
 
@@ -87,19 +89,27 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 
 ### Já está pronto
 
-- [x] Papéis da empresa: proprietário, administrador, gestor, financeiro, farmacêutico, operador e consulta.
+- [x] Papéis da empresa: proprietário, administrador, gerente, compras, financeiro da farmácia, farmacêutico, caixa e auditoria/consulta.
 - [x] Papéis internos: administração, desenvolvimento, helpdesk, financeiro e comercial.
 - [x] Janelas separadas de Gestão, Operação, Fiscal, Alertas, Usuários e Privacidade.
 - [x] Janelas internas separadas de Comercial, Suporte, Financeiro, Faturamento, Desenvolvimento, Monitoramento, Segurança, Privacidade e Go-live.
 - [x] Convite, alteração de perfil, suspensão e reativação auditados.
 - [x] Relatório de usuários e atividade dos últimos 30 dias.
+- [x] Matriz visual por domínio e nível: consulta, operação, aprovação e administração.
+- [x] Catálogo central versionado de perfis, responsabilidades, limites e áreas padrão.
+- [x] Bloqueio de acesso direto de perfis Nexus ao tenant por simples identificador de empresa.
+- [x] Autorizações fiscais, cadastrais, NFC-e, caixa e pós-venda alinhadas entre menu e API.
+- [x] Fronteira documentada para o futuro portal B2B de fornecedores, sem reaproveitar perfis da farmácia.
+- [x] Campanhas periódicas de recertificação com snapshot, hash, prazo, decisões individuais e detecção de divergências.
+- [x] Exportação CSV da revisão com evidência, justificativa e responsável.
+- [x] Revogação com confirmação explícita e conclusão em quatro olhos por outro administrador/proprietário.
 
 ### Roadmap do que falta
 
-- [ ] Criar matriz visual de permissões por ação, não apenas por página.
 - [ ] Permitir papéis personalizados sem quebrar os perfis padrão.
-- [ ] Adicionar aprovação em duas etapas para permissões críticas.
-- [ ] Criar exportação de acessos e revisão periódica obrigatória.
+- [x] Aprovação em quatro olhos combinada com MFA/step-up nas ações privilegiadas críticas.
+- [ ] Criar sessão de suporte temporária, consentida, justificada e integralmente auditada.
+- [ ] Homologar a matriz com usuários reais de cada perfil antes do piloto.
 - [ ] Adicionar indicadores de SLA e produtividade para cada departamento interno.
 
 ## 5. Categorias fiscais e cadastro de produtos
@@ -123,11 +133,12 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 
 ### Roadmap do que falta
 
-- [ ] Criar importação em massa por CSV/XLSX com pré-validação e relatório de erros.
-- [ ] Criar histórico temporal e comparação visual entre versões de uma regra.
-- [ ] Implementar aprovação em quatro olhos antes de aplicar alteração em massa.
-- [ ] Criar simulação de impacto antes de propagar a categoria aos produtos.
-- [ ] Adicionar GTIN, registro ANVISA quando aplicável, fabricante, fornecedor e composição/princípio ativo estruturados.
+- [x] Criar importação em massa por CSV/XLSX com pré-validação e relatório de erros.
+- [x] Criar histórico imutável e comparação visual entre a regra atual e a versão de destino.
+- [x] Implementar aprovação em quatro olhos antes de aplicar importação ou propagação fiscal em massa.
+- [x] Criar simulação de impacto antes de propagar a categoria aos produtos, com bloqueio se a base mudar.
+- [x] Estruturar GTIN, registro ANVISA, fabricante, fornecedor, composição e princípio ativo na importação e no banco.
+- [ ] Exibir composição e registro ANVISA também no formulário individual do produto.
 
 ## 6. Catálogo legal nacional e matriz tributária
 
@@ -144,12 +155,14 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 ### Roadmap do que falta
 
 - [ ] **Bloqueador fiscal:** substituir o conjunto inicial por tabelas oficiais completas, versionadas e homologadas.
-- [ ] Criar sincronização e diff das tabelas oficiais de cClassTrib, CST IBS/CBS, alíquotas e notas técnicas.
+- [~] Importação, hash e diff estão prontos para cClassTrib, CST, NCM, CEST e IBS/CBS; falta o conector periódico para baixar cada publicação oficial automaticamente.
 - [x] Modelar regras efetivas por `NCM + CEST + UF origem + UF destino + regime + tipo de operação + vigência`.
-- [ ] Mapear ICMS-ST, MVA, FCP, benefícios, reduções, diferimento e antecipação por UF.
-- [ ] Começar pelo Distrito Federal e pelos grupos de higiene, maquiagem e medicamentos; ampliar por UF somente após homologação.
-- [ ] Guardar fonte oficial, dispositivo legal, hash do documento, data de captura e responsável pela aprovação.
-- [ ] Criar alerta de regra vencida, revogada, conflitante ou sem fonte.
+- [~] Estruturas separadas de ICMS-ST, MVA, FCP, benefícios e reduções estão prontas; falta importar e homologar o conteúdo legal efetivo de cada UF.
+- [~] O pacote de matriz do Distrito Federal está pronto e isolado; falta popular higiene, maquiagem e medicamentos com os dados oficiais homologados.
+- [x] Guardar fonte oficial, dispositivo legal, hash do pacote, data da publicação, importador e responsável pela aprovação.
+- [x] Criar alerta de regra ou item vencido, próximo do vencimento, conflitante, sem fonte, sem revisor ou com contagem divergente.
+- [x] Exigir aprovação em quatro olhos para ativar catálogos e pacotes da matriz DF.
+- [x] Painel interno `/portal/interno/catalogos-fiscais` com cobertura, pendências, vigências, conflitos e fontes primárias.
 - [ ] Avaliar fornecedor especializado de conteúdo fiscal; o motor deve manter independência e trilha da origem da informação.
 
 Referências oficiais a acompanhar:
@@ -256,10 +269,10 @@ Referências oficiais:
 - [x] Implementar a etapa local de recuperação somente sobre fontes e regras cadastradas; conexão semântica/RAG externo permanece opcional.
 - [~] Citação, vigência, UF e premissas já são estruturadas; falta guardar o trecho legal versionado para validação textual.
 - [x] O motor local não gera promessa livre de “não pagar imposto” e mantém economia em zero sem cálculo homologado.
-- [ ] Criar avaliação de compatibilidade entre descrição, composição, registro e NCM.
-- [ ] Aprender com correções humanas sem transformar repetição em regra legal automática.
+- [x] Criar avaliação de compatibilidade entre descrição, composição, registro ANVISA, categoria e NCM, com bloqueio de aprovação em caso de conflito.
+- [x] Registrar correções humanas como memória consultiva e destacar recorrência sem transformar repetição em regra legal automática.
 - [x] Registrar decisões e justificativas humanas sem promover repetição a regra legal automática.
-- [ ] Criar conjunto de avaliação com casos aprovados, contraditórios e adversariais.
+- [x] Criar conjunto de avaliação com casos coerentes, contraditórios, incompletos e adversariais.
 - [~] Confiança, concordância e cobertura de fontes já são monitoradas; falta correlacionar incidentes e economia homologada por versão.
 
 ## 11. Venda, estoque, lotes e PDV
@@ -527,7 +540,7 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 - [x] Catálogos controlados e herança fiscal por categoria.
 - [x] Estratégia comercial, vigência e preço promocional auditável.
 - [x] Identificação dos produtos estratégicos no caixa.
-- [ ] Importação em massa e simulação de propagação fiscal.
+- [x] Importação em massa e simulação de propagação fiscal.
 
 ### Fase 2 — caixa offline e sincronização
 
@@ -543,6 +556,7 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 - [x] Configuração separada por empresa, UF e ambiente, com endpoints HTTPS, série, QR Code v2/v3 e CSC criptografado quando aplicável.
 - [x] Checklist de prontidão unificando cadastro fiscal, certificado A1, configuração, catálogos ativos e homologação.
 - [x] Ciclo versionado dos catálogos oficiais: descoberta, importação com hash, comparação, revisão, ativação e substituição.
+- [x] Governança fiscal interna com fontes governamentais permitidas, quatro olhos, alertas de cobertura/vigência/conflito e painel de homologação.
 - [ ] Homologar certificado, QR Code, assinatura, XSDs e endpoints reais por UF.
 - [ ] Completar autorização, rejeição, cancelamento, inutilização, DANFE e reconciliação da contingência.
 - [~] Fontes oficiais de IBS/CBS, cClassTrib e meios de pagamento estão registradas e versionáveis; falta importar e homologar o conteúdo integral publicado.
@@ -551,10 +565,10 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 ### Fase 4 — IA fiscal e comercial evoluída
 
 - [x] Sugestão local explicável, aplicação humana e métricas de decisão.
-- [ ] Compatibilidade entre descrição, composição, registro sanitário e NCM.
-- [ ] Aprendizado assistido por correções, sem transformar repetição em lei.
+- [x] Compatibilidade entre descrição, composição, registro sanitário, categoria e NCM, com candidato somente quando localizado no catálogo oficial ativo.
+- [x] Aprendizado assistido por correções, sem transformar repetição em lei ou alterar cadastro automaticamente.
 - [ ] Ranking comercial combinando margem, giro, ruptura, validade e aderência, com justificativa visível.
-- [ ] Conjunto de avaliação fiscal e comercial com casos aprovados, contraditórios e adversariais.
+- [~] Conjunto de avaliação fiscal iniciado com casos coerentes, contraditórios, incompletos e adversariais; falta ampliar com casos comerciais e amostras homologadas.
 
 ### Fase 5 — fundação em ambiente de homologação
 
@@ -569,16 +583,20 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 ### Fase 6 — completar a operação do cliente no portal de produção
 
 - [x] Produtos, categorias, lotes, estoque, cotação, compras, contas a pagar e PDV estão conectados à API.
+- [x] Perfis de proprietário, administrador, gestor, compras, financeiro, farmacêutico, caixa e consulta possuem menus e rotas segregados.
+- [x] O caixa abre diretamente no PDV e não acessa alertas, compras, estoque administrativo ou recebimento de NF-e.
+- [x] Painel de controle reúne ruptura, giro, margem, lotes a vencer e sugestão de compra ajustada ao saldo aproveitável antes do vencimento.
 - [~] Gestão possui filtros, drill-down até venda e CSV auditado; faltam detalhe fiscal completo, PDF e XLSX.
 - [ ] Helpdesk do cliente e fluxos de aprovação.
+- [ ] Homologar a matriz de permissões com usuários reais de cada perfil e registrar os casos de aceite.
 
 ### Fase 7 — saneador fiscal MVP do Distrito Federal
 
-- [ ] Catálogo oficial versionado para higiene, maquiagem e medicamentos.
+- [~] Importador e governança do catálogo oficial estão prontos; falta carregar e homologar o conteúdo integral para higiene, maquiagem e medicamentos.
 - [x] Estrutura, API e cruzamento da matriz DF por origem/destino, regime, NCM, CEST, operação e vigência.
 - [ ] Popular e homologar o conteúdo legal efetivo da matriz do DF.
 - [ ] Casos de ST, monofásico e IBS/CBS homologados com evidências.
-- [ ] Regra de bloqueio e simulação antes da alteração em massa.
+- [x] Regra de bloqueio e simulação antes da alteração em massa.
 
 ### Fase 8 — DF-e, manifestação e saneamento de entrada
 
@@ -612,6 +630,8 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 - [ ] Piloto controlado, contrato, onboarding e suporte com SLA.
 - [ ] Rollout gradual por cliente e feature flags.
 - [ ] Expansão fiscal estado a estado, sempre com homologação.
+- [~] Painel Prime preservado como demonstração futura, desligado por padrão por `PRIME_ENABLED`/`NEXT_PUBLIC_PRIME_ENABLED`; a expansão funcional permanece fora do escopo atual.
+- [ ] Ranking comercial neutro e auditável, sem fornecedor fixo ou preferência oculta por laboratório.
 
 ## Critério para declarar o SaaS pronto para o primeiro cliente
 

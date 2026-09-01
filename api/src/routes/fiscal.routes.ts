@@ -7,6 +7,7 @@ import {
   requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 import {
   decideAuditableFiscalSuggestion,
   fiscalAssistantMetrics,
@@ -58,19 +59,28 @@ const evidenceSchema = z.object({
 const decisionSchema = z.object({
   decisao: z.enum(["APPROVED", "REJECTED"]),
   observacoes: z.string().max(20000).nullable().default(null),
+  correcao: z.object({
+    ncm: z.string().regex(/^\d{8}$/).optional(),
+    cest: z.string().regex(/^\d{7}$/).nullable().optional(),
+    categoria_id: z.string().uuid().optional(),
+  }).nullable().optional(),
 });
 
 export async function fiscalRoutes(app: FastifyInstance) {
-  const guards = [authenticate, tenantContext];
+  const guards = [
+    authenticate,
+    tenantContext,
+    requireTenantRoles(tenantRolesAtLeast("FISCAL", "VIEW")),
+  ];
   const reviewGuards = [
     authenticate,
     tenantContext,
-    requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"]),
+    requireTenantRoles(tenantRolesAtLeast("FISCAL", "APPROVE")),
   ];
   const requestGuards = [
     authenticate,
     tenantContext,
-    requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"]),
+    requireTenantRoles(tenantRolesAtLeast("FISCAL", "OPERATE")),
   ];
 
   app.get("/analises", { preHandler: guards }, async (request) =>
@@ -157,6 +167,7 @@ export async function fiscalRoutes(app: FastifyInstance) {
         userId: request.user.sub,
         decision: parsed.data.decisao,
         notes: parsed.data.observacoes,
+        correctedClassification: parsed.data.correcao,
       }));
     },
   );

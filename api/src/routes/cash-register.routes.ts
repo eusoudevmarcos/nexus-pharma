@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireTenantRoles, tenantContext } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 import { addCashMovement, closeCashSession, getCashSession, openCashSession, reviewCashReconciliation } from "../services/cash-register.service.js";
 import { discountLimitForRole } from "../services/processar-venda.service.js";
 
@@ -17,9 +18,9 @@ const declaredSchema = z.object({
 });
 
 export async function cashRegisterRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
-  const operate = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"] )];
-  const manage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"] )];
+  const read = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("POS", "VIEW"))];
+  const operate = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("POS", "OPERATE"))];
+  const manage = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("POS", "ADMIN"))];
 
   app.get("/politica-desconto", { preHandler: read }, async (request) => {
     const company = await prisma.company.findUniqueOrThrow({ where: { id: request.tenant!.companyId }, select: { settings: true } });

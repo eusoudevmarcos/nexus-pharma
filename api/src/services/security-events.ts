@@ -11,6 +11,12 @@ export const securityActions = [
   "AUTH_SESSION_REVOKED",
   "AUTH_SESSION_LIMIT_REVOKED",
   "AUTH_TENANT_ACCESS_DENIED",
+  "AUTH_MFA_CHALLENGE_CREATED",
+  "AUTH_MFA_SUCCEEDED",
+  "AUTH_MFA_FAILED",
+  "AUTH_MFA_ENROLLED",
+  "AUTH_MFA_DISABLED",
+  "AUTH_MFA_STEP_UP",
 ] as const;
 
 export function identityFingerprint(value: string) {

@@ -21,8 +21,8 @@ const discrepancySchema = z.object({ decisao: z.enum(["ACCEPTED_SUGGESTION", "KE
 const manifestationSchema = z.object({ tipo: z.enum(["SCIENCE", "CONFIRMATION", "UNKNOWN_OPERATION", "OPERATION_NOT_PERFORMED"]), justificativa: z.string().max(1000).nullable().default(null), transmitir: z.boolean().default(false) });
 
 export async function dfeRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
-  const write = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"] )];
+  const read = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "VIEWER"] )];
+  const write = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST"] )];
   const admin = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN"] )];
 
   app.get("/certificados", { preHandler: admin }, async (request) => prisma.dfeCertificate.findMany({

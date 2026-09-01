@@ -45,12 +45,12 @@ const alertUpdateSchema = z.object({ status: z.enum(["ACKNOWLEDGED", "RESOLVED",
 export async function operationsRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string } }>(
     "/alertas/:id",
-    { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST", "OPERATOR"])] },
+    { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST"])] },
     async (request, reply) => {
       const id = z.string().uuid().safeParse(request.params.id);
       const parsed = alertUpdateSchema.safeParse(request.body);
       if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALERTA_INVALIDO" });
-      if (request.user.systemRole === "CUSTOMER" && request.tenant!.role === "OPERATOR" && parsed.data.status !== "ACKNOWLEDGED") {
+      if (request.user.systemRole === "CUSTOMER" && request.tenant!.role === "BUYER" && parsed.data.status !== "ACKNOWLEDGED") {
         return reply.status(403).send({ erro: "ACAO_DE_ALERTA_NAO_PERMITIDA" });
       }
       const alert = await prisma.businessAlert.findFirst({ where: { id: id.data, companyId: request.tenant!.companyId } });

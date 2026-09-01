@@ -98,6 +98,23 @@ for (const plan of plans) {
   });
 }
 
+await prisma.primeOrganization.upsert({
+  where: { code: "NEXUS_PRIME" },
+  update: { tradeName: "Nexus Prime", status: "ACTIVE" },
+  create: {
+    code: "NEXUS_PRIME",
+    legalName: "Nexus Prime — Rede de Abastecimento",
+    tradeName: "Nexus Prime",
+    kind: "PLATFORM",
+    status: "ACTIVE",
+    logisticsWindowDays: 3,
+    targetCoverageDays: 30,
+    lowCoverageDays: 12,
+    expiryWindowDays: 90,
+    highDemandGrowthPercent: 0.2,
+  },
+});
+
 const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
 const adminPassword = process.env.SEED_ADMIN_PASSWORD;
 if (adminEmail && adminPassword) {

@@ -4,7 +4,7 @@ API multiempresa em Fastify + TypeScript, com PostgreSQL e Prisma.
 
 ## Preparação local
 
-1. Copie `.env.example` para `.env` e preencha `DATABASE_URL` e `JWT_SECRET`.
+1. Copie `.env.example` para `.env` e preencha `DATABASE_URL`, `JWT_SECRET` e `MFA_ENCRYPTION_KEY`.
 2. Execute `npm install`.
 3. Crie o banco local e rode `npm run prisma:migrate:deploy`.
 4. Opcionalmente configure `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` e rode `npm run prisma:seed`.
@@ -35,6 +35,9 @@ Rotas principais:
 - `GET /health/live`
 - `GET /health/ready`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/mfa/login`
+- `GET /api/v1/auth/mfa/status`
+- `POST /api/v1/auth/mfa/{enroll,activate,step-up,disable}`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/planos`
 - `GET/POST/PUT /api/v1/cadastros/categorias`
@@ -100,6 +103,11 @@ Rotas principais:
 - `GET/POST /api/v1/desenvolvimento/releases`
 - `POST /api/v1/webhooks/billing/:provider`
 - `GET /api/v1/operations/metrics`
+- `GET /api/v1/prime/contexto`
+- `GET /api/v1/prime/dashboard`
+- `POST /api/v1/prime/sincronizar`
+- `PUT /api/v1/prime/configuracoes`
+- `PATCH /api/v1/prime/oportunidades/:id`
 
 O processamento da venda é idempotente, consome lotes por vencimento, registra o retrato fiscal aplicado, atualiza a provisão mensal e cria alertas de reposição. Convites de acesso usam token único armazenado como hash, expiram em 72 horas e toda mudança de perfil é auditada. O reenvio rotaciona o token e invalida o link anterior. As sugestões tributárias continuam sujeitas a revisão humana e homologação profissional.
 

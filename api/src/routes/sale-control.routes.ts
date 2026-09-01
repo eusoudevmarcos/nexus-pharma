@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireTenantRoles, tenantContext } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const controlPolicySchema = z.object({
@@ -31,7 +32,7 @@ const credentialSchema = z.object({
 }).refine((data) => !data.vigencia_fim || data.vigencia_fim >= data.vigencia_inicio, { message: "vigência final inválida", path: ["vigencia_fim"] });
 
 export async function saleControlRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
+  const read = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("POS", "OPERATE"))];
   const manage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"] )];
   const fiscalManage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"] )];
 

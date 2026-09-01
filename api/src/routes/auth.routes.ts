@@ -6,6 +6,8 @@ import { config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate } from "../security/auth.js";
 import { identityFingerprint, recordSecurityEvent } from "../services/security-events.js";
+import { establishAuthenticatedSession } from "../services/auth-session.service.js";
+import { createMfaLoginChallenge } from "../services/mfa.service.js";
 
 const loginSchema = z.object({
   email: z
@@ -40,6 +42,7 @@ export async function authRoutes(app: FastifyInstance) {
               company: { select: { id: true, tradeName: true, status: true } },
             },
           },
+          mfaMethod: { select: { status: true } },
         },
       });
       const passwordMatches = await compare(parsed.data.password, user?.passwordHash ?? dummyPasswordHash);
@@ -48,34 +51,18 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.status(401).send({ erro: "CREDENCIAIS_INVALIDAS" });
       }
 
-      const refreshToken = newRefreshToken();
-      const session = await prisma.$transaction(async (tx) => {
-        await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-        const created = await tx.authSession.create({ data: { userId: user.id, refreshTokenHash: tokenHash(refreshToken), userAgent: request.headers["user-agent"]?.slice(0, 500), ipAddress: request.ip, expiresAt: refreshExpiry() } });
-        const excess = await tx.authSession.findMany({ where: { userId: user.id, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" }, skip: config.MAX_ACTIVE_SESSIONS, select: { id: true } });
-        if (excess.length) await tx.authSession.updateMany({ where: { id: { in: excess.map((item) => item.id) } }, data: { revokedAt: new Date(), revokedReason: "SESSION_LIMIT" } });
-        return { created, revokedIds: excess.map((item) => item.id) };
-      });
-      for (const revokedId of session.revokedIds) await recordSecurityEvent({ action: "AUTH_SESSION_LIMIT_REVOKED", userId: user.id, sessionId: revokedId, requestId: request.id, ipAddress: request.ip }).catch(() => undefined);
-      await recordSecurityEvent({ action: "AUTH_LOGIN_SUCCEEDED", userId: user.id, sessionId: session.created.id, requestId: request.id, ipAddress: request.ip, metadata: { userAgent: request.headers["user-agent"]?.slice(0, 250) } }).catch(() => undefined);
-      const token = await reply.jwtSign({ sub: user.id, sid: session.created.id, email: user.email, systemRole: user.systemRole });
-      return {
-        access_token: token,
-        refresh_token: refreshToken,
-        token_type: "Bearer",
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          system_role: user.systemRole,
-        },
-        companies: user.memberships.map((membership) => ({
-          id: membership.company.id,
-          name: membership.company.tradeName,
-          status: membership.company.status,
-          role: membership.role,
-        })),
-      };
+      if (user.mfaMethod?.status === "ACTIVE") {
+        const challenge = await createMfaLoginChallenge(user.id, request.ip, request.headers["user-agent"]);
+        await recordSecurityEvent({ action: "AUTH_MFA_CHALLENGE_CREATED", userId: user.id, requestId: request.id, ipAddress: request.ip }).catch(() => undefined);
+        return reply.status(202).send({ mfa_required: true, mfa_challenge: challenge.token, expires_in: challenge.expiresIn });
+      }
+
+      const established = await establishAuthenticatedSession({ request, reply, user, mfaVerified: false });
+      for (const revokedId of established.session.revokedIds) await recordSecurityEvent({ action: "AUTH_SESSION_LIMIT_REVOKED", userId: user.id, sessionId: revokedId, requestId: request.id, ipAddress: request.ip }).catch(() => undefined);
+      await recordSecurityEvent({ action: "AUTH_LOGIN_SUCCEEDED", userId: user.id, sessionId: established.session.created.id, requestId: request.id, ipAddress: request.ip, metadata: { userAgent: request.headers["user-agent"]?.slice(0, 250), assuranceLevel: 1 } }).catch(() => undefined);
+      const { session: _session, ...response } = established;
+      void _session;
+      return response;
     },
   );
 
@@ -165,6 +152,10 @@ export async function authRoutes(app: FastifyInstance) {
             role: true,
             company: { select: { id: true, tradeName: true, status: true } },
           },
+        },
+        primeMemberships: {
+          where: { active: true },
+          select: { role: true, organization: { select: { id: true, code: true, tradeName: true, kind: true, status: true } } },
         },
       },
     });

@@ -54,7 +54,7 @@ function ReceivingItem({ receivingId, item, source, products, onSaved }: { recei
 
 export function DfeCenter({ initialDocuments, products, role }: { initialDocuments: DfeDocumentSummary[]; products: ProductOption[]; role: string }) {
   const [documents, setDocuments] = useState(initialDocuments); const [selected, setSelected] = useState<Detail | null>(null); const [environment, setEnvironment] = useState("HOMOLOGATION"); const [busy, setBusy] = useState(""); const [message, setMessage] = useState(""); const [error, setError] = useState("");
-  const canWrite = role !== "VIEWER"; const canConfigure = ["OWNER", "ADMIN"].includes(role);
+  const canWrite = ["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST"].includes(role); const canConfigure = ["OWNER", "ADMIN"].includes(role);
   const counts = useMemo(() => ({ pending: documents.filter((item) => !["ACCEPTED", "REJECTED"].includes(item.status)).length, conference: documents.filter((item) => item.status === "CONFERENCING").length, discrepancies: documents.reduce((sum, item) => sum + item._count.discrepancies, 0), completed: documents.filter((item) => item.status === "ACCEPTED").length }), [documents]);
   async function refreshDocuments() { const entries = await api("documentos?limite=100") as unknown as DfeDocumentSummary[]; setDocuments(entries); }
   async function open(id: string) { setBusy(id); setError(""); try { setSelected(await api(`documentos/${id}`) as unknown as Detail); } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao abrir NF-e."); } finally { setBusy(""); } }

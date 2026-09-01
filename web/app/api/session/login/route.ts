@@ -8,6 +8,9 @@ type LoginResponse = {
   user?: unknown;
   companies?: unknown;
   erro?: string;
+  mfa_required?: boolean;
+  mfa_challenge?: string;
+  expires_in?: number;
 };
 
 export async function POST(request: Request) {
@@ -23,6 +26,9 @@ export async function POST(request: Request) {
 
   if (!upstream) return NextResponse.json({ message: "A API está indisponível no momento." }, { status: 503 });
   const body = await upstream.json().catch(() => ({})) as LoginResponse;
+  if (upstream.status === 202 && body.mfa_required && body.mfa_challenge) {
+    return NextResponse.json({ mfaRequired: true, challenge: body.mfa_challenge, expiresIn: body.expires_in }, { status: 202 });
+  }
   if (!upstream.ok || !body.access_token || !body.refresh_token) {
     return NextResponse.json({ message: body.erro === "CREDENCIAIS_INVALIDAS" ? "E-mail ou senha inválidos." : "Não foi possível entrar." }, { status: upstream.status });
   }

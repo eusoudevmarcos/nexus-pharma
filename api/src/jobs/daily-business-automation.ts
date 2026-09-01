@@ -1,7 +1,9 @@
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
+import { config } from "../config.js";
 import { recordOperationalIncident } from "../services/observability.js";
 import { releaseExpiredReservations } from "../services/inventory-workflow.service.js";
+import { synchronizePrimeOpportunities } from "../services/prime.service.js";
 
 const DAY = 86_400_000;
 const money = (value: unknown) => Number(value ?? 0);
@@ -50,7 +52,7 @@ export async function runDailyBusinessAutomation(referenceDate = new Date()) {
     ? await prisma.backgroundJobRun.update({ where: { id: previous.id }, data: { status: "RUNNING", attempts: { increment: 1 }, error: null, startedAt: new Date(), finishedAt: null } })
     : await prisma.backgroundJobRun.create({ data: { jobName: "DAILY_BUSINESS_AUTOMATION", idempotencyKey } });
 
-  const counters = { companies: 0, reorder: 0, expiry: 0, billing: 0, reservationsReleased: 0, resolved: 0 };
+  const counters = { companies: 0, reorder: 0, expiry: 0, billing: 0, reservationsReleased: 0, resolved: 0, primeOrganizations: 0, primeOpportunities: 0 };
   try {
     const companies = await prisma.company.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
     const companyIds = companies.map((company) => company.id);
@@ -156,6 +158,14 @@ export async function runDailyBusinessAutomation(referenceDate = new Date()) {
     });
     counters.resolved = resolved.count;
     await prisma.reorderAlert.updateMany({ where: { status: { in: ["OPEN", "ACKNOWLEDGED"] }, productId: { notIn: activeReorderProducts } }, data: { status: "RESOLVED", resolvedAt: new Date() } });
+    if (config.PRIME_ENABLED) {
+      const primeOrganizations = await prisma.primeOrganization.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
+      for (const organization of primeOrganizations) {
+        const prime = await synchronizePrimeOpportunities(organization.id);
+        counters.primeOrganizations += 1;
+        counters.primeOpportunities += prime.detected;
+      }
+    }
     const completed = await prisma.backgroundJobRun.update({ where: { id: run.id }, data: { status: "COMPLETED", counters: json(counters), result: json({ referenceDate: referenceDate.toISOString() }), finishedAt: new Date() } });
     return { duplicate: false, run: completed, counters };
   } catch (error) {

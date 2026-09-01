@@ -3,7 +3,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
-import { authenticate, requireSystemRoles } from "../security/auth.js";
+import { authenticate, requireRecentMfa, requireSystemRoles } from "../security/auth.js";
 import { runtimeSnapshot } from "../services/observability.js";
 import { closeMonthlyInvoice, ensureCustomerBillingStructure, normalizeBillingPeriod } from "../services/monthly-billing.js";
 import { securityActions } from "../services/security-events.js";
@@ -56,26 +56,30 @@ export async function internalRoutes(app: FastifyInstance) {
       const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const [sessions, activeSessions, failedLogins, refreshReuse, revokedSessions, events] = await Promise.all([
-        prisma.authSession.findMany({ select: { id: true, userId: true, userAgent: true, ipAddress: true, expiresAt: true, lastSeenAt: true, rotatedAt: true, revokedAt: true, revokedReason: true, createdAt: true, user: { select: { name: true, email: true, systemRole: true } } }, orderBy: { lastSeenAt: "desc" }, take: 80 }),
+      const privilegedWhere = { status: "ACTIVE" as const, OR: [{ systemRole: { not: "CUSTOMER" as const } }, { memberships: { some: { active: true, role: { in: ["OWNER" as const, "ADMIN" as const] } } } }] };
+      const [sessions, activeSessions, failedLogins, refreshReuse, revokedSessions, privilegedUsers, privilegedMfa, mfaFailures, events] = await Promise.all([
+        prisma.authSession.findMany({ select: { id: true, userId: true, userAgent: true, ipAddress: true, expiresAt: true, lastSeenAt: true, rotatedAt: true, revokedAt: true, revokedReason: true, createdAt: true, assuranceLevel: true, mfaVerifiedAt: true, user: { select: { name: true, email: true, systemRole: true } } }, orderBy: { lastSeenAt: "desc" }, take: 80 }),
         prisma.authSession.count({ where: { revokedAt: null, expiresAt: { gt: now } } }),
         prisma.auditLog.count({ where: { action: "AUTH_LOGIN_FAILED", createdAt: { gte: last24Hours } } }),
         prisma.auditLog.count({ where: { action: "AUTH_REFRESH_REUSE_DETECTED", createdAt: { gte: last30Days } } }),
         prisma.authSession.count({ where: { revokedAt: { gte: last7Days } } }),
+        prisma.user.count({ where: privilegedWhere }),
+        prisma.user.count({ where: { ...privilegedWhere, mfaMethod: { status: "ACTIVE" } } }),
+        prisma.auditLog.count({ where: { action: "AUTH_MFA_FAILED", createdAt: { gte: last24Hours } } }),
         prisma.auditLog.findMany({ where: { action: { in: [...securityActions] } }, select: { id: true, action: true, entityId: true, requestId: true, ipAddress: true, metadata: true, createdAt: true, user: { select: { name: true, email: true } }, company: { select: { tradeName: true } } }, orderBy: { createdAt: "desc" }, take: 100 }),
       ]);
       return {
         generatedAt: now,
-        indicators: { activeSessions, failedLogins, refreshReuse, revokedSessions },
+        indicators: { activeSessions, failedLogins, refreshReuse, revokedSessions, privilegedUsers, privilegedMfa, mfaCoverage: privilegedUsers ? Math.round((privilegedMfa / privilegedUsers) * 100) : 100, mfaFailures },
         sessions: sessions.map((session) => ({ ...session, status: session.revokedAt ? "REVOKED" : session.expiresAt <= now ? "EXPIRED" : "ACTIVE" })),
-        events: events.map((event) => ({ ...event, severity: event.action === "AUTH_REFRESH_REUSE_DETECTED" ? "CRITICAL" : ["AUTH_LOGIN_FAILED", "AUTH_REFRESH_FAILED", "AUTH_TENANT_ACCESS_DENIED"].includes(event.action) ? "WARNING" : "INFO" })),
+        events: events.map((event) => ({ ...event, severity: event.action === "AUTH_REFRESH_REUSE_DETECTED" ? "CRITICAL" : ["AUTH_LOGIN_FAILED", "AUTH_REFRESH_FAILED", "AUTH_TENANT_ACCESS_DENIED", "AUTH_MFA_FAILED"].includes(event.action) ? "WARNING" : "INFO" })),
       };
     },
   );
 
   app.patch<{ Params: { id: string } }>(
     "/seguranca/sessoes/:id",
-    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"]), requireRecentMfa()] },
     async (request, reply) => {
       const id = z.string().uuid().safeParse(request.params.id);
       const parsed = sessionRevokeSchema.safeParse(request.body);

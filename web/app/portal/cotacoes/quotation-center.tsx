@@ -16,7 +16,7 @@ const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "
 const quantity = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 });
 const date = (value: string) => new Date(value).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 const futureDate = (days: number) => { const result = new Date(); result.setUTCDate(result.getUTCDate() + days); return result.toISOString().slice(0, 10); };
-const canManage = (role: string) => ["OWNER", "ADMIN", "MANAGER"].includes(role);
+const canManage = (role: string) => ["OWNER", "ADMIN", "MANAGER", "BUYER"].includes(role);
 
 async function requestJson(path: string, init?: RequestInit) {
   const response = await fetch(`/api/portal/quotations/${path}`, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });

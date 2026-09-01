@@ -4,11 +4,11 @@ import { authenticate, requireTenantRoles, tenantContext } from "../security/aut
 import { awardSupplierProposal, cancelPurchaseQuote, createPurchaseQuote, getQuotationDashboard, inviteSupplier, openPurchaseQuote, saveSupplierProposal } from "../services/quotation.service.js";
 
 const uuid = z.string().uuid();
-const manage = ["OWNER", "ADMIN", "MANAGER"];
+const manage = ["OWNER", "ADMIN", "MANAGER", "BUYER"];
 const amount = z.number().min(0).max(100_000_000);
 
 export async function quotationRoutes(app: FastifyInstance) {
-  app.get("/painel", { preHandler: [authenticate, tenantContext, requireTenantRoles([...manage, "FINANCE", "OPERATOR", "VIEWER"])] }, async (request) => getQuotationDashboard(request.tenant!.companyId));
+  app.get("/painel", { preHandler: [authenticate, tenantContext, requireTenantRoles([...manage, "FINANCE", "VIEWER"])] }, async (request) => getQuotationDashboard(request.tenant!.companyId));
 
   app.post("/cotacoes", { preHandler: [authenticate, tenantContext, requireTenantRoles(manage)] }, async (request, reply) => {
     const parsed = z.object({ loja_id: uuid, prazo_resposta: z.coerce.date().nullable().optional(), observacao: z.string().trim().max(1000).nullable().optional(), itens: z.array(z.object({ produto_id: uuid, quantidade: z.number().positive().max(10_000_000) })).min(1).max(300) }).safeParse(request.body);

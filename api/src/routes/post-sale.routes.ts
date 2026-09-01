@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireTenantRoles, tenantContext } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 import { getPostSaleDetail, reverseSale } from "../services/post-sale.service.js";
 
 const itemSchema = z.object({
@@ -28,8 +29,8 @@ const reversalSchema = z.discriminatedUnion("tipo", [
 ]);
 
 export async function postSaleRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
-  const operate = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"])];
+  const read = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("POS", "VIEW"))];
+  const operate = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("POS", "OPERATE"))];
 
   app.get("/vendas", { preHandler: read }, async (request) => {
     const parsed = z.object({ limite: z.coerce.number().int().min(1).max(200).default(50) }).safeParse(request.query);

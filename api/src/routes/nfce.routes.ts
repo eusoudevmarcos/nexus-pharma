@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../infra/prisma.js";
-import { authenticate, requireSystemRoles, requireTenantRoles, tenantContext } from "../security/auth.js";
+import { authenticate, requireRecentMfa, requireSystemRoles, requireTenantRoles, tenantContext } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 import { blockNfceTransmission, nfcePublicDocument, prepareNfceDocument, type NfceValidationIssue } from "../services/nfce.service.js";
 import { activateOfficialCatalog, catalogReleaseDiff, importOfficialCatalog, listOfficialCatalogReleases, nfceReadiness, publicNfceConfiguration, saveNfceConfiguration } from "../services/nfce-governance.service.js";
 
@@ -23,7 +24,11 @@ const configurationSchema = z.object({
   url_consulta: nullableHttpsUrl, versao_schema_oficial: z.string().trim().max(40).nullable().optional(), ativa: z.boolean().default(true),
 });
 const catalogImportSchema = z.object({
-  catalogo: z.enum(["CCLASS_TRIB", "ALIQUOTAS_CBS", "MEIOS_PAGAMENTO", "NCM", "CEST", "PIS_COFINS", "SCHEMA_NFCE"]),
+  catalogo: z.enum([
+    "NCM", "CEST", "CST_ICMS", "CSOSN", "CST_PIS_COFINS", "PIS_COFINS", "NATUREZA_RECEITA",
+    "CCLASS_TRIB", "ALIQUOTAS_IBS_CBS", "ALIQUOTAS_CBS", "MEIOS_PAGAMENTO",
+    "DF_ICMS_ST", "DF_MVA", "DF_FCP", "DF_REDUCOES", "DF_BENEFICIOS", "SCHEMA_NFCE",
+  ]),
   versao_fonte: z.string().trim().min(1).max(120), url_fonte: z.string().url(), publicado_em: z.string().date().nullable().optional(),
   observacoes: z.string().trim().max(1000).nullable().optional(), itens: z.array(z.object({
     codigo: z.string().trim().min(1).max(20), codigo_pai: z.string().trim().max(40).nullable().optional(), descricao: z.string().trim().min(1).max(800),
@@ -33,8 +38,8 @@ const catalogImportSchema = z.object({
 });
 
 export async function nfceRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
-  const write = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"] )];
+  const read = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("NFCE", "VIEW"))];
+  const write = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("NFCE", "OPERATE"))];
 
   app.get("/prontidao", { preHandler: read }, async (request) => {
     const query = z.object({ ambiente: environmentSchema.default("HOMOLOGATION") }).safeParse(request.query);
@@ -82,10 +87,16 @@ export async function nfceRoutes(app: FastifyInstance) {
     return catalogReleaseDiff(id.data);
   });
 
-  app.post<{ Params: { id: string } }>("/catalogos-oficiais/:id/ativar", { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN"])] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>("/catalogos-oficiais/:id/ativar", { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN"]), requireRecentMfa()] }, async (request, reply) => {
     const id = z.string().uuid().safeParse(request.params.id);
     if (!id.success) return reply.status(400).send({ erro: "CATALOGO_VERSAO_INVALIDA" });
-    return activateOfficialCatalog({ releaseId: id.data, userId: request.user.sub, requestId: request.id });
+    try {
+      return await activateOfficialCatalog({ releaseId: id.data, userId: request.user.sub, requestId: request.id });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "CATALOGO_ATIVACAO_FALHOU";
+      if (code.startsWith("CATALOGO_")) return reply.status(409).send({ erro: code });
+      throw error;
+    }
   });
 
   app.get("/vendas-disponiveis", { preHandler: read }, async (request) => {

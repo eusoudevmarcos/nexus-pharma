@@ -6,10 +6,14 @@ import Fastify from "fastify";
 import { allowedOrigins, config } from "./config.js";
 import { prisma } from "./infra/prisma.js";
 import { authRoutes } from "./routes/auth.routes.js";
+import { accessControlRoutes } from "./routes/access-control.routes.js";
+import { accessReviewRoutes } from "./routes/access-review.routes.js";
+import { mfaRoutes } from "./routes/mfa.routes.js";
 import { billingWebhookRoutes } from "./routes/billing-webhooks.routes.js";
 import { cadastrosRoutes } from "./routes/cadastros.routes.js";
 import { fiscalRoutes } from "./routes/fiscal.routes.js";
 import { fiscalMatrixRoutes } from "./routes/fiscal-matrix.routes.js";
+import { fiscalCatalogGovernanceRoutes } from "./routes/fiscal-catalog-governance.routes.js";
 import { dfeRoutes } from "./routes/dfe.routes.js";
 import { taxTraceabilityRoutes } from "./routes/tax-traceability.routes.js";
 import { internalRoutes } from "./routes/internal.routes.js";
@@ -27,6 +31,9 @@ import { purchasingRoutes } from "./routes/purchasing.routes.js";
 import { accountsPayableRoutes } from "./routes/accounts-payable.routes.js";
 import { quotationRoutes } from "./routes/quotation.routes.js";
 import { offlinePosRoutes } from "./routes/offline-pos.routes.js";
+import { productImportRoutes } from "./routes/product-import.routes.js";
+import { fiscalPropagationRoutes } from "./routes/fiscal-propagation.routes.js";
+import { primeRoutes } from "./routes/prime.routes.js";
 import { observeResponse, recordOperationalIncident, runtimeSnapshot } from "./services/observability.js";
 
 const app = Fastify({
@@ -66,10 +73,19 @@ app.addHook("onSend", async (request, reply, payload) => {
 });
 
 await app.register(authRoutes, { prefix: "/api/v1/auth" });
+await app.register(mfaRoutes, { prefix: "/api/v1/auth/mfa" });
+await app.register(accessControlRoutes, { prefix: "/api/v1/acessos" });
+await app.register(accessReviewRoutes, { prefix: "/api/v1/usuarios/revisoes-acesso" });
 await app.register(billingWebhookRoutes, { prefix: "/api/v1/webhooks" });
 await app.register(cadastrosRoutes, { prefix: "/api/v1/cadastros" });
+await app.register(productImportRoutes, { prefix: "/api/v1/cadastros/importacoes" });
+await app.register(fiscalPropagationRoutes, { prefix: "/api/v1/cadastros/propagacoes-fiscais" });
+if (config.PRIME_ENABLED) {
+  await app.register(primeRoutes, { prefix: "/api/v1/prime" });
+}
 await app.register(fiscalRoutes, { prefix: "/api/v1/fiscal" });
 await app.register(fiscalMatrixRoutes, { prefix: "/api/v1/fiscal/matriz" });
+await app.register(fiscalCatalogGovernanceRoutes, { prefix: "/api/v1/interno/fiscal" });
 await app.register(dfeRoutes, { prefix: "/api/v1/fiscal/dfe" });
 await app.register(taxTraceabilityRoutes, {
   prefix: "/api/v1/fiscal/rastreabilidade",

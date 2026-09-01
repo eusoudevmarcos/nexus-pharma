@@ -6,6 +6,7 @@ import { prisma } from "../infra/prisma.js";
 import { deliverInvitationEmail } from "../services/email-delivery.js";
 import {
   authenticate,
+  requireRecentMfa,
   requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
@@ -14,6 +15,7 @@ const tenantRoles = [
   "OWNER",
   "ADMIN",
   "MANAGER",
+  "BUYER",
   "FINANCE",
   "PHARMACIST",
   "OPERATOR",
@@ -88,6 +90,7 @@ export async function usersRoutes(app: FastifyInstance) {
         authenticate,
         tenantContext,
         requireTenantRoles(["OWNER", "ADMIN"]),
+        requireRecentMfa(),
       ],
     },
     async (request, reply) => {
@@ -169,6 +172,7 @@ export async function usersRoutes(app: FastifyInstance) {
         authenticate,
         tenantContext,
         requireTenantRoles(["OWNER", "ADMIN"]),
+        requireRecentMfa(),
       ],
     },
     async (request, reply) => {
@@ -226,6 +230,7 @@ export async function usersRoutes(app: FastifyInstance) {
         authenticate,
         tenantContext,
         requireTenantRoles(["OWNER", "ADMIN"]),
+        requireRecentMfa(),
       ],
     },
     async (request, reply) => {
@@ -261,6 +266,7 @@ export async function usersRoutes(app: FastifyInstance) {
         authenticate,
         tenantContext,
         requireTenantRoles(["OWNER", "ADMIN"]),
+        requireRecentMfa(),
       ],
     },
     async (request, reply) => {

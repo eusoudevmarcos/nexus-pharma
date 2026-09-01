@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { portalFetch, requireCompany } from "@/lib/portal";
 import { currency, date, EmptyReport, MetricCard, number, percent } from "../report-ui";
 
-export const metadata: Metadata = { title: "Operação" };
+export const metadata: Metadata = { title: "Painel de controle" };
 
 type OperationReport = {
   indicators: { activeProducts: number; todaySalesCount: number; todayRevenue: number; openReorderAlerts: number; expiringLots: number; todayMovements: number };
@@ -11,10 +11,10 @@ type OperationReport = {
 };
 
 export default async function OperationPage() {
-  await requireCompany(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR", "VIEWER"]);
+  await requireCompany(["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "VIEWER"]);
   const report = await portalFetch<OperationReport>("/api/v1/relatorios/operacao");
   return <section className="report-page">
-    <div className="report-heading"><div><span>OPERAÇÃO DIÁRIA</span><h1>Estoque e vendas</h1><p>O que está faltando, o que vence primeiro e onde existe oportunidade de reposição.</p></div><div className="report-period">Hoje</div></div>
+    <div className="report-heading"><div><span>CONTROLE DA FARMÁCIA</span><h1>Estoque, validades e compras</h1><p>O que está faltando, o que vence primeiro e quanto pedir sem criar excesso ou perda.</p></div><div className="report-period">Atualizado hoje</div></div>
     {!report ? <EmptyReport text="A operação aparecerá aqui assim que a API e o banco estiverem conectados." /> : <>
       <div className="report-metrics">
         <MetricCard label="Vendas hoje" value={currency(report.indicators.todayRevenue)} note={`${report.indicators.todaySalesCount} transações`} />

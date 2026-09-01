@@ -50,6 +50,11 @@ const schema = z.object({
     z.string().min(32).optional(),
   ),
   DFE_CERTIFICATE_ENCRYPTION_KEY: optionalText,
+  MFA_ENCRYPTION_KEY: optionalText,
+  PRIME_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   DFE_ENABLE_SEFAZ_TRANSMISSION: z
     .enum(["true", "false"])
     .default("false")

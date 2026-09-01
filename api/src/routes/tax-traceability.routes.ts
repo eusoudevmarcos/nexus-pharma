@@ -7,6 +7,7 @@ import {
   requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 import { evaluateTaxExit } from "../services/tax-chain.service.js";
 
 const creditTreatments = [
@@ -109,11 +110,15 @@ const dateQuerySchema = z.object({
 });
 
 export async function taxTraceabilityRoutes(app: FastifyInstance) {
-  const readGuards = [authenticate, tenantContext];
+  const readGuards = [
+    authenticate,
+    tenantContext,
+    requireTenantRoles(tenantRolesAtLeast("FISCAL", "VIEW")),
+  ];
   const writeGuards = [
     authenticate,
     tenantContext,
-    requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"]),
+    requireTenantRoles(tenantRolesAtLeast("FISCAL", "OPERATE")),
   ];
 
   app.post("/entradas", { preHandler: writeGuards }, async (request, reply) => {

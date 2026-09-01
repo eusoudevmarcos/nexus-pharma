@@ -27,6 +27,7 @@ sem aprovar previamente os custos do banco e dos serviços pagos.
 8. Confirmar `DEPLOYMENT_STAGE=production`, `DATABASE_RECOVERY_MODE=PITR` e a janela realmente contratada. O valor inicial documentado é de três dias e precisa corresponder ao plano do workspace.
 9. Manter `ipAllowList: []` e usar somente a conexão interna entre API e banco.
 10. Configurar os endpoints oficiais DF-e e manter as chaves `DFE_ENABLE_SEFAZ_TRANSMISSION`, `NFCE_ENABLE_SEFAZ_TRANSMISSION` e `NFCE_ALLOW_PRODUCTION_PREPARATION` desligadas até a homologação fiscal.
+11. Manter `PRIME_ENABLED=false` enquanto o Painel Prime estiver reservado somente para demonstrações futuras.
 
 O deploy aplica migrations pendentes com `prisma migrate deploy`; não use `migrate dev` em produção.
 
@@ -37,9 +38,10 @@ O deploy aplica migrations pendentes com `prisma migrate deploy`; não use `migr
 3. Manter Framework Preset como `Next.js` e Output Directory no padrão do framework; não configurar `.next` manualmente.
 4. Não usar `/` como Root Directory: a raiz contém a demonstração Vinext e não gera o artefato `.next` esperado pela Vercel.
 5. Definir `NEXT_PUBLIC_SITE_URL` para o domínio HTTPS do portal.
-6. Publicar primeiro em Preview e validar login, seleção de empresa, troca de empresa e logout.
-7. Só então promover a mesma revisão para Production.
-8. Validar `GET /api/health`: a resposta só fica `200` quando o portal consegue alcançar `/health/ready` na API.
+6. Manter `NEXT_PUBLIC_PRIME_ENABLED=false` no produto principal; habilitar somente em uma demonstração controlada.
+7. Publicar primeiro em Preview e validar login, seleção de empresa, troca de empresa e logout.
+8. Só então promover a mesma revisão para Production.
+9. Validar `GET /api/health`: a resposta só fica `200` quando o portal consegue alcançar `/health/ready` na API.
 
 ## 3. Integrações
 

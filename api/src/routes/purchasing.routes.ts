@@ -22,9 +22,10 @@ const supplierBody = z.object({
 });
 
 export async function purchasingRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
-  const operate = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "OPERATOR"])];
+  const read = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "VIEWER"])];
+  const operate = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER"])];
   const manage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])];
+  const maintainSuppliers = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER"])];
 
   app.get("/painel", { preHandler: read }, async (request, reply) => {
     const parsed = z.object({ loja_id: uuid.optional(), dias_cobertura: z.coerce.number().int().min(7).max(90).optional() }).safeParse(request.query);
@@ -32,14 +33,14 @@ export async function purchasingRoutes(app: FastifyInstance) {
     return getPurchasingDashboard({ companyId: request.tenant!.companyId, storeId: parsed.data.loja_id, targetDays: parsed.data.dias_cobertura });
   });
 
-  app.post("/fornecedores", { preHandler: manage }, async (request, reply) => {
+  app.post("/fornecedores", { preHandler: maintainSuppliers }, async (request, reply) => {
     const parsed = supplierBody.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ erro: "FORNECEDOR_INVALIDO", detalhes: parsed.error.flatten() });
     const data = parsed.data;
     return reply.status(201).send(await saveSupplier({ companyId: request.tenant!.companyId, taxId: data.cnpj, legalName: data.razao_social, tradeName: data.nome_fantasia, email: data.email, phone: data.telefone, contactName: data.contato, leadTimeDays: data.prazo_entrega_dias, minimumOrderValue: data.pedido_minimo, paymentTerms: data.condicao_pagamento, status: data.status, notes: data.observacao, userId: request.user.sub, requestId: request.id }));
   });
 
-  app.put<{ Params: { id: string } }>("/fornecedores/:id", { preHandler: manage }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>("/fornecedores/:id", { preHandler: maintainSuppliers }, async (request, reply) => {
     const id = uuid.safeParse(request.params.id);
     const parsed = supplierBody.safeParse(request.body);
     if (!id.success || !parsed.success) return reply.status(400).send({ erro: "FORNECEDOR_INVALIDO" });
@@ -47,7 +48,7 @@ export async function purchasingRoutes(app: FastifyInstance) {
     return reply.send(await saveSupplier({ companyId: request.tenant!.companyId, supplierId: id.data, taxId: data.cnpj, legalName: data.razao_social, tradeName: data.nome_fantasia, email: data.email, phone: data.telefone, contactName: data.contato, leadTimeDays: data.prazo_entrega_dias, minimumOrderValue: data.pedido_minimo, paymentTerms: data.condicao_pagamento, status: data.status, notes: data.observacao, userId: request.user.sub, requestId: request.id }));
   });
 
-  app.put<{ Params: { id: string } }>("/fornecedores/:id/produtos", { preHandler: manage }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>("/fornecedores/:id/produtos", { preHandler: maintainSuppliers }, async (request, reply) => {
     const id = uuid.safeParse(request.params.id);
     const parsed = z.object({ produto_id: uuid, codigo_fornecedor: nullableText(80), ultimo_custo: z.number().min(0).max(100_000_000).nullable().optional(), quantidade_minima: z.number().positive().max(10_000_000).default(1), quantidade_embalagem: z.number().positive().max(10_000_000).default(1), preferencial: z.boolean().default(false) }).safeParse(request.body);
     if (!id.success || !parsed.success) return reply.status(400).send({ erro: "VINCULO_FORNECEDOR_PRODUTO_INVALIDO" });

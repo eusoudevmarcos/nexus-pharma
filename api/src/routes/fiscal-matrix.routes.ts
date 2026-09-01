@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireTenantRoles, tenantContext } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const matrixSchema = z.object({
@@ -37,8 +38,8 @@ const matrixSchema = z.object({
 });
 
 export async function fiscalMatrixRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
-  const write = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"] )];
+  const read = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("FISCAL", "VIEW"))];
+  const write = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("FISCAL", "OPERATE"))];
 
   app.get("/", { preHandler: read }, async (request) => {
     const query = z.object({ uf: z.string().regex(/^[A-Z]{2}$/).optional(), status: z.enum(["DRAFT", "UNDER_REVIEW", "APPROVED", "EXPIRED"]).optional() }).safeParse(request.query);

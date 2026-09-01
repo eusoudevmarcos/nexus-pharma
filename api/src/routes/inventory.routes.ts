@@ -21,8 +21,8 @@ const positiveQuantity = z.number().positive().max(10_000_000);
 const decision = z.object({ decisao: z.enum(["APPROVED", "REJECTED"]) });
 
 export async function inventoryRoutes(app: FastifyInstance) {
-  const read = [authenticate, tenantContext];
-  const operate = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"])];
+  const read = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "VIEWER"])];
+  const operate = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST"])];
   const manage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])];
 
   app.get("/painel", { preHandler: read }, async (request) => {

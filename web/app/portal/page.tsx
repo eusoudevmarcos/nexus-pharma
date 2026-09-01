@@ -11,6 +11,7 @@ export default async function PortalPage() {
   if (!token) redirect("/entrar");
   if (profile && internalRoles.includes(profile.systemRole)) redirect(defaultInternalArea(profile.systemRole));
   if (membership) redirect(defaultArea(membership.role));
+  if (profile?.primeMemberships?.length) redirect("/prime");
 
   return <section className="portal-section shell">
     <div className="portal-heading"><div><span className="eyebrow">PORTAL NEXUS</span><h1>{profile ? `Olá, ${profile.name.split(" ")[0]}.` : "Ambiente reservado."}</h1><p>{profile ? "Escolha a empresa que deseja administrar." : "Seu acesso foi reconhecido, mas a conexão com a API ainda não está disponível neste ambiente."}</p></div><LogoutButton /></div>

@@ -5,7 +5,7 @@ import { DfeCenter, type DfeDocumentSummary, type ProductOption } from "./dfe-ce
 export const metadata: Metadata = { title: "Recebimento NF-e" };
 
 export default async function ReceivingPage() {
-  const session = await requireCompany(["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR", "VIEWER"]);
+  const session = await requireCompany(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "VIEWER"]);
   const [documents, products] = await Promise.all([
     portalFetch<DfeDocumentSummary[]>("/api/v1/fiscal/dfe/documentos?limite=100"),
     portalFetch<ProductOption[]>("/api/v1/cadastros/produtos"),

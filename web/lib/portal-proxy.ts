@@ -111,6 +111,17 @@ export async function proxyPortal(path: string, init: RequestInit) {
       CAIXA_POSSUI_COMANDOS_OFFLINE_PENDENTES: "Sincronize as vendas offline antes de fechar o caixa.",
       ALTERACAO_DO_DISPOSITIVO_INVALIDA: "Informe uma situação válida e o motivo administrativo da alteração.",
       DISPOSITIVO_OFFLINE_NAO_ENCONTRADO: "O dispositivo informado não pertence à empresa ativa.",
+      REVISAO_DE_ACESSO_JA_ABERTA: "Já existe uma revisão de acessos em andamento.",
+      REVISAO_DE_ACESSO_SEM_MEMBROS: "Não há vínculos para revisar nesta empresa.",
+      ITEM_DE_REVISAO_NAO_ENCONTRADO: "Este item não pertence a uma revisão aberta.",
+      DECISAO_DE_REVISAO_EXIGE_JUSTIFICATIVA: "Explique o motivo da correção ou revogação com ao menos 10 caracteres.",
+      REVOGACAO_EXIGE_CONFIRMACAO_EXPLICITA: "Digite REVOGAR ACESSO para confirmar a suspensão imediata.",
+      AUTO_REVOGACAO_NAO_PERMITIDA: "Você não pode revogar o próprio acesso durante a revisão.",
+      REVISAO_EXIGE_SEGUNDO_USUARIO: "Outra pessoa com perfil de proprietário ou administrador deve concluir a revisão.",
+      REVISAO_POSSUI_ITENS_PENDENTES: "Analise todos os acessos antes de concluir a campanha.",
+      CONCLUSAO_EXIGE_CONFIRMACAO_EXPLICITA: "Digite CONCLUIR REVISAO para confirmar o fechamento.",
+      MFA_CONFIGURACAO_OBRIGATORIA: "Ative a autenticação em duas etapas em Minha segurança antes de executar esta ação.",
+      MFA_CONFIRMACAO_RECENTE_OBRIGATORIA: "Confirme sua identidade em Minha segurança para liberar ações críticas por dez minutos.",
     };
     const dfeFallback = body.erro && /^(DFE_|NFCE_|CAIXA_|SESSAO_CAIXA_|PDV_|SANGRIA_|DIVERGENCIA_CAIXA_|CONCILIACAO_|TOTAL_PAGAMENTOS_|ESTORNO_|DEVOLUCAO_|VENDA_|VENDEDOR_|ITEM_VENDA_|ITEM_ESTORNO_|QUANTIDADE_DEVOLUCAO_|QUANTIDADE_DE_DEVOLUCAO_|LOTE_DEVOLVIDO_|SALDO_PAGAMENTO_|SALDO_DA_LOJA_|SALDO_DISPONIVEL_|SALDO_CONSOLIDADO_|SALDO_FISCAL_|DINHEIRO_INSUFICIENTE_|ESTOQUE_ALTERADO_|DESCONTO_|DESCONTOS_|CANCELAMENTO_TOTAL_|RESERVA_|TRANSFERENCIA_|LOTE_DUPLICADO_|LOTE_VENCIDO_|INVENTARIO_|CONTAGEM_|APROVACAO_|RECEBIMENTO_|AJUSTE_|PERDA_|FORNECEDOR_|VINCULO_FORNECEDOR_|PEDIDO_|COTACAO_|PROPOSTA_|ADJUDICACAO_|TITULO_|PARCELA_|PAGAMENTO_|SOMA_DAS_PARCELAS_|CONFIGURACAO_DO_TITULO_|BAIXA_DE_PAGAMENTO_|ESTORNO_PAGAMENTO_|FILTROS_DE_CONTAS_|FILTROS_DE_COMPRA_|FECHAMENTO_GERENCIAL_|FILTROS_GERENCIAIS_|CREDENCIAL_FARMACEUTICA_|DOCUMENTO_DO_COMPRADOR_|USUARIO_NAO_E_FARMACEUTICO_|POLITICA_DE_CONTROLE_|CERTIFICADO_|TRANSMISSAO_SEFAZ_|CNPJ_|XML_|CONFERENCIA_|DIVERGENCIAS_|ITEM_|NFE_|SEFAZ_|ANALISE_|SUGESTAO_|REJEICAO_)/.test(body.erro)
       ? `Validação controlada: ${body.erro.toLowerCase().replaceAll("_", " ")}.`

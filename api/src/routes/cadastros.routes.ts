@@ -18,6 +18,7 @@ import {
   requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
+import { tenantRolesAtLeast } from "../security/access-control.js";
 import { incrementStoreBalance } from "../services/inventory-workflow.service.js";
 
 const regimes = ["SIMPLES_NACIONAL", "LUCRO_PRESUMIDO", "LUCRO_REAL"] as const;
@@ -156,7 +157,9 @@ const productSchema = z.object({
   ean: z.string().regex(/^[0-9]{8,14}$/),
   nome: z.string().min(2).max(180),
   principio_ativo: z.string().max(180).default(""),
+  composicao: z.string().max(1000).optional(),
   laboratorio: z.string().max(120).default(""),
+  registro_anvisa: z.string().trim().max(30).nullable().optional(),
   categoria_fiscal_id: z.string().uuid(),
   valor_entrada_unitario: z.number().min(0),
   preco_venda: z.number().min(0),
@@ -221,11 +224,15 @@ function mapRule(rule: z.infer<typeof fiscalRuleSchema>) {
 }
 
 export async function cadastrosRoutes(app: FastifyInstance) {
-  const tenantGuards = [authenticate, tenantContext];
+  const tenantGuards = [
+    authenticate,
+    tenantContext,
+    requireTenantRoles(tenantRolesAtLeast("PRODUCTS", "VIEW")),
+  ];
   const writeGuards = [
     authenticate,
     tenantContext,
-    requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"]),
+    requireTenantRoles(tenantRolesAtLeast("PRODUCTS", "OPERATE")),
   ];
 
   app.get("/catalogos", { preHandler: tenantGuards }, async () => ({
@@ -408,7 +415,9 @@ export async function cadastrosRoutes(app: FastifyInstance) {
           ean: parsed.data.ean,
           name: parsed.data.nome,
           activeIngredient: parsed.data.principio_ativo,
+          composition: parsed.data.composicao ?? "",
           laboratory: parsed.data.laboratorio,
+          anvisaRegistration: parsed.data.registro_anvisa ?? null,
           currentCost: parsed.data.valor_entrada_unitario,
           salePrice: parsed.data.preco_venda,
           stockQuantity:
@@ -521,7 +530,9 @@ export async function cadastrosRoutes(app: FastifyInstance) {
             ean: parsed.data.ean,
             name: parsed.data.nome,
             activeIngredient: parsed.data.principio_ativo,
+            composition: parsed.data.composicao ?? existing.composition,
             laboratory: parsed.data.laboratorio,
+            anvisaRegistration: parsed.data.registro_anvisa ?? existing.anvisaRegistration,
             currentCost: parsed.data.valor_entrada_unitario,
             salePrice: parsed.data.preco_venda,
             minimumStock: parsed.data.estoque_minimo_critico,

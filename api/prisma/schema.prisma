@@ -42,10 +42,30 @@ enum TenantRole {
   OWNER
   ADMIN
   MANAGER
+  BUYER
   FINANCE
   PHARMACIST
   OPERATOR
   VIEWER
+}
+
+enum AccessReviewStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum AccessReviewDecision {
+  PENDING
+  CONFIRMED
+  ADJUSTMENT_REQUIRED
+  REVOKED
+}
+
+enum MfaStatus {
+  PENDING
+  ACTIVE
+  DISABLED
 }
 
 enum TaxRegime {
@@ -558,6 +578,59 @@ enum SupplierStatus {
   BLOCKED
 }
 
+enum PrimeOrganizationKind {
+  PLATFORM
+  LABORATORY
+  DISTRIBUTOR
+  WHOLESALER
+}
+
+enum PrimeOrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum PrimeRole {
+  OWNER
+  ADMIN
+  MANAGER
+  SALES
+  LOGISTICS
+  ANALYST
+}
+
+enum PrimeConnectionStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum PrimeOpportunityType {
+  OUT_OF_STOCK
+  LOW_COVERAGE
+  EXPIRING
+  HIGH_DEMAND
+}
+
+enum PrimeOpportunityStatus {
+  NEW
+  ASSIGNED
+  CONTACTED
+  PROPOSAL_SENT
+  WON
+  DECLINED
+  DISMISSED
+  RESOLVED
+}
+
+enum PrimeOpportunityPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
 enum PurchaseOrderStatus {
   DRAFT
   APPROVED
@@ -637,79 +710,108 @@ enum ProductSalesStrategy {
   LAUNCH
 }
 
+enum BulkWorkflowStatus {
+  VALIDATED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  APPLIED
+  FAILED
+}
+
+enum ProductImportRowAction {
+  CREATE
+  UPDATE
+}
+
 model User {
-  id                       String                  @id @default(uuid()) @db.Uuid
-  email                    String                  @unique @db.VarChar(254)
-  passwordHash             String?                 @map("password_hash") @db.VarChar(255)
-  name                     String                  @db.VarChar(160)
-  systemRole               SystemRole              @default(CUSTOMER) @map("system_role")
-  status                   AccountStatus           @default(INVITED)
-  lastLoginAt              DateTime?               @map("last_login_at") @db.Timestamptz(3)
-  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  memberships              Membership[]
-  authSessions             AuthSession[]
-  oneTimeTokens            OneTimeToken[]
-  invitationsSent          Invitation[]            @relation("InvitationCreator")
-  ticketsCreated           SupportTicket[]         @relation("TicketCreator")
-  ticketsAssigned          SupportTicket[]         @relation("TicketAssignee")
-  ticketMessages           TicketMessage[]
-  releasesCreated          Release[]               @relation("ReleaseCreator")
-  releaseApprovals         ReleaseApproval[]
-  releasesEnabled          CustomerRelease[]       @relation("ReleaseEnabler")
-  apiCredentials           ApiCredential[]
-  analysesRequested        TaxAnalysis[]           @relation("AnalysisRequester")
-  analysesReviewed         TaxAnalysis[]           @relation("AnalysisReviewer")
-  auditLogs                AuditLog[]
-  incidentsResolved        OperationalIncident[]   @relation("IncidentResolver")
-  alertsAcknowledged       BusinessAlert[]         @relation("AlertAcknowledgedBy")
-  savingsVerified          MonthlySavingsLedger[]  @relation("SavingsVerifier")
-  privacyRequests          PrivacyRequest[]        @relation("PrivacyRequestSubject")
-  privacyRequestsMade      PrivacyRequest[]        @relation("PrivacyRequestCreator")
-  privacyRequestsHandled   PrivacyRequest[]        @relation("PrivacyRequestHandler")
-  recoveryDrills           RecoveryDrill[]         @relation("RecoveryDrillPerformer")
-  taxProvenancesApproved   TaxProvenance[]         @relation("TaxProvenanceApprover")
-  taxAssessmentsRequested  TaxExitAssessment[]     @relation("TaxAssessmentRequester")
-  dfeCertificatesInstalled DfeCertificate[]        @relation("DfeCertificateInstaller")
-  dfeReceivingsStarted     DfeReceiving[]          @relation("DfeReceivingStarter")
-  dfeReceivingsCompleted   DfeReceiving[]          @relation("DfeReceivingCompleter")
-  dfeManifestationsCreated DfeManifestation[]      @relation("DfeManifestationCreator")
-  nfceDocumentsCreated     NfceDocument[]          @relation("NfceDocumentCreator")
-  cashSessionsOpened       CashSession[]           @relation("CashSessionOpener")
-  cashSessionsClosed       CashSession[]           @relation("CashSessionCloser")
-  cashMovementsCreated     CashMovement[]          @relation("CashMovementCreator")
-  salePaymentsCreated      SalePayment[]           @relation("SalePaymentCreator")
-  reconciliationsReviewed  CashReconciliation[]    @relation("CashReconciliationReviewer")
-  saleReversalsCreated     SaleReversal[]          @relation("SaleReversalCreator")
-  salesAsSeller            Sale[]                  @relation("SaleSeller")
-  pharmacistCredentials    PharmacistCredential[]
-  controlledSalesCreated   ControlledSaleRecord[]  @relation("ControlledSaleCreator")
-  stockReservationsCreated StockReservation[]      @relation("StockReservationCreator")
-  stockTransfersCreated    StockTransfer[]         @relation("StockTransferCreator")
-  stockTransfersDispatched StockTransfer[]         @relation("StockTransferDispatcher")
-  stockTransfersReceived   StockTransfer[]         @relation("StockTransferReceiver")
-  inventoryCountsCreated   InventoryCount[]        @relation("InventoryCountCreator")
-  inventoryCountsSubmitted InventoryCount[]        @relation("InventoryCountSubmitter")
-  inventoryCountsApproved  InventoryCount[]        @relation("InventoryCountApprover")
-  stockAdjustmentsCreated  StockAdjustment[]       @relation("StockAdjustmentCreator")
-  stockAdjustmentsApproved StockAdjustment[]       @relation("StockAdjustmentApprover")
-  managerialPeriodsClosed  ManagerialPeriodClose[] @relation("ManagerialPeriodCloser")
-  purchaseOrdersCreated    PurchaseOrder[]         @relation("PurchaseOrderCreator")
-  purchaseOrdersApproved   PurchaseOrder[]         @relation("PurchaseOrderApprover")
-  purchaseReceiptsLinked   PurchaseOrderReceipt[]  @relation("PurchaseReceiptLinker")
-  accountsPayableCreated   AccountPayable[]        @relation("AccountPayableCreator")
-  accountsPayableApproved  AccountPayable[]        @relation("AccountPayableApprover")
-  payablePaymentsRecorded  PayablePayment[]        @relation("PayablePaymentRecorder")
-  payablePaymentsReversed  PayablePayment[]        @relation("PayablePaymentReverser")
-  purchaseQuotesCreated    PurchaseQuote[]         @relation("PurchaseQuoteCreator")
-  purchaseQuotesAwarded    PurchaseQuote[]         @relation("PurchaseQuoteAwarder")
-  supplierReturnsCreated   SupplierReturn[]        @relation("SupplierReturnCreator")
-  posDevicesRegistered     PosDevice[]             @relation("PosDeviceRegistrar")
-  offlineSnapshotsCreated  OfflinePosSnapshot[]    @relation("OfflineSnapshotCreator")
-  offlineCommandsSubmitted OfflinePosCommand[]     @relation("OfflineCommandSubmitter")
-  fiscalCatalogImports     FiscalCatalogRelease[]  @relation("FiscalCatalogReleaseImporter")
-  fiscalCatalogReviews     FiscalCatalogRelease[]  @relation("FiscalCatalogReleaseReviewer")
-  nfceConfigurations       NfceConfiguration[]     @relation("NfceConfigurationEditor")
+  id                         String                      @id @default(uuid()) @db.Uuid
+  email                      String                      @unique @db.VarChar(254)
+  passwordHash               String?                     @map("password_hash") @db.VarChar(255)
+  name                       String                      @db.VarChar(160)
+  systemRole                 SystemRole                  @default(CUSTOMER) @map("system_role")
+  status                     AccountStatus               @default(INVITED)
+  lastLoginAt                DateTime?                   @map("last_login_at") @db.Timestamptz(3)
+  createdAt                  DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships                Membership[]
+  authSessions               AuthSession[]
+  oneTimeTokens              OneTimeToken[]
+  invitationsSent            Invitation[]                @relation("InvitationCreator")
+  ticketsCreated             SupportTicket[]             @relation("TicketCreator")
+  ticketsAssigned            SupportTicket[]             @relation("TicketAssignee")
+  ticketMessages             TicketMessage[]
+  releasesCreated            Release[]                   @relation("ReleaseCreator")
+  releaseApprovals           ReleaseApproval[]
+  releasesEnabled            CustomerRelease[]           @relation("ReleaseEnabler")
+  apiCredentials             ApiCredential[]
+  analysesRequested          TaxAnalysis[]               @relation("AnalysisRequester")
+  analysesReviewed           TaxAnalysis[]               @relation("AnalysisReviewer")
+  auditLogs                  AuditLog[]
+  incidentsResolved          OperationalIncident[]       @relation("IncidentResolver")
+  alertsAcknowledged         BusinessAlert[]             @relation("AlertAcknowledgedBy")
+  savingsVerified            MonthlySavingsLedger[]      @relation("SavingsVerifier")
+  privacyRequests            PrivacyRequest[]            @relation("PrivacyRequestSubject")
+  privacyRequestsMade        PrivacyRequest[]            @relation("PrivacyRequestCreator")
+  privacyRequestsHandled     PrivacyRequest[]            @relation("PrivacyRequestHandler")
+  recoveryDrills             RecoveryDrill[]             @relation("RecoveryDrillPerformer")
+  taxProvenancesApproved     TaxProvenance[]             @relation("TaxProvenanceApprover")
+  taxAssessmentsRequested    TaxExitAssessment[]         @relation("TaxAssessmentRequester")
+  dfeCertificatesInstalled   DfeCertificate[]            @relation("DfeCertificateInstaller")
+  dfeReceivingsStarted       DfeReceiving[]              @relation("DfeReceivingStarter")
+  dfeReceivingsCompleted     DfeReceiving[]              @relation("DfeReceivingCompleter")
+  dfeManifestationsCreated   DfeManifestation[]          @relation("DfeManifestationCreator")
+  nfceDocumentsCreated       NfceDocument[]              @relation("NfceDocumentCreator")
+  cashSessionsOpened         CashSession[]               @relation("CashSessionOpener")
+  cashSessionsClosed         CashSession[]               @relation("CashSessionCloser")
+  cashMovementsCreated       CashMovement[]              @relation("CashMovementCreator")
+  salePaymentsCreated        SalePayment[]               @relation("SalePaymentCreator")
+  reconciliationsReviewed    CashReconciliation[]        @relation("CashReconciliationReviewer")
+  saleReversalsCreated       SaleReversal[]              @relation("SaleReversalCreator")
+  salesAsSeller              Sale[]                      @relation("SaleSeller")
+  pharmacistCredentials      PharmacistCredential[]
+  controlledSalesCreated     ControlledSaleRecord[]      @relation("ControlledSaleCreator")
+  stockReservationsCreated   StockReservation[]          @relation("StockReservationCreator")
+  stockTransfersCreated      StockTransfer[]             @relation("StockTransferCreator")
+  stockTransfersDispatched   StockTransfer[]             @relation("StockTransferDispatcher")
+  stockTransfersReceived     StockTransfer[]             @relation("StockTransferReceiver")
+  inventoryCountsCreated     InventoryCount[]            @relation("InventoryCountCreator")
+  inventoryCountsSubmitted   InventoryCount[]            @relation("InventoryCountSubmitter")
+  inventoryCountsApproved    InventoryCount[]            @relation("InventoryCountApprover")
+  stockAdjustmentsCreated    StockAdjustment[]           @relation("StockAdjustmentCreator")
+  stockAdjustmentsApproved   StockAdjustment[]           @relation("StockAdjustmentApprover")
+  managerialPeriodsClosed    ManagerialPeriodClose[]     @relation("ManagerialPeriodCloser")
+  purchaseOrdersCreated      PurchaseOrder[]             @relation("PurchaseOrderCreator")
+  purchaseOrdersApproved     PurchaseOrder[]             @relation("PurchaseOrderApprover")
+  purchaseReceiptsLinked     PurchaseOrderReceipt[]      @relation("PurchaseReceiptLinker")
+  accountsPayableCreated     AccountPayable[]            @relation("AccountPayableCreator")
+  accountsPayableApproved    AccountPayable[]            @relation("AccountPayableApprover")
+  payablePaymentsRecorded    PayablePayment[]            @relation("PayablePaymentRecorder")
+  payablePaymentsReversed    PayablePayment[]            @relation("PayablePaymentReverser")
+  purchaseQuotesCreated      PurchaseQuote[]             @relation("PurchaseQuoteCreator")
+  purchaseQuotesAwarded      PurchaseQuote[]             @relation("PurchaseQuoteAwarder")
+  supplierReturnsCreated     SupplierReturn[]            @relation("SupplierReturnCreator")
+  posDevicesRegistered       PosDevice[]                 @relation("PosDeviceRegistrar")
+  offlineSnapshotsCreated    OfflinePosSnapshot[]        @relation("OfflineSnapshotCreator")
+  offlineCommandsSubmitted   OfflinePosCommand[]         @relation("OfflineCommandSubmitter")
+  fiscalCatalogImports       FiscalCatalogRelease[]      @relation("FiscalCatalogReleaseImporter")
+  fiscalCatalogReviews       FiscalCatalogRelease[]      @relation("FiscalCatalogReleaseReviewer")
+  fiscalMatrixImports        FiscalMatrixRule[]          @relation("FiscalMatrixRuleImporter")
+  fiscalMatrixReviews        FiscalMatrixRule[]          @relation("FiscalMatrixRuleReviewer")
+  fiscalCorrectionReviews    FiscalCorrectionSignal[]    @relation("FiscalCorrectionReviewer")
+  nfceConfigurations         NfceConfiguration[]         @relation("NfceConfigurationEditor")
+  productImportsCreated      ProductImportBatch[]        @relation("ProductImportCreator")
+  productImportsReviewed     ProductImportBatch[]        @relation("ProductImportReviewer")
+  fiscalPropagationsCreated  FiscalPropagationProposal[] @relation("FiscalPropagationCreator")
+  fiscalPropagationsReviewed FiscalPropagationProposal[] @relation("FiscalPropagationReviewer")
+  accessReviewsCreated       AccessReviewCampaign[]      @relation("AccessReviewCreator")
+  accessReviewsCompleted     AccessReviewCampaign[]      @relation("AccessReviewCompleter")
+  accessReviewItemsReviewed  AccessReviewItem[]          @relation("AccessReviewItemReviewer")
+  mfaMethod                  UserMfaMethod?
+  mfaChallenges              AuthMfaChallenge[]
+  primeMemberships           PrimeMembership[]
+  primeOpportunitiesAssigned PrimeOpportunity[]          @relation("PrimeOpportunityAssignee")
+  primeOpportunityEvents     PrimeOpportunityEvent[]     @relation("PrimeOpportunityEventActor")
 
   @@map("users")
 }
@@ -727,12 +829,47 @@ model AuthSession {
   revokedAt                DateTime? @map("revoked_at") @db.Timestamptz(3)
   revokedReason            String?   @map("revoked_reason") @db.VarChar(80)
   createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  mfaVerifiedAt            DateTime? @map("mfa_verified_at") @db.Timestamptz(3)
+  assuranceLevel           Int       @default(1) @map("assurance_level")
   user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@index([previousRefreshTokenHash])
   @@index([revokedAt, expiresAt])
   @@map("auth_sessions")
+}
+
+model UserMfaMethod {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @unique @map("user_id") @db.Uuid
+  status             MfaStatus @default(PENDING)
+  encryptedSecret    String    @map("encrypted_secret") @db.Text
+  recoveryCodeHashes Json      @default("[]") @map("recovery_code_hashes")
+  lastUsedCounter    BigInt?   @map("last_used_counter")
+  verifiedAt         DateTime? @map("verified_at") @db.Timestamptz(3)
+  disabledAt         DateTime? @map("disabled_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, updatedAt])
+  @@map("user_mfa_methods")
+}
+
+model AuthMfaChallenge {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  ipAddress String?   @map("ip_address") @db.VarChar(64)
+  userAgent String?   @map("user_agent") @db.VarChar(500)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt, usedAt])
+  @@map("auth_mfa_challenges")
 }
 
 model OneTimeToken {
@@ -750,89 +887,143 @@ model OneTimeToken {
 }
 
 model Company {
-  id                     String                  @id @default(uuid()) @db.Uuid
-  cnpj                   String?                 @unique @db.Char(14)
-  legalName              String                  @map("legal_name") @db.VarChar(180)
-  tradeName              String                  @map("trade_name") @db.VarChar(180)
-  branchName             String                  @default("Matriz") @map("branch_name") @db.VarChar(120)
-  taxRegime              TaxRegime               @default(SIMPLES_NACIONAL) @map("tax_regime")
-  state                  String?                 @db.Char(2)
-  city                   String?                 @db.VarChar(120)
-  status                 CompanyStatus           @default(ONBOARDING)
-  onboardingStep         Int                     @default(1) @map("onboarding_step")
-  settings               Json                    @default("{}")
-  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  memberships            Membership[]
-  invitations            Invitation[]
-  subscriptions          Subscription[]
-  fiscalCategories       FiscalCategory[]
-  products               Product[]
-  stockMovements         StockMovement[]
-  sales                  Sale[]
-  monthlyProvisions      MonthlyProvision[]
-  reorderAlerts          ReorderAlert[]
-  taxAnalyses            TaxAnalysis[]
-  supportTickets         SupportTicket[]
-  customerReleases       CustomerRelease[]
-  apiCredentials         ApiCredential[]
-  auditLogs              AuditLog[]
-  emailDeliveries        EmailDelivery[]
-  billingEvents          BillingWebhookEvent[]
-  businessAlerts         BusinessAlert[]
-  stores                 Store[]
-  onboardings            CustomerOnboarding[]
-  savingsLedgers         MonthlySavingsLedger[]
-  privacyRequests        PrivacyRequest[]
-  taxProvenances         TaxProvenance[]
-  taxExitAssessments     TaxExitAssessment[]
-  fiscalMatrixRules      FiscalMatrixRule[]
-  dfeCertificates        DfeCertificate[]
-  dfeCursors             DfeDistributionCursor[]
-  dfeDocuments           DfeDocument[]
-  dfeReceivings          DfeReceiving[]
-  nfceDocuments          NfceDocument[]
-  nfceNumberSequences    NfceNumberSequence[]
-  cashSessions           CashSession[]
-  salePayments           SalePayment[]
-  saleReversals          SaleReversal[]
-  customers              Customer[]
-  pharmacistCredentials  PharmacistCredential[]
-  controlledSaleRecords  ControlledSaleRecord[]
-  storeStockBalances     StoreStockBalance[]
-  stockReservations      StockReservation[]
-  stockTransfers         StockTransfer[]
-  inventoryCounts        InventoryCount[]
-  stockAdjustments       StockAdjustment[]
-  managerialPeriodCloses ManagerialPeriodClose[]
-  suppliers              Supplier[]
-  purchaseOrders         PurchaseOrder[]
-  accountsPayable        AccountPayable[]
-  purchaseQuotes         PurchaseQuote[]
-  supplierReturns        SupplierReturn[]
-  posDevices             PosDevice[]
-  offlinePosSnapshots    OfflinePosSnapshot[]
-  offlinePosCommands     OfflinePosCommand[]
-  nfceConfigurations     NfceConfiguration[]
+  id                         String                      @id @default(uuid()) @db.Uuid
+  cnpj                       String?                     @unique @db.Char(14)
+  legalName                  String                      @map("legal_name") @db.VarChar(180)
+  tradeName                  String                      @map("trade_name") @db.VarChar(180)
+  branchName                 String                      @default("Matriz") @map("branch_name") @db.VarChar(120)
+  taxRegime                  TaxRegime                   @default(SIMPLES_NACIONAL) @map("tax_regime")
+  state                      String?                     @db.Char(2)
+  city                       String?                     @db.VarChar(120)
+  status                     CompanyStatus               @default(ONBOARDING)
+  onboardingStep             Int                         @default(1) @map("onboarding_step")
+  settings                   Json                        @default("{}")
+  createdAt                  DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships                Membership[]
+  invitations                Invitation[]
+  subscriptions              Subscription[]
+  fiscalCategories           FiscalCategory[]
+  products                   Product[]
+  stockMovements             StockMovement[]
+  sales                      Sale[]
+  monthlyProvisions          MonthlyProvision[]
+  reorderAlerts              ReorderAlert[]
+  taxAnalyses                TaxAnalysis[]
+  fiscalCorrectionSignals    FiscalCorrectionSignal[]
+  supportTickets             SupportTicket[]
+  customerReleases           CustomerRelease[]
+  apiCredentials             ApiCredential[]
+  auditLogs                  AuditLog[]
+  emailDeliveries            EmailDelivery[]
+  billingEvents              BillingWebhookEvent[]
+  businessAlerts             BusinessAlert[]
+  stores                     Store[]
+  onboardings                CustomerOnboarding[]
+  savingsLedgers             MonthlySavingsLedger[]
+  privacyRequests            PrivacyRequest[]
+  taxProvenances             TaxProvenance[]
+  taxExitAssessments         TaxExitAssessment[]
+  fiscalMatrixRules          FiscalMatrixRule[]
+  dfeCertificates            DfeCertificate[]
+  dfeCursors                 DfeDistributionCursor[]
+  dfeDocuments               DfeDocument[]
+  dfeReceivings              DfeReceiving[]
+  nfceDocuments              NfceDocument[]
+  nfceNumberSequences        NfceNumberSequence[]
+  cashSessions               CashSession[]
+  salePayments               SalePayment[]
+  saleReversals              SaleReversal[]
+  customers                  Customer[]
+  pharmacistCredentials      PharmacistCredential[]
+  controlledSaleRecords      ControlledSaleRecord[]
+  storeStockBalances         StoreStockBalance[]
+  stockReservations          StockReservation[]
+  stockTransfers             StockTransfer[]
+  inventoryCounts            InventoryCount[]
+  stockAdjustments           StockAdjustment[]
+  managerialPeriodCloses     ManagerialPeriodClose[]
+  suppliers                  Supplier[]
+  purchaseOrders             PurchaseOrder[]
+  accountsPayable            AccountPayable[]
+  purchaseQuotes             PurchaseQuote[]
+  supplierReturns            SupplierReturn[]
+  posDevices                 PosDevice[]
+  offlinePosSnapshots        OfflinePosSnapshot[]
+  offlinePosCommands         OfflinePosCommand[]
+  nfceConfigurations         NfceConfiguration[]
+  productImportBatches       ProductImportBatch[]
+  fiscalPropagationProposals FiscalPropagationProposal[]
+  accessReviewCampaigns      AccessReviewCampaign[]
+  primeConnections           PrimeConnection[]
+  primeOpportunities         PrimeOpportunity[]
 
   @@index([status])
   @@map("companies")
 }
 
 model Membership {
-  id        String     @id @default(uuid()) @db.Uuid
-  companyId String     @map("company_id") @db.Uuid
-  userId    String     @map("user_id") @db.Uuid
-  role      TenantRole @default(OPERATOR)
-  active    Boolean    @default(true)
-  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String             @id @default(uuid()) @db.Uuid
+  companyId         String             @map("company_id") @db.Uuid
+  userId            String             @map("user_id") @db.Uuid
+  role              TenantRole         @default(OPERATOR)
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessReviewItems AccessReviewItem[]
 
   @@unique([companyId, userId])
   @@index([userId, active])
   @@map("memberships")
+}
+
+model AccessReviewCampaign {
+  id            String             @id @default(uuid()) @db.Uuid
+  companyId     String             @map("company_id") @db.Uuid
+  periodLabel   String             @map("period_label") @db.VarChar(80)
+  status        AccessReviewStatus @default(OPEN)
+  dueAt         DateTime           @map("due_at") @db.Timestamptz(3)
+  snapshotHash  String             @map("snapshot_hash") @db.Char(64)
+  notes         String?            @db.Text
+  createdById   String             @map("created_by_id") @db.Uuid
+  completedById String?            @map("completed_by_id") @db.Uuid
+  completedAt   DateTime?          @map("completed_at") @db.Timestamptz(3)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy     User               @relation("AccessReviewCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  completedBy   User?              @relation("AccessReviewCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  items         AccessReviewItem[]
+
+  @@index([companyId, status, dueAt])
+  @@index([createdById, createdAt])
+  @@map("access_review_campaigns")
+}
+
+model AccessReviewItem {
+  id                String               @id @default(uuid()) @db.Uuid
+  campaignId        String               @map("campaign_id") @db.Uuid
+  membershipId      String               @map("membership_id") @db.Uuid
+  userNameSnapshot  String               @map("user_name_snapshot") @db.VarChar(160)
+  userEmailSnapshot String               @map("user_email_snapshot") @db.VarChar(254)
+  roleSnapshot      TenantRole           @map("role_snapshot")
+  activeSnapshot    Boolean              @map("active_snapshot")
+  decision          AccessReviewDecision @default(PENDING)
+  justification     String?              @db.Text
+  reviewedById      String?              @map("reviewed_by_id") @db.Uuid
+  reviewedAt        DateTime?            @map("reviewed_at") @db.Timestamptz(3)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  campaign          AccessReviewCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  membership        Membership           @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  reviewedBy        User?                @relation("AccessReviewItemReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, membershipId])
+  @@index([campaignId, decision])
+  @@index([membershipId, createdAt])
+  @@map("access_review_items")
 }
 
 model Invitation {
@@ -1045,30 +1236,31 @@ model BackgroundJobRun {
 }
 
 model Store {
-  id               String              @id @default(uuid()) @db.Uuid
-  companyId        String              @map("company_id") @db.Uuid
-  code             String              @db.VarChar(40)
-  name             String              @db.VarChar(120)
-  type             StoreType           @default(BRANCH)
-  active           Boolean             @default(true)
-  activatedAt      DateTime            @default(now()) @map("activated_at") @db.Timestamptz(3)
-  deactivatedAt    DateTime?           @map("deactivated_at") @db.Timestamptz(3)
-  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company          Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  pointsOfSale     PointOfSale[]
-  dfeReceivings    DfeReceiving[]
-  cashSessions     CashSession[]
-  stockBalances    StoreStockBalance[]
-  reservations     StockReservation[]
-  transfersOut     StockTransfer[]     @relation("TransferOriginStore")
-  transfersIn      StockTransfer[]     @relation("TransferDestinationStore")
-  inventoryCounts  InventoryCount[]
-  stockAdjustments StockAdjustment[]
-  stockMovements   StockMovement[]
-  purchaseOrders   PurchaseOrder[]
-  purchaseQuotes   PurchaseQuote[]
-  supplierReturns  SupplierReturn[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  companyId          String              @map("company_id") @db.Uuid
+  code               String              @db.VarChar(40)
+  name               String              @db.VarChar(120)
+  type               StoreType           @default(BRANCH)
+  active             Boolean             @default(true)
+  activatedAt        DateTime            @default(now()) @map("activated_at") @db.Timestamptz(3)
+  deactivatedAt      DateTime?           @map("deactivated_at") @db.Timestamptz(3)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pointsOfSale       PointOfSale[]
+  dfeReceivings      DfeReceiving[]
+  cashSessions       CashSession[]
+  stockBalances      StoreStockBalance[]
+  reservations       StockReservation[]
+  transfersOut       StockTransfer[]     @relation("TransferOriginStore")
+  transfersIn        StockTransfer[]     @relation("TransferDestinationStore")
+  inventoryCounts    InventoryCount[]
+  stockAdjustments   StockAdjustment[]
+  stockMovements     StockMovement[]
+  purchaseOrders     PurchaseOrder[]
+  purchaseQuotes     PurchaseQuote[]
+  supplierReturns    SupplierReturn[]
+  primeOpportunities PrimeOpportunity[]
 
   @@unique([companyId, code])
   @@index([companyId, active, type])
@@ -1460,26 +1652,29 @@ model BillingChargeRequest {
 }
 
 model FiscalCategory {
-  id               String               @id @default(uuid()) @db.Uuid
-  companyId        String               @map("company_id") @db.Uuid
-  code             String               @db.VarChar(50)
-  name             String               @db.VarChar(120)
-  description      String               @default("") @db.VarChar(500)
-  ncm              String               @db.Char(8)
-  cest             String?              @db.Char(7)
-  classification   FiscalClassification
-  ruleVersion      String               @map("rule_version") @db.VarChar(30)
-  validFrom        DateTime             @map("valid_from") @db.Date
-  validUntil       DateTime?            @map("valid_until") @db.Date
-  status           FiscalRuleStatus     @default(DRAFT)
-  sourceReferences Json                 @default("[]") @map("source_references")
-  active           Boolean              @default(true)
-  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  rules            FiscalRule[]
-  products         Product[]
-  analyses         TaxAnalysis[]
+  id                String                      @id @default(uuid()) @db.Uuid
+  companyId         String                      @map("company_id") @db.Uuid
+  code              String                      @db.VarChar(50)
+  name              String                      @db.VarChar(120)
+  description       String                      @default("") @db.VarChar(500)
+  ncm               String                      @db.Char(8)
+  cest              String?                     @db.Char(7)
+  classification    FiscalClassification
+  ruleVersion       String                      @map("rule_version") @db.VarChar(30)
+  validFrom         DateTime                    @map("valid_from") @db.Date
+  validUntil        DateTime?                   @map("valid_until") @db.Date
+  status            FiscalRuleStatus            @default(DRAFT)
+  sourceReferences  Json                        @default("[]") @map("source_references")
+  active            Boolean                     @default(true)
+  createdAt         DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company           Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rules             FiscalRule[]
+  products          Product[]
+  analyses          TaxAnalysis[]
+  correctionSignals FiscalCorrectionSignal[]
+  propagationsFrom  FiscalPropagationProposal[] @relation("FiscalPropagationSource")
+  propagationsTo    FiscalPropagationProposal[] @relation("FiscalPropagationTarget")
 
   @@unique([companyId, code])
   @@index([companyId, ncm, active])
@@ -1586,60 +1781,71 @@ model FiscalMatrixRule {
   conditions       Json              @default("{}")
   outcome          Json              @default("{}")
   sourceReferences Json              @default("[]") @map("source_references")
+  evidenceHash     String?           @map("evidence_hash") @db.Char(64)
   ruleVersion      String            @map("rule_version") @db.VarChar(30)
   validFrom        DateTime          @map("valid_from") @db.Date
   validUntil       DateTime?         @map("valid_until") @db.Date
   status           FiscalRuleStatus  @default(DRAFT)
+  importedById     String?           @map("imported_by_id") @db.Uuid
+  reviewedById     String?           @map("reviewed_by_id") @db.Uuid
+  reviewedAt       DateTime?         @map("reviewed_at") @db.Timestamptz(3)
+  reviewNotes      String?           @map("review_notes") @db.VarChar(1000)
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
   company          Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importedBy       User?             @relation("FiscalMatrixRuleImporter", fields: [importedById], references: [id], onDelete: SetNull)
+  reviewedBy       User?             @relation("FiscalMatrixRuleReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   dfeDocumentItems DfeDocumentItem[]
 
   @@unique([companyId, code, ruleVersion])
   @@index([destinationState, regime, operationType, status, validFrom])
   @@index([ncmPattern, cestPattern])
+  @@index([evidenceHash, status])
   @@map("fiscal_matrix_rules")
 }
 
 model Product {
-  id                   String               @id @default(uuid()) @db.Uuid
-  companyId            String               @map("company_id") @db.Uuid
-  categoryId           String               @map("category_id") @db.Uuid
-  ean                  String               @db.VarChar(14)
-  name                 String               @db.VarChar(180)
-  activeIngredient     String               @default("") @map("active_ingredient") @db.VarChar(180)
-  laboratory           String               @default("") @db.VarChar(120)
-  currentCost          Decimal              @default(0) @map("current_cost") @db.Decimal(15, 4)
-  salePrice            Decimal              @default(0) @map("sale_price") @db.Decimal(15, 2)
-  stockQuantity        Decimal              @default(0) @map("stock_quantity") @db.Decimal(15, 3)
-  minimumStock         Decimal              @default(0) @map("minimum_stock") @db.Decimal(15, 3)
-  dailySalesAverage    Decimal              @default(0) @map("daily_sales_average") @db.Decimal(15, 4)
-  active               Boolean              @default(true)
-  salesStrategy        ProductSalesStrategy @default(NORMAL) @map("sales_strategy")
-  promotionPrice       Decimal?             @map("promotion_price") @db.Decimal(15, 2)
-  strategyStartsAt     DateTime?            @map("strategy_starts_at") @db.Timestamptz(3)
-  strategyEndsAt       DateTime?            @map("strategy_ends_at") @db.Timestamptz(3)
-  strategyReason       String?              @map("strategy_reason") @db.VarChar(500)
-  strategyMetadata     Json                 @default("{}") @map("strategy_metadata")
-  strategyUpdatedAt    DateTime?            @map("strategy_updated_at") @db.Timestamptz(3)
-  controlLevel         SaleControlLevel     @default(NONE) @map("control_level")
-  requiresBuyerId      Boolean              @default(false) @map("requires_buyer_id")
-  requiresPrescription Boolean              @default(false) @map("requires_prescription")
-  requiresPharmacist   Boolean              @default(false) @map("requires_pharmacist")
-  retainsPrescription  Boolean              @default(false) @map("retains_prescription")
-  minimumBuyerAge      Int?                 @map("minimum_buyer_age")
-  controlRuleVersion   String?              @map("control_rule_version") @db.VarChar(30)
-  controlLegalBasis    String?              @map("control_legal_basis") @db.VarChar(500)
-  controlMetadata      Json                 @default("{}") @map("control_metadata")
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company              Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category             FiscalCategory       @relation(fields: [categoryId], references: [id])
+  id                   String                   @id @default(uuid()) @db.Uuid
+  companyId            String                   @map("company_id") @db.Uuid
+  categoryId           String                   @map("category_id") @db.Uuid
+  ean                  String                   @db.VarChar(14)
+  name                 String                   @db.VarChar(180)
+  activeIngredient     String                   @default("") @map("active_ingredient") @db.VarChar(180)
+  composition          String                   @default("") @db.VarChar(1000)
+  laboratory           String                   @default("") @db.VarChar(120)
+  anvisaRegistration   String?                  @map("anvisa_registration") @db.VarChar(30)
+  currentCost          Decimal                  @default(0) @map("current_cost") @db.Decimal(15, 4)
+  salePrice            Decimal                  @default(0) @map("sale_price") @db.Decimal(15, 2)
+  stockQuantity        Decimal                  @default(0) @map("stock_quantity") @db.Decimal(15, 3)
+  minimumStock         Decimal                  @default(0) @map("minimum_stock") @db.Decimal(15, 3)
+  dailySalesAverage    Decimal                  @default(0) @map("daily_sales_average") @db.Decimal(15, 4)
+  active               Boolean                  @default(true)
+  salesStrategy        ProductSalesStrategy     @default(NORMAL) @map("sales_strategy")
+  promotionPrice       Decimal?                 @map("promotion_price") @db.Decimal(15, 2)
+  strategyStartsAt     DateTime?                @map("strategy_starts_at") @db.Timestamptz(3)
+  strategyEndsAt       DateTime?                @map("strategy_ends_at") @db.Timestamptz(3)
+  strategyReason       String?                  @map("strategy_reason") @db.VarChar(500)
+  strategyMetadata     Json                     @default("{}") @map("strategy_metadata")
+  strategyUpdatedAt    DateTime?                @map("strategy_updated_at") @db.Timestamptz(3)
+  controlLevel         SaleControlLevel         @default(NONE) @map("control_level")
+  requiresBuyerId      Boolean                  @default(false) @map("requires_buyer_id")
+  requiresPrescription Boolean                  @default(false) @map("requires_prescription")
+  requiresPharmacist   Boolean                  @default(false) @map("requires_pharmacist")
+  retainsPrescription  Boolean                  @default(false) @map("retains_prescription")
+  minimumBuyerAge      Int?                     @map("minimum_buyer_age")
+  controlRuleVersion   String?                  @map("control_rule_version") @db.VarChar(30)
+  controlLegalBasis    String?                  @map("control_legal_basis") @db.VarChar(500)
+  controlMetadata      Json                     @default("{}") @map("control_metadata")
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company              Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category             FiscalCategory           @relation(fields: [categoryId], references: [id])
   lots                 InventoryLot[]
   stockMovements       StockMovement[]
   saleItems            SaleItem[]
   reorderAlerts        ReorderAlert[]
   analyses             TaxAnalysis[]
+  correctionSignals    FiscalCorrectionSignal[]
   businessAlerts       BusinessAlert[]
   taxProvenances       TaxProvenance[]
   taxExitAssessments   TaxExitAssessment[]
@@ -1654,11 +1860,93 @@ model Product {
   purchaseOrderItems   PurchaseOrderItem[]
   purchaseQuoteItems   PurchaseQuoteItem[]
   supplierReturnItems  SupplierReturnItem[]
+  importRows           ProductImportRow[]
+  primeOpportunities   PrimeOpportunity[]
 
   @@unique([companyId, ean])
   @@index([companyId, name])
   @@index([companyId, categoryId, active])
+  @@index([companyId, anvisaRegistration])
   @@map("products")
+}
+
+model ProductImportBatch {
+  id              String             @id @default(uuid()) @db.Uuid
+  companyId       String             @map("company_id") @db.Uuid
+  createdById     String             @map("created_by_id") @db.Uuid
+  reviewedById    String?            @map("reviewed_by_id") @db.Uuid
+  fileName        String             @map("file_name") @db.VarChar(255)
+  fileType        String             @map("file_type") @db.VarChar(12)
+  payloadHash     String             @map("payload_hash") @db.Char(64)
+  status          BulkWorkflowStatus @default(VALIDATED)
+  rowCount        Int                @map("row_count")
+  validRowCount   Int                @map("valid_row_count")
+  errorRowCount   Int                @map("error_row_count")
+  summary         Json               @default("{}")
+  rejectionReason String?            @map("rejection_reason") @db.VarChar(1000)
+  submittedAt     DateTime?          @map("submitted_at") @db.Timestamptz(3)
+  reviewedAt      DateTime?          @map("reviewed_at") @db.Timestamptz(3)
+  appliedAt       DateTime?          @map("applied_at") @db.Timestamptz(3)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy       User               @relation("ProductImportCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy      User?              @relation("ProductImportReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  rows            ProductImportRow[]
+
+  @@index([companyId, status, createdAt])
+  @@index([payloadHash])
+  @@map("product_import_batches")
+}
+
+model ProductImportRow {
+  id                String                 @id @default(uuid()) @db.Uuid
+  batchId           String                 @map("batch_id") @db.Uuid
+  existingProductId String?                @map("existing_product_id") @db.Uuid
+  rowNumber         Int                    @map("row_number")
+  action            ProductImportRowAction
+  rawData           Json                   @map("raw_data")
+  normalizedData    Json                   @map("normalized_data")
+  errors            Json                   @default("[]")
+  warnings          Json                   @default("[]")
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  batch             ProductImportBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  existingProduct   Product?               @relation(fields: [existingProductId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, rowNumber])
+  @@index([existingProductId])
+  @@map("product_import_rows")
+}
+
+model FiscalPropagationProposal {
+  id               String             @id @default(uuid()) @db.Uuid
+  companyId        String             @map("company_id") @db.Uuid
+  sourceCategoryId String             @map("source_category_id") @db.Uuid
+  targetCategoryId String             @map("target_category_id") @db.Uuid
+  createdById      String             @map("created_by_id") @db.Uuid
+  reviewedById     String?            @map("reviewed_by_id") @db.Uuid
+  status           BulkWorkflowStatus @default(VALIDATED)
+  baseHash         String             @map("base_hash") @db.Char(64)
+  sourceSnapshot   Json               @map("source_snapshot")
+  targetSnapshot   Json               @map("target_snapshot")
+  differences      Json
+  impactSummary    Json               @map("impact_summary")
+  rejectionReason  String?            @map("rejection_reason") @db.VarChar(1000)
+  submittedAt      DateTime?          @map("submitted_at") @db.Timestamptz(3)
+  reviewedAt       DateTime?          @map("reviewed_at") @db.Timestamptz(3)
+  appliedAt        DateTime?          @map("applied_at") @db.Timestamptz(3)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sourceCategory   FiscalCategory     @relation("FiscalPropagationSource", fields: [sourceCategoryId], references: [id], onDelete: Restrict)
+  targetCategory   FiscalCategory     @relation("FiscalPropagationTarget", fields: [targetCategoryId], references: [id], onDelete: Restrict)
+  createdBy        User               @relation("FiscalPropagationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy       User?              @relation("FiscalPropagationReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([companyId, status, createdAt])
+  @@index([sourceCategoryId, status])
+  @@index([targetCategoryId, status])
+  @@map("fiscal_propagation_proposals")
 }
 
 model InventoryLot {
@@ -2326,6 +2614,129 @@ model SupplierProduct {
   @@map("supplier_products")
 }
 
+model PrimeOrganization {
+  id                      String                  @id @default(uuid()) @db.Uuid
+  code                    String                  @unique @db.VarChar(50)
+  legalName               String                  @map("legal_name") @db.VarChar(180)
+  tradeName               String                  @map("trade_name") @db.VarChar(180)
+  taxId                   String?                 @unique @map("tax_id") @db.Char(14)
+  kind                    PrimeOrganizationKind
+  status                  PrimeOrganizationStatus @default(ACTIVE)
+  logisticsWindowDays     Int                     @default(3) @map("logistics_window_days")
+  targetCoverageDays      Int                     @default(30) @map("target_coverage_days")
+  lowCoverageDays         Int                     @default(12) @map("low_coverage_days")
+  expiryWindowDays        Int                     @default(90) @map("expiry_window_days")
+  highDemandGrowthPercent Decimal                 @default(0.2) @map("high_demand_growth_percent") @db.Decimal(7, 4)
+  alertOutOfStock         Boolean                 @default(true) @map("alert_out_of_stock")
+  alertLowCoverage        Boolean                 @default(true) @map("alert_low_coverage")
+  alertExpiring           Boolean                 @default(true) @map("alert_expiring")
+  alertHighDemand         Boolean                 @default(true) @map("alert_high_demand")
+  allowedStates           String[]                @default([]) @map("allowed_states")
+  settings                Json                    @default("{}")
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships             PrimeMembership[]
+  connections             PrimeConnection[]
+  opportunities           PrimeOpportunity[]
+
+  @@index([status, kind, tradeName])
+  @@map("prime_organizations")
+}
+
+model PrimeMembership {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  role           PrimeRole
+  active         Boolean           @default(true)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization   PrimeOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId, active])
+  @@map("prime_memberships")
+}
+
+model PrimeConnection {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  companyId      String                @map("company_id") @db.Uuid
+  status         PrimeConnectionStatus @default(ACTIVE)
+  startsAt       DateTime              @default(now()) @map("starts_at") @db.Timestamptz(3)
+  endsAt         DateTime?             @map("ends_at") @db.Timestamptz(3)
+  settings       Json                  @default("{}")
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization   PrimeOrganization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunities  PrimeOpportunity[]
+
+  @@unique([organizationId, companyId])
+  @@index([companyId, status])
+  @@map("prime_connections")
+}
+
+model PrimeOpportunity {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  organizationId      String                   @map("organization_id") @db.Uuid
+  connectionId        String?                  @map("connection_id") @db.Uuid
+  companyId           String                   @map("company_id") @db.Uuid
+  storeId             String                   @map("store_id") @db.Uuid
+  productId           String                   @map("product_id") @db.Uuid
+  type                PrimeOpportunityType
+  status              PrimeOpportunityStatus   @default(NEW)
+  priority            PrimeOpportunityPriority
+  currentStock        Decimal                  @map("current_stock") @db.Decimal(15, 3)
+  minimumStock        Decimal                  @map("minimum_stock") @db.Decimal(15, 3)
+  expiringQuantity    Decimal                  @default(0) @map("expiring_quantity") @db.Decimal(15, 3)
+  salesLast30Days     Decimal                  @default(0) @map("sales_last_30_days") @db.Decimal(15, 3)
+  salesPrevious30Days Decimal                  @default(0) @map("sales_previous_30_days") @db.Decimal(15, 3)
+  coverageDays        Decimal?                 @map("coverage_days") @db.Decimal(10, 2)
+  suggestedQuantity   Decimal                  @map("suggested_quantity") @db.Decimal(15, 3)
+  logisticsWindowDays Int                      @map("logistics_window_days")
+  detectedAt          DateTime                 @default(now()) @map("detected_at") @db.Timestamptz(3)
+  lastSeenAt          DateTime                 @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  dueAt               DateTime                 @map("due_at") @db.Timestamptz(3)
+  assignedToId        String?                  @map("assigned_to_id") @db.Uuid
+  assignedAt          DateTime?                @map("assigned_at") @db.Timestamptz(3)
+  contactedAt         DateTime?                @map("contacted_at") @db.Timestamptz(3)
+  outcome             String?                  @db.VarChar(500)
+  snapshot            Json                     @default("{}")
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization        PrimeOrganization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection          PrimeConnection?         @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  company             Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store               Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product             Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  assignedTo          User?                    @relation("PrimeOpportunityAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  events              PrimeOpportunityEvent[]
+
+  @@unique([organizationId, companyId, storeId, productId, type])
+  @@index([organizationId, status, priority, dueAt])
+  @@index([companyId, storeId, status])
+  @@index([productId, type, status])
+  @@map("prime_opportunities")
+}
+
+model PrimeOpportunityEvent {
+  id            String           @id @default(uuid()) @db.Uuid
+  opportunityId String           @map("opportunity_id") @db.Uuid
+  actorId       String?          @map("actor_id") @db.Uuid
+  action        String           @db.VarChar(60)
+  note          String?          @db.VarChar(500)
+  metadata      Json             @default("{}")
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  opportunity   PrimeOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  actor         User?            @relation("PrimeOpportunityEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([opportunityId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("prime_opportunity_events")
+}
+
 model PurchaseOrder {
   id              String                 @id @default(uuid()) @db.Uuid
   companyId       String                 @map("company_id") @db.Uuid
@@ -2666,32 +3077,33 @@ model ReorderAlert {
 }
 
 model TaxAnalysis {
-  id                      String            @id @default(uuid()) @db.Uuid
-  companyId               String            @map("company_id") @db.Uuid
-  productId               String?           @map("product_id") @db.Uuid
-  categoryId              String?           @map("category_id") @db.Uuid
-  requestedById           String            @map("requested_by_id") @db.Uuid
-  reviewedById            String?           @map("reviewed_by_id") @db.Uuid
-  status                  TaxAnalysisStatus @default(PENDING)
-  originState             String?           @map("origin_state") @db.Char(2)
-  destinationState        String?           @map("destination_state") @db.Char(2)
-  operationType           String?           @map("operation_type") @db.VarChar(60)
-  productComposition      Json              @default("{}") @map("product_composition")
-  currentClassification   Json              @default("{}") @map("current_classification")
-  suggestedClassification Json              @default("{}") @map("suggested_classification")
-  legalReasoning          String?           @map("legal_reasoning") @db.Text
-  confidence              Decimal?          @db.Decimal(5, 4)
-  estimatedSavings        Decimal?          @map("estimated_savings") @db.Decimal(15, 2)
-  reviewNotes             String?           @map("review_notes") @db.Text
-  modelVersion            String?           @map("model_version") @db.VarChar(80)
-  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company                 Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  product                 Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
-  category                FiscalCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  requestedBy             User              @relation("AnalysisRequester", fields: [requestedById], references: [id])
-  reviewedBy              User?             @relation("AnalysisReviewer", fields: [reviewedById], references: [id])
+  id                      String                  @id @default(uuid()) @db.Uuid
+  companyId               String                  @map("company_id") @db.Uuid
+  productId               String?                 @map("product_id") @db.Uuid
+  categoryId              String?                 @map("category_id") @db.Uuid
+  requestedById           String                  @map("requested_by_id") @db.Uuid
+  reviewedById            String?                 @map("reviewed_by_id") @db.Uuid
+  status                  TaxAnalysisStatus       @default(PENDING)
+  originState             String?                 @map("origin_state") @db.Char(2)
+  destinationState        String?                 @map("destination_state") @db.Char(2)
+  operationType           String?                 @map("operation_type") @db.VarChar(60)
+  productComposition      Json                    @default("{}") @map("product_composition")
+  currentClassification   Json                    @default("{}") @map("current_classification")
+  suggestedClassification Json                    @default("{}") @map("suggested_classification")
+  legalReasoning          String?                 @map("legal_reasoning") @db.Text
+  confidence              Decimal?                @db.Decimal(5, 4)
+  estimatedSavings        Decimal?                @map("estimated_savings") @db.Decimal(15, 2)
+  reviewNotes             String?                 @map("review_notes") @db.Text
+  modelVersion            String?                 @map("model_version") @db.VarChar(80)
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company                 Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product                 Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  category                FiscalCategory?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  requestedBy             User                    @relation("AnalysisRequester", fields: [requestedById], references: [id])
+  reviewedBy              User?                   @relation("AnalysisReviewer", fields: [reviewedById], references: [id])
   evidence                TaxEvidence[]
+  correctionSignal        FiscalCorrectionSignal?
 
   @@index([companyId, status, createdAt])
   @@map("tax_analyses")
@@ -2713,6 +3125,31 @@ model TaxEvidence {
 
   @@index([analysisId])
   @@map("tax_evidence")
+}
+
+model FiscalCorrectionSignal {
+  id                      String          @id @default(uuid()) @db.Uuid
+  companyId               String          @map("company_id") @db.Uuid
+  analysisId              String          @unique @map("analysis_id") @db.Uuid
+  productId               String?         @map("product_id") @db.Uuid
+  categoryId              String?         @map("category_id") @db.Uuid
+  reviewerId              String          @map("reviewer_id") @db.Uuid
+  decision                String          @db.VarChar(20)
+  contextFingerprint      String          @map("context_fingerprint") @db.Char(64)
+  suggestionFingerprint   String          @map("suggestion_fingerprint") @db.Char(64)
+  correctedClassification Json            @default("{}") @map("corrected_classification")
+  reviewNotes             String?         @map("review_notes") @db.Text
+  createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  company                 Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  analysis                TaxAnalysis     @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  product                 Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  category                FiscalCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  reviewer                User            @relation("FiscalCorrectionReviewer", fields: [reviewerId], references: [id])
+
+  @@index([companyId, contextFingerprint, decision, createdAt])
+  @@index([productId, createdAt])
+  @@index([categoryId, createdAt])
+  @@map("fiscal_correction_signals")
 }
 
 model SupportTicket {
