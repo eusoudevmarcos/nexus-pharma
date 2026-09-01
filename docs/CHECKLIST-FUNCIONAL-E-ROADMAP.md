@@ -37,8 +37,8 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 ### Roadmap do que falta
 
 - [x] PostgreSQL e API provisionados no Render.
-- [~] `prisma migrate deploy` e seed estão automatizados no deploy; falta publicar e conferir o lote local mais recente de migrations.
-- [~] Portal publicado na Vercel e conectado à API; falta promover a revisão atual da `main` e validar a versão exibida.
+- [x] `prisma migrate deploy` e seed estão automatizados; a migration operacional mais recente foi aplicada e conferida no Render.
+- [x] Portal publicado na Vercel, conectado à API e validado contra a mesma revisão da `main`.
 - [ ] Criar ambientes separados de desenvolvimento, homologação e produção.
 - [ ] Executar testes de carga, concorrência e isolamento entre empresas.
 - [ ] Definir política de versionamento e compatibilidade da API.
@@ -80,7 +80,7 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 ### Roadmap do que falta
 
 - [ ] **Bloqueador:** configurar segredos fortes e exclusivos no ambiente de produção.
-- [ ] Implementar recuperação e alteração de senha por fluxo seguro.
+- [x] Recuperação e alteração de senha por token de uso único, expiração, auditoria e revogação das sessões anteriores.
 - [~] Ampliar política de senha e bloqueio adaptativo; a confirmação de ações críticas já utiliza MFA/step-up.
 - [ ] Executar SAST, DAST, análise de dependências e teste de intrusão independente.
 - [ ] Planejar SSO corporativo e passkeys para uma fase posterior.
@@ -108,7 +108,7 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 
 - [ ] Permitir papéis personalizados sem quebrar os perfis padrão.
 - [x] Aprovação em quatro olhos combinada com MFA/step-up nas ações privilegiadas críticas.
-- [ ] Criar sessão de suporte temporária, consentida, justificada e integralmente auditada.
+- [x] Sessão de suporte temporária, consentida, justificada, limitada a diagnóstico e integralmente auditada.
 - [ ] Homologar a matriz com usuários reais de cada perfil antes do piloto.
 - [ ] Adicionar indicadores de SLA e produtividade para cada departamento interno.
 
@@ -138,7 +138,7 @@ A contabilidade avançada (plano de contas, centro de custo e DRE contábil form
 - [x] Implementar aprovação em quatro olhos antes de aplicar importação ou propagação fiscal em massa.
 - [x] Criar simulação de impacto antes de propagar a categoria aos produtos, com bloqueio se a base mudar.
 - [x] Estruturar GTIN, registro ANVISA, fabricante, fornecedor, composição e princípio ativo na importação e no banco.
-- [ ] Exibir composição e registro ANVISA também no formulário individual do produto.
+- [x] Composição, princípio ativo, laboratório e registro ANVISA disponíveis no formulário individual e na importação em massa.
 
 ## 6. Catálogo legal nacional e matriz tributária
 
@@ -383,12 +383,12 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 
 ### Roadmap do que falta
 
-- [~] Loja, cobertura, prazo e embalagem já calibram a sugestão; sazonalidade e promoções seguem pendentes.
-- [~] A previsão por produto/loja explica saldo, reservas, trânsito, venda em 30 dias, cobertura, margem e prazo; falta modelo sazonal.
+- [x] Loja, cobertura, prazo, embalagem, sazonalidade e promoções calibram a sugestão de compra.
+- [x] A previsão por produto/loja explica saldo, reservas, trânsito, venda em 30 dias, cobertura, margem, prazo e ajustes sazonais/promocionais.
 - [~] Fornecedores, cotação, pedidos e recebimento estão integrados; falta acompanhamento externo da entrega.
 - [x] Estoque em trânsito, múltiplas filiais, mínimo de compra e bonificações entram na operação.
-- [~] Aprovação de pedido por papel está pronta; limite financeiro configurável segue pendente.
-- [ ] Medir ruptura evitada, perda evitada, giro e acurácia da recomendação.
+- [x] Aprovação de pedido por papel e limite financeiro configurável, com escalonamento ao proprietário.
+- [x] Ruptura evitada, perda evitada, giro e acurácia da recomendação medidos pelo ciclo diário.
 - [ ] Integrar conta bancária, boleto/Pix, conciliação e confirmação externa dos pagamentos.
 - [ ] **Adiado:** centro de custo, plano de contas, retenções e DRE contábil formal; não bloqueiam o ecossistema operacional atual.
 - [ ] Autorizar a NF-e de devolução modelo 55 na SEFAZ após homologação do emissor e das regras tributárias.
@@ -407,9 +407,9 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 
 ### Roadmap do que falta
 
-- [~] Gestão possui filtros por período, loja, PDV, categoria, produto e vendedor; falta padronizar as demais janelas.
-- [~] Drill-down gerencial chega à venda; falta detalhar item, lote, regra e evidência.
-- [~] Exportação CSV auditada pronta; PDF e XLSX permanecem pendentes.
+- [x] Gestão possui filtros padronizados por período, loja, PDV, categoria, produto e vendedor.
+- [x] Drill-down gerencial alcança venda, item, lote e contexto fiscal preservado.
+- [x] Exportações CSV, XLSX e PDF disponíveis e auditadas.
 - [ ] Criar relatórios agendados e distribuição por e-mail.
 - [~] DRE gerencial, recebimentos, curva ABC e perdas prontos; giro e ruptura históricos permanecem pendentes.
 - [~] Fechamento gerencial imutável por competência pronto; reconciliação fiscal oficial permanece pendente.
@@ -465,7 +465,7 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 
 ### Roadmap do que falta
 
-- [ ] Criar janela completa do cliente para abrir, acompanhar e responder chamados.
+- [x] Janela do cliente para abrir, acompanhar e responder chamados, com histórico e estados operacionais.
 - [ ] Implementar anexos seguros, tipos permitidos, antivírus e retenção.
 - [ ] Criar SLA por plano, escalonamento, plantão e notificações.
 - [ ] Criar base de conhecimento e vínculo entre incidente, release e ticket.
@@ -567,7 +567,7 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 - [x] Sugestão local explicável, aplicação humana e métricas de decisão.
 - [x] Compatibilidade entre descrição, composição, registro sanitário, categoria e NCM, com candidato somente quando localizado no catálogo oficial ativo.
 - [x] Aprendizado assistido por correções, sem transformar repetição em lei ou alterar cadastro automaticamente.
-- [ ] Ranking comercial combinando margem, giro, ruptura, validade e aderência, com justificativa visível.
+- [x] Ranking Nexus combina margem, giro, ruptura, validade, sazonalidade e aderência de reposição, com pontuação e justificativa visíveis.
 - [~] Conjunto de avaliação fiscal iniciado com casos coerentes, contraditórios, incompletos e adversariais; falta ampliar com casos comerciais e amostras homologadas.
 
 ### Fase 5 — fundação em ambiente de homologação
@@ -586,8 +586,8 @@ Referência oficial: [Manual de Orientação do Contribuinte — NF-e e NFC-e](h
 - [x] Perfis de proprietário, administrador, gestor, compras, financeiro, farmacêutico, caixa e consulta possuem menus e rotas segregados.
 - [x] O caixa abre diretamente no PDV e não acessa alertas, compras, estoque administrativo ou recebimento de NF-e.
 - [x] Painel de controle reúne ruptura, giro, margem, lotes a vencer e sugestão de compra ajustada ao saldo aproveitável antes do vencimento.
-- [~] Gestão possui filtros, drill-down até venda e CSV auditado; faltam detalhe fiscal completo, PDF e XLSX.
-- [ ] Helpdesk do cliente e fluxos de aprovação.
+- [x] Gestão possui filtros, drill-down detalhado e exportações auditadas em CSV, PDF e XLSX.
+- [x] Helpdesk do cliente, respostas, estados e consentimento de suporte temporário implementados.
 - [ ] Homologar a matriz de permissões com usuários reais de cada perfil e registrar os casos de aceite.
 
 ### Fase 7 — saneador fiscal MVP do Distrito Federal

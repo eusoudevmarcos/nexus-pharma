@@ -18,6 +18,12 @@
 1. Executar `npm run prisma:migrate:deploy` na API do Render.
 2. Publicar API e frontend a partir da mesma revisão Git.
 3. Configurar `EMAIL_RELAY_URL`, `EMAIL_RELAY_KEY` e `EMAIL_FROM` para entrega automática dos links de recuperação.
+
+## Fechamento do protótipo operacional
+
+- O Ranking Nexus ordena oportunidades de compra por ruptura, giro, margem, validade, sazonalidade, promoção e capacidade de reposição, sempre exibindo a justificativa da pontuação.
+- Os módulos dependentes de emissão e autorização externa ficam ocultos por padrão com `NEXT_PUBLIC_FISCAL_DOCUMENTS_ENABLED=false`; o código permanece preservado para a fase futura de homologação.
+- O comando `npm run verify:production -- <api> <portal>` valida saúde, ponte Vercel–Render, recuperação de senha e fronteiras de autenticação sem utilizar credenciais reais.
 4. Confirmar que proprietário e administrador possuem MFA antes de testar o consentimento de suporte.
 5. Executar uma rodada do job diário para iniciar as medições das recomendações e expirar sessões vencidas.
 

@@ -33,8 +33,43 @@ export type ReorderSuggestion = {
   estimatedInvestment: number;
   estimatedGrossProfit: number;
   urgency: "CRITICAL" | "HIGH" | "NORMAL";
+  opportunityScore: number;
+  opportunityLabel: "REPOR_AGORA" | "REPOR_COM_CAUTELA" | "PLANEJAR";
+  opportunityReasons: string[];
   supplier: { id: string; name: string } | null;
 };
+
+function purchaseOpportunity(input: {
+  urgency: "CRITICAL" | "HIGH" | "NORMAL";
+  soldLast30Days: number;
+  marginPercent: number;
+  coverageDays: number | null;
+  leadTimeDays: number;
+  expiryRiskQuantity: number;
+  seasonalFactor: number;
+  promotionFactor: number;
+  hasSupplier: boolean;
+}) {
+  const shortage = input.urgency === "CRITICAL" ? 35 : input.urgency === "HIGH" ? 27 : 12;
+  const demand = input.soldLast30Days >= 120 ? 25 : input.soldLast30Days >= 60 ? 21 : input.soldLast30Days >= 30 ? 16 : input.soldLast30Days > 0 ? 9 : 0;
+  const margin = Math.min(20, Math.max(0, input.marginPercent / 2.5));
+  const adherence = (input.hasSupplier ? 7 : 0) + (input.seasonalFactor !== 1 || input.promotionFactor !== 1 ? 8 : 3);
+  const expiryAdjustment = input.expiryRiskQuantity > 0 ? -8 : 5;
+  const score = Math.round(Math.min(100, Math.max(0, shortage + demand + margin + adherence + expiryAdjustment)));
+  const reasons = [
+    input.urgency === "CRITICAL" ? "sem saldo disponível" : input.coverageDays !== null && input.coverageDays <= input.leadTimeDays ? "cobertura menor que o prazo do fornecedor" : "reposição para manter a cobertura",
+    input.soldLast30Days > 0 ? `${Number(input.soldLast30Days.toFixed(3))} unidade(s) vendidas em 30 dias` : "sem venda recente suficiente para confirmar giro",
+    `margem bruta estimada de ${input.marginPercent.toFixed(1)}%`,
+    ...(input.seasonalFactor !== 1 || input.promotionFactor !== 1 ? [`demanda ajustada em ${(input.seasonalFactor * input.promotionFactor).toFixed(2)}× por sazonalidade/promoção`] : []),
+    ...(input.expiryRiskQuantity > 0 ? [`${Number(input.expiryRiskQuantity.toFixed(3))} unidade(s) com risco de vencimento descontadas da cobertura`] : []),
+    ...(input.hasSupplier ? [] : ["fornecedor ainda não definido"]),
+  ];
+  return {
+    score,
+    label: (score >= 75 ? "REPOR_AGORA" : score >= 50 ? "REPOR_COM_CAUTELA" : "PLANEJAR") as ReorderSuggestion["opportunityLabel"],
+    reasons,
+  };
+}
 
 export function calculateReorderSuggestion(input: {
   product: {
@@ -95,6 +130,8 @@ export function calculateReorderSuggestion(input: {
   const salePrice = quantity(input.product.salePrice);
   const marginPercent = salePrice > 0 ? ((salePrice - currentCost) / salePrice) * 100 : 0;
   const coverageDays = dailyAverage > 0 ? effectiveAvailable / dailyAverage : null;
+  const urgency = effectiveAvailable <= 0 ? "CRITICAL" : coverageDays !== null && coverageDays <= leadTimeDays ? "HIGH" : "NORMAL";
+  const opportunity = purchaseOpportunity({ urgency, soldLast30Days: input.soldLast30Days, marginPercent, coverageDays, leadTimeDays, expiryRiskQuantity, seasonalFactor, promotionFactor, hasSupplier: Boolean(preferred) });
   return {
     productId: input.product.id,
     ean: input.product.ean,
@@ -122,7 +159,10 @@ export function calculateReorderSuggestion(input: {
     marginPercent: Number(marginPercent.toFixed(2)),
     estimatedInvestment: roundMoney(suggestedQuantity * currentCost),
     estimatedGrossProfit: roundMoney(suggestedQuantity * Math.max(0, salePrice - currentCost)),
-    urgency: effectiveAvailable <= 0 ? "CRITICAL" : coverageDays !== null && coverageDays <= leadTimeDays ? "HIGH" : "NORMAL",
+    urgency,
+    opportunityScore: opportunity.score,
+    opportunityLabel: opportunity.label,
+    opportunityReasons: opportunity.reasons,
     supplier: preferred ? { id: preferred.supplier.id, name: preferred.supplier.tradeName } : null,
   };
 }
@@ -228,7 +268,7 @@ export async function getPurchasingDashboard(input: { companyId: string; storeId
       });
     })
     .filter((entry): entry is ReorderSuggestion => Boolean(entry))
-    .sort((a, b) => urgencyScore[b.urgency] - urgencyScore[a.urgency] || b.revenueLast30Days - a.revenueLast30Days || b.marginPercent - a.marginPercent);
+    .sort((a, b) => b.opportunityScore - a.opportunityScore || urgencyScore[b.urgency] - urgencyScore[a.urgency] || b.revenueLast30Days - a.revenueLast30Days || b.marginPercent - a.marginPercent);
   if (input.storeId) {
     const recommendationDate = new Date(); recommendationDate.setUTCHours(0, 0, 0, 0);
     for (const entry of suggestions) {

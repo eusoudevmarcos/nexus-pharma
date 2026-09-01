@@ -16,6 +16,24 @@
 .purchasing-center { display: grid; gap: 22px; }
 .purchasing-filters { grid-template-columns: minmax(220px, 1fr) 180px auto; align-items: end; }
 .purchasing-metrics article:nth-child(1) strong { color: #b43a2f; }
+.purchase-opportunity-rank { overflow: hidden; border: 1px solid #cbdde6; border-radius: 22px; background: linear-gradient(135deg, #063b61 0%, #0b527d 62%, #176b91 100%); color: #fff; box-shadow: 0 18px 45px rgba(6,59,97,.14); }
+.purchase-opportunity-rank > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px 15px; }
+.purchase-opportunity-rank header span { color: #ffd33d; font-size: .67rem; font-weight: 900; letter-spacing: .1em; }
+.purchase-opportunity-rank h2 { margin: 5px 0 3px; font-size: 1.25rem; }
+.purchase-opportunity-rank p { margin: 0; color: #c7dce8; font-size: .78rem; }
+.purchase-opportunity-rank header > strong { color: #ffd33d; font-size: .78rem; }
+.purchase-opportunity-rank > div { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgba(255,255,255,.15); }
+.purchase-opportunity-rank article { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 17px 20px; border-right: 1px solid rgba(255,255,255,.13); }
+.purchase-opportunity-rank article:last-child { border-right: 0; }
+.purchase-opportunity-rank article > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: #ffd33d; color: #063b61; font-weight: 900; }
+.purchase-opportunity-rank article div { display: grid; gap: 4px; min-width: 0; }
+.purchase-opportunity-rank article small { overflow: hidden; color: #c7dce8; font-size: .67rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.purchase-opportunity-rank article b { color: #ffd33d; font-size: 1.6rem; }
+.purchase-opportunity-rank article em { grid-column: 2 / -1; color: #fff; font-size: .68rem; font-style: normal; font-weight: 800; }
+.opportunity-score { color: #0b527d !important; font-size: 1.25rem; }
+.purchasing-table details { margin-top: 6px; color: #486779; font-size: .68rem; }
+.purchasing-table summary { cursor: pointer; font-weight: 800; }
+.purchasing-table ul { min-width: 220px; margin: 7px 0 0; padding-left: 16px; line-height: 1.45; }
 .portal-feedback { padding: 13px 16px; border: 1px solid #b9dacb; border-radius: 14px; background: #effaf5; color: #17623f; font-size: .86rem; font-weight: 700; }
 .portal-feedback.error { border-color: #e8bcb6; background: #fff2f0; color: #9d2f25; }
 .bulk-import { margin-bottom: 18px; border: 1px solid #d6e1e8; border-radius: 22px; background: #fff; box-shadow: 0 14px 34px rgba(0, 43, 73, .07); overflow: hidden; }
@@ -853,6 +871,8 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
   .assistant-request-form { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 720px) {
+  .purchase-opportunity-rank > div { grid-template-columns: 1fr; }
+  .purchase-opportunity-rank article { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.13); }
   .dfe-toolbar { align-items: stretch; flex-direction: column; }
   .dfe-toolbar details { margin-left: 0; }
   .dfe-toolbar summary { justify-content: center; }
