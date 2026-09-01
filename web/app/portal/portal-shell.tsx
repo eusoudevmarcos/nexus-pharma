@@ -25,6 +25,7 @@ const links = [
   { href: "/portal/usuarios", label: "Usuários", icon: "◌", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { href: "/portal/minha-seguranca", label: "Minha segurança", icon: "◆", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
   { href: "/portal/privacidade", label: "Privacidade", icon: "◈", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
+  { href: "/portal/suporte", label: "Helpdesk", icon: "?", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
 ];
 
 const roleLabels: Record<string, string> = {

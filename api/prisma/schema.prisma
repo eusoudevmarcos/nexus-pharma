@@ -639,6 +639,27 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+enum RecommendationStatus {
+  OPEN
+  ADOPTED
+  MEASURED
+  EXPIRED
+}
+
+enum SeasonalitySource {
+  MANUAL
+  CALCULATED
+}
+
+enum SupportAccessStatus {
+  REQUESTED
+  APPROVED
+  ACTIVE
+  EXPIRED
+  REJECTED
+  REVOKED
+}
+
 enum AccountPayableStatus {
   DRAFT
   OPEN
@@ -812,6 +833,11 @@ model User {
   primeMemberships           PrimeMembership[]
   primeOpportunitiesAssigned PrimeOpportunity[]          @relation("PrimeOpportunityAssignee")
   primeOpportunityEvents     PrimeOpportunityEvent[]     @relation("PrimeOpportunityEventActor")
+  purchasePoliciesUpdated    PurchasePolicy[]            @relation("PurchasePolicyEditor")
+  seasonalitiesUpdated       DemandSeasonality[]         @relation("DemandSeasonalityEditor")
+  supportAccessRequested     SupportAccessSession[]      @relation("SupportAccessRequester")
+  supportAccessApproved      SupportAccessSession[]      @relation("SupportAccessApprover")
+  supportAccessRevoked       SupportAccessSession[]      @relation("SupportAccessRevoker")
 
   @@map("users")
 }
@@ -957,6 +983,10 @@ model Company {
   accessReviewCampaigns      AccessReviewCampaign[]
   primeConnections           PrimeConnection[]
   primeOpportunities         PrimeOpportunity[]
+  purchasePolicy             PurchasePolicy?
+  demandSeasonalities        DemandSeasonality[]
+  purchaseRecommendations    PurchaseRecommendation[]
+  supportAccessSessions      SupportAccessSession[]
 
   @@index([status])
   @@map("companies")
@@ -1236,31 +1266,33 @@ model BackgroundJobRun {
 }
 
 model Store {
-  id                 String              @id @default(uuid()) @db.Uuid
-  companyId          String              @map("company_id") @db.Uuid
-  code               String              @db.VarChar(40)
-  name               String              @db.VarChar(120)
-  type               StoreType           @default(BRANCH)
-  active             Boolean             @default(true)
-  activatedAt        DateTime            @default(now()) @map("activated_at") @db.Timestamptz(3)
-  deactivatedAt      DateTime?           @map("deactivated_at") @db.Timestamptz(3)
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  pointsOfSale       PointOfSale[]
-  dfeReceivings      DfeReceiving[]
-  cashSessions       CashSession[]
-  stockBalances      StoreStockBalance[]
-  reservations       StockReservation[]
-  transfersOut       StockTransfer[]     @relation("TransferOriginStore")
-  transfersIn        StockTransfer[]     @relation("TransferDestinationStore")
-  inventoryCounts    InventoryCount[]
-  stockAdjustments   StockAdjustment[]
-  stockMovements     StockMovement[]
-  purchaseOrders     PurchaseOrder[]
-  purchaseQuotes     PurchaseQuote[]
-  supplierReturns    SupplierReturn[]
-  primeOpportunities PrimeOpportunity[]
+  id                      String                   @id @default(uuid()) @db.Uuid
+  companyId               String                   @map("company_id") @db.Uuid
+  code                    String                   @db.VarChar(40)
+  name                    String                   @db.VarChar(120)
+  type                    StoreType                @default(BRANCH)
+  active                  Boolean                  @default(true)
+  activatedAt             DateTime                 @default(now()) @map("activated_at") @db.Timestamptz(3)
+  deactivatedAt           DateTime?                @map("deactivated_at") @db.Timestamptz(3)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pointsOfSale            PointOfSale[]
+  dfeReceivings           DfeReceiving[]
+  cashSessions            CashSession[]
+  stockBalances           StoreStockBalance[]
+  reservations            StockReservation[]
+  transfersOut            StockTransfer[]          @relation("TransferOriginStore")
+  transfersIn             StockTransfer[]          @relation("TransferDestinationStore")
+  inventoryCounts         InventoryCount[]
+  stockAdjustments        StockAdjustment[]
+  stockMovements          StockMovement[]
+  purchaseOrders          PurchaseOrder[]
+  purchaseQuotes          PurchaseQuote[]
+  supplierReturns         SupplierReturn[]
+  primeOpportunities      PrimeOpportunity[]
+  demandSeasonalities     DemandSeasonality[]
+  purchaseRecommendations PurchaseRecommendation[]
 
   @@unique([companyId, code])
   @@index([companyId, active, type])
@@ -1805,63 +1837,65 @@ model FiscalMatrixRule {
 }
 
 model Product {
-  id                   String                   @id @default(uuid()) @db.Uuid
-  companyId            String                   @map("company_id") @db.Uuid
-  categoryId           String                   @map("category_id") @db.Uuid
-  ean                  String                   @db.VarChar(14)
-  name                 String                   @db.VarChar(180)
-  activeIngredient     String                   @default("") @map("active_ingredient") @db.VarChar(180)
-  composition          String                   @default("") @db.VarChar(1000)
-  laboratory           String                   @default("") @db.VarChar(120)
-  anvisaRegistration   String?                  @map("anvisa_registration") @db.VarChar(30)
-  currentCost          Decimal                  @default(0) @map("current_cost") @db.Decimal(15, 4)
-  salePrice            Decimal                  @default(0) @map("sale_price") @db.Decimal(15, 2)
-  stockQuantity        Decimal                  @default(0) @map("stock_quantity") @db.Decimal(15, 3)
-  minimumStock         Decimal                  @default(0) @map("minimum_stock") @db.Decimal(15, 3)
-  dailySalesAverage    Decimal                  @default(0) @map("daily_sales_average") @db.Decimal(15, 4)
-  active               Boolean                  @default(true)
-  salesStrategy        ProductSalesStrategy     @default(NORMAL) @map("sales_strategy")
-  promotionPrice       Decimal?                 @map("promotion_price") @db.Decimal(15, 2)
-  strategyStartsAt     DateTime?                @map("strategy_starts_at") @db.Timestamptz(3)
-  strategyEndsAt       DateTime?                @map("strategy_ends_at") @db.Timestamptz(3)
-  strategyReason       String?                  @map("strategy_reason") @db.VarChar(500)
-  strategyMetadata     Json                     @default("{}") @map("strategy_metadata")
-  strategyUpdatedAt    DateTime?                @map("strategy_updated_at") @db.Timestamptz(3)
-  controlLevel         SaleControlLevel         @default(NONE) @map("control_level")
-  requiresBuyerId      Boolean                  @default(false) @map("requires_buyer_id")
-  requiresPrescription Boolean                  @default(false) @map("requires_prescription")
-  requiresPharmacist   Boolean                  @default(false) @map("requires_pharmacist")
-  retainsPrescription  Boolean                  @default(false) @map("retains_prescription")
-  minimumBuyerAge      Int?                     @map("minimum_buyer_age")
-  controlRuleVersion   String?                  @map("control_rule_version") @db.VarChar(30)
-  controlLegalBasis    String?                  @map("control_legal_basis") @db.VarChar(500)
-  controlMetadata      Json                     @default("{}") @map("control_metadata")
-  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company              Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category             FiscalCategory           @relation(fields: [categoryId], references: [id])
-  lots                 InventoryLot[]
-  stockMovements       StockMovement[]
-  saleItems            SaleItem[]
-  reorderAlerts        ReorderAlert[]
-  analyses             TaxAnalysis[]
-  correctionSignals    FiscalCorrectionSignal[]
-  businessAlerts       BusinessAlert[]
-  taxProvenances       TaxProvenance[]
-  taxExitAssessments   TaxExitAssessment[]
-  dfeDocumentItems     DfeDocumentItem[]
-  dfeReceivingItems    DfeReceivingItem[]
-  storeStockBalances   StoreStockBalance[]
-  stockReservations    StockReservation[]
-  transferItems        StockTransferItem[]
-  inventoryCountItems  InventoryCountItem[]
-  stockAdjustments     StockAdjustment[]
-  supplierProducts     SupplierProduct[]
-  purchaseOrderItems   PurchaseOrderItem[]
-  purchaseQuoteItems   PurchaseQuoteItem[]
-  supplierReturnItems  SupplierReturnItem[]
-  importRows           ProductImportRow[]
-  primeOpportunities   PrimeOpportunity[]
+  id                      String                   @id @default(uuid()) @db.Uuid
+  companyId               String                   @map("company_id") @db.Uuid
+  categoryId              String                   @map("category_id") @db.Uuid
+  ean                     String                   @db.VarChar(14)
+  name                    String                   @db.VarChar(180)
+  activeIngredient        String                   @default("") @map("active_ingredient") @db.VarChar(180)
+  composition             String                   @default("") @db.VarChar(1000)
+  laboratory              String                   @default("") @db.VarChar(120)
+  anvisaRegistration      String?                  @map("anvisa_registration") @db.VarChar(30)
+  currentCost             Decimal                  @default(0) @map("current_cost") @db.Decimal(15, 4)
+  salePrice               Decimal                  @default(0) @map("sale_price") @db.Decimal(15, 2)
+  stockQuantity           Decimal                  @default(0) @map("stock_quantity") @db.Decimal(15, 3)
+  minimumStock            Decimal                  @default(0) @map("minimum_stock") @db.Decimal(15, 3)
+  dailySalesAverage       Decimal                  @default(0) @map("daily_sales_average") @db.Decimal(15, 4)
+  active                  Boolean                  @default(true)
+  salesStrategy           ProductSalesStrategy     @default(NORMAL) @map("sales_strategy")
+  promotionPrice          Decimal?                 @map("promotion_price") @db.Decimal(15, 2)
+  strategyStartsAt        DateTime?                @map("strategy_starts_at") @db.Timestamptz(3)
+  strategyEndsAt          DateTime?                @map("strategy_ends_at") @db.Timestamptz(3)
+  strategyReason          String?                  @map("strategy_reason") @db.VarChar(500)
+  strategyMetadata        Json                     @default("{}") @map("strategy_metadata")
+  strategyUpdatedAt       DateTime?                @map("strategy_updated_at") @db.Timestamptz(3)
+  controlLevel            SaleControlLevel         @default(NONE) @map("control_level")
+  requiresBuyerId         Boolean                  @default(false) @map("requires_buyer_id")
+  requiresPrescription    Boolean                  @default(false) @map("requires_prescription")
+  requiresPharmacist      Boolean                  @default(false) @map("requires_pharmacist")
+  retainsPrescription     Boolean                  @default(false) @map("retains_prescription")
+  minimumBuyerAge         Int?                     @map("minimum_buyer_age")
+  controlRuleVersion      String?                  @map("control_rule_version") @db.VarChar(30)
+  controlLegalBasis       String?                  @map("control_legal_basis") @db.VarChar(500)
+  controlMetadata         Json                     @default("{}") @map("control_metadata")
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category                FiscalCategory           @relation(fields: [categoryId], references: [id])
+  lots                    InventoryLot[]
+  stockMovements          StockMovement[]
+  saleItems               SaleItem[]
+  reorderAlerts           ReorderAlert[]
+  analyses                TaxAnalysis[]
+  correctionSignals       FiscalCorrectionSignal[]
+  businessAlerts          BusinessAlert[]
+  taxProvenances          TaxProvenance[]
+  taxExitAssessments      TaxExitAssessment[]
+  dfeDocumentItems        DfeDocumentItem[]
+  dfeReceivingItems       DfeReceivingItem[]
+  storeStockBalances      StoreStockBalance[]
+  stockReservations       StockReservation[]
+  transferItems           StockTransferItem[]
+  inventoryCountItems     InventoryCountItem[]
+  stockAdjustments        StockAdjustment[]
+  supplierProducts        SupplierProduct[]
+  purchaseOrderItems      PurchaseOrderItem[]
+  purchaseQuoteItems      PurchaseQuoteItem[]
+  supplierReturnItems     SupplierReturnItem[]
+  importRows              ProductImportRow[]
+  primeOpportunities      PrimeOpportunity[]
+  demandSeasonalities     DemandSeasonality[]
+  purchaseRecommendations PurchaseRecommendation[]
 
   @@unique([companyId, ean])
   @@index([companyId, name])
@@ -2772,22 +2806,100 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id                String        @id @default(uuid()) @db.Uuid
-  purchaseOrderId   String        @map("purchase_order_id") @db.Uuid
-  productId         String        @map("product_id") @db.Uuid
-  requestedQuantity Decimal       @map("requested_quantity") @db.Decimal(15, 3)
-  receivedQuantity  Decimal       @default(0) @map("received_quantity") @db.Decimal(15, 3)
-  unitCost          Decimal       @map("unit_cost") @db.Decimal(15, 4)
-  totalAmount       Decimal       @map("total_amount") @db.Decimal(15, 2)
-  notes             String?       @db.VarChar(500)
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product           Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  id                String                  @id @default(uuid()) @db.Uuid
+  purchaseOrderId   String                  @map("purchase_order_id") @db.Uuid
+  productId         String                  @map("product_id") @db.Uuid
+  requestedQuantity Decimal                 @map("requested_quantity") @db.Decimal(15, 3)
+  receivedQuantity  Decimal                 @default(0) @map("received_quantity") @db.Decimal(15, 3)
+  unitCost          Decimal                 @map("unit_cost") @db.Decimal(15, 4)
+  totalAmount       Decimal                 @map("total_amount") @db.Decimal(15, 2)
+  notes             String?                 @db.VarChar(500)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  purchaseOrder     PurchaseOrder           @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product           Product                 @relation(fields: [productId], references: [id], onDelete: Restrict)
+  recommendation    PurchaseRecommendation?
 
   @@unique([purchaseOrderId, productId])
   @@index([productId, createdAt])
   @@map("purchase_order_items")
+}
+
+model PurchasePolicy {
+  id                      String   @id @default(uuid()) @db.Uuid
+  companyId               String   @unique @map("company_id") @db.Uuid
+  defaultCoverageDays     Int      @default(30) @map("default_coverage_days")
+  promotionLiftPercent    Decimal  @default(0.25) @map("promotion_lift_percent") @db.Decimal(7, 4)
+  managerApprovalLimit    Decimal  @default(5000) @map("manager_approval_limit") @db.Decimal(15, 2)
+  ownerApprovalAboveLimit Boolean  @default(true) @map("owner_approval_above_limit")
+  seasonalityEnabled      Boolean  @default(true) @map("seasonality_enabled")
+  updatedById             String?  @map("updated_by_id") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company                 Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy               User?    @relation("PurchasePolicyEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("purchase_policies")
+}
+
+model DemandSeasonality {
+  id          String            @id @default(uuid()) @db.Uuid
+  companyId   String            @map("company_id") @db.Uuid
+  storeId     String            @map("store_id") @db.Uuid
+  productId   String            @map("product_id") @db.Uuid
+  month       Int
+  factor      Decimal           @default(1) @db.Decimal(7, 4)
+  source      SeasonalitySource @default(MANUAL)
+  reason      String?           @db.VarChar(500)
+  updatedById String?           @map("updated_by_id") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  updatedBy   User?             @relation("DemandSeasonalityEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, productId, month])
+  @@index([companyId, month])
+  @@map("demand_seasonalities")
+}
+
+model PurchaseRecommendation {
+  id                     String               @id @default(uuid()) @db.Uuid
+  companyId              String               @map("company_id") @db.Uuid
+  storeId                String               @map("store_id") @db.Uuid
+  productId              String               @map("product_id") @db.Uuid
+  recommendationDate     DateTime             @map("recommendation_date") @db.Date
+  status                 RecommendationStatus @default(OPEN)
+  baseDailyAverage       Decimal              @map("base_daily_average") @db.Decimal(15, 4)
+  seasonalFactor         Decimal              @default(1) @map("seasonal_factor") @db.Decimal(7, 4)
+  promotionFactor        Decimal              @default(1) @map("promotion_factor") @db.Decimal(7, 4)
+  forecastDailyAverage   Decimal              @map("forecast_daily_average") @db.Decimal(15, 4)
+  effectiveAvailable     Decimal              @map("effective_available") @db.Decimal(15, 3)
+  incomingQuantity       Decimal              @default(0) @map("incoming_quantity") @db.Decimal(15, 3)
+  expiryRiskQuantity     Decimal              @default(0) @map("expiry_risk_quantity") @db.Decimal(15, 3)
+  suggestedQuantity      Decimal              @map("suggested_quantity") @db.Decimal(15, 3)
+  estimatedInvestment    Decimal              @map("estimated_investment") @db.Decimal(15, 2)
+  expectedStockoutAt     DateTime?            @map("expected_stockout_at") @db.Date
+  adoptedOrderItemId     String?              @unique @map("adopted_order_item_id") @db.Uuid
+  adoptedAt              DateTime?            @map("adopted_at") @db.Timestamptz(3)
+  measuredAt             DateTime?            @map("measured_at") @db.Timestamptz(3)
+  actualPurchased        Decimal?             @map("actual_purchased") @db.Decimal(15, 3)
+  recommendationAccuracy Decimal?             @map("recommendation_accuracy") @db.Decimal(7, 4)
+  avoidedStockout        Boolean?             @map("avoided_stockout")
+  avoidedLossQuantity    Decimal?             @map("avoided_loss_quantity") @db.Decimal(15, 3)
+  metadata               Json                 @default("{}")
+  createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company                Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store                  Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product                Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  adoptedOrderItem       PurchaseOrderItem?   @relation(fields: [adoptedOrderItemId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, productId, recommendationDate])
+  @@index([companyId, status, recommendationDate])
+  @@index([productId, recommendationDate])
+  @@map("purchase_recommendations")
 }
 
 model PurchaseOrderReceipt {
@@ -3153,24 +3265,25 @@ model FiscalCorrectionSignal {
 }
 
 model SupportTicket {
-  id           String          @id @default(uuid()) @db.Uuid
-  code         String          @unique @db.VarChar(24)
-  companyId    String?         @map("company_id") @db.Uuid
-  createdById  String          @map("created_by_id") @db.Uuid
-  assignedToId String?         @map("assigned_to_id") @db.Uuid
-  area         TicketArea      @default(SUPPORT)
-  priority     TicketPriority  @default(NORMAL)
-  status       TicketStatus    @default(OPEN)
-  subject      String          @db.VarChar(180)
-  description  String          @db.Text
-  slaDueAt     DateTime?       @map("sla_due_at") @db.Timestamptz(3)
-  resolvedAt   DateTime?       @map("resolved_at") @db.Timestamptz(3)
-  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company      Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  createdBy    User            @relation("TicketCreator", fields: [createdById], references: [id])
-  assignedTo   User?           @relation("TicketAssignee", fields: [assignedToId], references: [id])
-  messages     TicketMessage[]
+  id                    String                 @id @default(uuid()) @db.Uuid
+  code                  String                 @unique @db.VarChar(24)
+  companyId             String?                @map("company_id") @db.Uuid
+  createdById           String                 @map("created_by_id") @db.Uuid
+  assignedToId          String?                @map("assigned_to_id") @db.Uuid
+  area                  TicketArea             @default(SUPPORT)
+  priority              TicketPriority         @default(NORMAL)
+  status                TicketStatus           @default(OPEN)
+  subject               String                 @db.VarChar(180)
+  description           String                 @db.Text
+  slaDueAt              DateTime?              @map("sla_due_at") @db.Timestamptz(3)
+  resolvedAt            DateTime?              @map("resolved_at") @db.Timestamptz(3)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company               Company?               @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdBy             User                   @relation("TicketCreator", fields: [createdById], references: [id])
+  assignedTo            User?                  @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  messages              TicketMessage[]
+  supportAccessSessions SupportAccessSession[]
 
   @@index([area, status, priority, createdAt])
   @@index([companyId, status])
@@ -3190,6 +3303,36 @@ model TicketMessage {
 
   @@index([ticketId, createdAt])
   @@map("ticket_messages")
+}
+
+model SupportAccessSession {
+  id              String              @id @default(uuid()) @db.Uuid
+  companyId       String              @map("company_id") @db.Uuid
+  requestedById   String              @map("requested_by_id") @db.Uuid
+  approvedById    String?             @map("approved_by_id") @db.Uuid
+  revokedById     String?             @map("revoked_by_id") @db.Uuid
+  ticketId        String?             @map("ticket_id") @db.Uuid
+  status          SupportAccessStatus @default(REQUESTED)
+  reason          String              @db.VarChar(1000)
+  scope           Json                @default("[\"READ_DIAGNOSTICS\"]")
+  durationMinutes Int                 @default(30) @map("duration_minutes")
+  requestedAt     DateTime            @default(now()) @map("requested_at") @db.Timestamptz(3)
+  approvedAt      DateTime?           @map("approved_at") @db.Timestamptz(3)
+  startedAt       DateTime?           @map("started_at") @db.Timestamptz(3)
+  expiresAt       DateTime?           @map("expires_at") @db.Timestamptz(3)
+  revokedAt       DateTime?           @map("revoked_at") @db.Timestamptz(3)
+  consentSnapshot Json                @default("{}") @map("consent_snapshot")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestedBy     User                @relation("SupportAccessRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy      User?               @relation("SupportAccessApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  revokedBy       User?               @relation("SupportAccessRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  ticket          SupportTicket?      @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, requestedAt])
+  @@index([requestedById, status, expiresAt])
+  @@map("support_access_sessions")
 }
 
 model Release {

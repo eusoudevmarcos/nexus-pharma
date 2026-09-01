@@ -372,6 +372,105 @@ export async function internalRoutes(app: FastifyInstance) {
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    "/suporte/tickets/:id",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      if (!id.success) return reply.status(400).send({ erro: "TICKET_INVALIDO" });
+      const ticket = await prisma.supportTicket.findUnique({ where: { id: id.data }, include: { company: { select: { id: true, tradeName: true, status: true } }, createdBy: { select: { name: true, email: true } }, assignedTo: { select: { id: true, name: true } }, messages: { include: { author: { select: { id: true, name: true, systemRole: true } } }, orderBy: { createdAt: "asc" } }, supportAccessSessions: { include: { requestedBy: { select: { name: true, email: true } }, approvedBy: { select: { name: true } }, revokedBy: { select: { name: true } } }, orderBy: { requestedAt: "desc" } } } });
+      return ticket ? reply.send(ticket) : reply.status(404).send({ erro: "TICKET_NAO_ENCONTRADO" });
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/suporte/tickets/:id/mensagens",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = z.object({ mensagem: z.string().trim().min(1).max(10000), somente_interno: z.boolean().default(false) }).safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "MENSAGEM_INVALIDA" });
+      const ticket = await prisma.supportTicket.findUnique({ where: { id: id.data } });
+      if (!ticket) return reply.status(404).send({ erro: "TICKET_NAO_ENCONTRADO" });
+      const created = await prisma.$transaction(async (tx) => {
+        const message = await tx.ticketMessage.create({ data: { ticketId: ticket.id, authorId: request.user.sub, body: parsed.data.mensagem, internalOnly: parsed.data.somente_interno } });
+        await tx.supportTicket.update({ where: { id: ticket.id }, data: { status: parsed.data.somente_interno ? ticket.status : "WAITING_CUSTOMER" } });
+        await tx.auditLog.create({ data: { companyId: ticket.companyId, userId: request.user.sub, action: "SUPPORT_TICKET_MESSAGE_CREATED", entity: "SupportTicket", entityId: ticket.id, requestId: request.id, ipAddress: request.ip, after: { messageId: message.id, internalOnly: message.internalOnly } } });
+        return message;
+      });
+      return reply.status(201).send(created);
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/suporte/tickets/:id/acessos",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"]), requireRecentMfa()] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = z.object({ motivo: z.string().trim().min(20).max(1000), duracao_minutos: z.number().int().min(5).max(120).default(30) }).safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "SOLICITACAO_DE_ACESSO_INVALIDA" });
+      const ticket = await prisma.supportTicket.findUnique({ where: { id: id.data }, select: { id: true, companyId: true, code: true } });
+      if (!ticket?.companyId) return reply.status(409).send({ erro: "TICKET_SEM_EMPRESA_VINCULADA" });
+      const pending = await prisma.supportAccessSession.findFirst({ where: { ticketId: ticket.id, requestedById: request.user.sub, status: { in: ["REQUESTED", "APPROVED", "ACTIVE"] } } });
+      if (pending) return reply.status(409).send({ erro: "JA_EXISTE_SESSAO_DE_SUPORTE_PENDENTE" });
+      const created = await prisma.$transaction(async (tx) => {
+        const access = await tx.supportAccessSession.create({ data: { companyId: ticket.companyId!, ticketId: ticket.id, requestedById: request.user.sub, reason: parsed.data.motivo, durationMinutes: parsed.data.duracao_minutos, scope: ["READ_DIAGNOSTICS"] } });
+        await tx.auditLog.create({ data: { companyId: ticket.companyId, userId: request.user.sub, action: "SUPPORT_ACCESS_REQUESTED", entity: "SupportAccessSession", entityId: access.id, requestId: request.id, ipAddress: request.ip, after: { ticketCode: ticket.code, durationMinutes: access.durationMinutes, scope: access.scope, reason: access.reason } } });
+        return access;
+      });
+      return reply.status(201).send(created);
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/suporte/acessos/:id/iniciar",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"]), requireRecentMfa()] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      if (!id.success) return reply.status(400).send({ erro: "SESSAO_DE_SUPORTE_INVALIDA" });
+      const access = await prisma.supportAccessSession.findFirst({ where: { id: id.data, requestedById: request.user.sub } });
+      if (!access || access.status !== "APPROVED" || !access.expiresAt || access.expiresAt <= new Date()) return reply.status(403).send({ erro: "SESSAO_DE_SUPORTE_NAO_AUTORIZADA_OU_EXPIRADA" });
+      const started = await prisma.$transaction(async (tx) => {
+        const saved = await tx.supportAccessSession.update({ where: { id: access.id }, data: { status: "ACTIVE", startedAt: new Date() } });
+        await tx.auditLog.create({ data: { companyId: access.companyId, userId: request.user.sub, action: "SUPPORT_ACCESS_STARTED", entity: "SupportAccessSession", entityId: access.id, requestId: request.id, ipAddress: request.ip, after: { expiresAt: saved.expiresAt, scope: saved.scope } } });
+        return saved;
+      });
+      return reply.send(started);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/suporte/acessos/:id/diagnostico",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id); if (!id.success) return reply.status(400).send({ erro: "SESSAO_DE_SUPORTE_INVALIDA" });
+      const access = await prisma.supportAccessSession.findFirst({ where: { id: id.data, requestedById: request.user.sub }, include: { company: { select: { id: true, tradeName: true, status: true, state: true } }, ticket: { select: { id: true, code: true, subject: true, status: true } } } });
+      if (!access || access.status !== "ACTIVE" || !access.expiresAt || access.expiresAt <= new Date()) return reply.status(403).send({ erro: "SESSAO_DE_SUPORTE_NAO_ATIVA" });
+      const [stores, products, lotsExpiring, openAlerts, openTickets, recentAudit] = await Promise.all([
+        prisma.store.count({ where: { companyId: access.companyId, active: true } }), prisma.product.count({ where: { companyId: access.companyId, active: true } }),
+        prisma.inventoryLot.count({ where: { product: { companyId: access.companyId }, quantity: { gt: 0 }, expiresAt: { lte: new Date(Date.now() + 90 * 86_400_000) } } }),
+        prisma.businessAlert.count({ where: { companyId: access.companyId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+        prisma.supportTicket.count({ where: { companyId: access.companyId, status: { in: ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER"] } } }),
+        prisma.auditLog.findMany({ where: { companyId: access.companyId, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60_000) } }, select: { action: true, entity: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 20 }),
+      ]);
+      await prisma.auditLog.create({ data: { companyId: access.companyId, userId: request.user.sub, action: "SUPPORT_DIAGNOSTICS_VIEWED", entity: "SupportAccessSession", entityId: access.id, requestId: request.id, ipAddress: request.ip, after: { scope: access.scope } } });
+      return reply.send({ session: access, company: access.company, ticket: access.ticket, diagnostics: { stores, products, lotsExpiring, openAlerts, openTickets, recentAudit } });
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/suporte/acessos/:id/encerrar",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id); if (!id.success) return reply.status(400).send({ erro: "SESSAO_DE_SUPORTE_INVALIDA" });
+      const access = await prisma.supportAccessSession.findFirst({ where: { id: id.data, requestedById: request.user.sub, status: { in: ["APPROVED", "ACTIVE"] } } });
+      if (!access) return reply.status(404).send({ erro: "SESSAO_DE_SUPORTE_NAO_ENCONTRADA" });
+      const saved = await prisma.supportAccessSession.update({ where: { id: access.id }, data: { status: "REVOKED", revokedById: request.user.sub, revokedAt: new Date() } });
+      await prisma.auditLog.create({ data: { companyId: access.companyId, userId: request.user.sub, action: "SUPPORT_ACCESS_REVOKED", entity: "SupportAccessSession", entityId: access.id, requestId: request.id, ipAddress: request.ip, before: { status: access.status }, after: { status: saved.status } } });
+      return reply.send(saved);
+    },
+  );
+
   app.patch<{ Params: { id: string } }>(
     "/suporte/tickets/:id",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"])] },

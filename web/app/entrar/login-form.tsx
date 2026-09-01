@@ -41,6 +41,6 @@ export function LoginForm() {
     {error && <p className="form-error" role="alert">{error}</p>}
     <button className="button" disabled={loading} type="submit">{loading ? "Confirmando..." : challenge ? "Confirmar e entrar" : "Entrar com segurança"}</button>
     {challenge && <button className="login-back" onClick={() => { setChallenge(""); setError(""); }} type="button">Voltar para e-mail e senha</button>}
-    <a href="mailto:suporte@nexuspharma.com.br?subject=Ajuda%20com%20meu%20acesso">Preciso de ajuda com meu acesso</a>
+    <a href="/esqueci-senha">Esqueci minha senha</a>
   </form>;
 }

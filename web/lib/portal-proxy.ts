@@ -37,6 +37,9 @@ export async function proxyPortal(path: string, init: RequestInit) {
   if (upstream.ok && contentType.includes("text/csv")) {
     return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": contentType, "content-disposition": upstream.headers.get("content-disposition") ?? "attachment", "cache-control": "no-store, max-age=0" } });
   }
+  if (upstream.ok && (contentType.includes("application/pdf") || contentType.includes("spreadsheetml"))) {
+    return new NextResponse(await upstream.arrayBuffer(), { status: upstream.status, headers: { "content-type": contentType, "content-disposition": upstream.headers.get("content-disposition") ?? "attachment", "cache-control": "no-store, max-age=0" } });
+  }
   const body = await upstream.json().catch(() => ({})) as { erro?: string; message?: string; validacoes?: Array<{ message?: string }> };
   if (!upstream.ok) {
     const messages: Record<string, string> = {
@@ -122,6 +125,7 @@ export async function proxyPortal(path: string, init: RequestInit) {
       CONCLUSAO_EXIGE_CONFIRMACAO_EXPLICITA: "Digite CONCLUIR REVISAO para confirmar o fechamento.",
       MFA_CONFIGURACAO_OBRIGATORIA: "Ative a autenticação em duas etapas em Minha segurança antes de executar esta ação.",
       MFA_CONFIRMACAO_RECENTE_OBRIGATORIA: "Confirme sua identidade em Minha segurança para liberar ações críticas por dez minutos.",
+      APROVACAO_DO_PROPRIETARIO_NECESSARIA: "Este pedido ultrapassa o limite gerencial. A aprovação precisa ser feita pelo proprietário.",
     };
     const dfeFallback = body.erro && /^(DFE_|NFCE_|CAIXA_|SESSAO_CAIXA_|PDV_|SANGRIA_|DIVERGENCIA_CAIXA_|CONCILIACAO_|TOTAL_PAGAMENTOS_|ESTORNO_|DEVOLUCAO_|VENDA_|VENDEDOR_|ITEM_VENDA_|ITEM_ESTORNO_|QUANTIDADE_DEVOLUCAO_|QUANTIDADE_DE_DEVOLUCAO_|LOTE_DEVOLVIDO_|SALDO_PAGAMENTO_|SALDO_DA_LOJA_|SALDO_DISPONIVEL_|SALDO_CONSOLIDADO_|SALDO_FISCAL_|DINHEIRO_INSUFICIENTE_|ESTOQUE_ALTERADO_|DESCONTO_|DESCONTOS_|CANCELAMENTO_TOTAL_|RESERVA_|TRANSFERENCIA_|LOTE_DUPLICADO_|LOTE_VENCIDO_|INVENTARIO_|CONTAGEM_|APROVACAO_|RECEBIMENTO_|AJUSTE_|PERDA_|FORNECEDOR_|VINCULO_FORNECEDOR_|PEDIDO_|COTACAO_|PROPOSTA_|ADJUDICACAO_|TITULO_|PARCELA_|PAGAMENTO_|SOMA_DAS_PARCELAS_|CONFIGURACAO_DO_TITULO_|BAIXA_DE_PAGAMENTO_|ESTORNO_PAGAMENTO_|FILTROS_DE_CONTAS_|FILTROS_DE_COMPRA_|FECHAMENTO_GERENCIAL_|FILTROS_GERENCIAIS_|CREDENCIAL_FARMACEUTICA_|DOCUMENTO_DO_COMPRADOR_|USUARIO_NAO_E_FARMACEUTICO_|POLITICA_DE_CONTROLE_|CERTIFICADO_|TRANSMISSAO_SEFAZ_|CNPJ_|XML_|CONFERENCIA_|DIVERGENCIAS_|ITEM_|NFE_|SEFAZ_|ANALISE_|SUGESTAO_|REJEICAO_)/.test(body.erro)
       ? `Validação controlada: ${body.erro.toLowerCase().replaceAll("_", " ")}.`

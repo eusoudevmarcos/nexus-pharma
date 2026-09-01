@@ -6,7 +6,7 @@ import {
   requireTenantRoles,
   tenantContext,
 } from "../security/auth.js";
-import { buildManagerialReport, closeManagerialPeriod, managerialReportCsv } from "../services/managerial-report.service.js";
+import { buildManagerialReport, closeManagerialPeriod, getManagerialSaleDetail, managerialReportCsv, managerialReportPdf, managerialReportXlsx } from "../services/managerial-report.service.js";
 import { getPurchasingDashboard } from "../services/purchasing.service.js";
 
 const periodSchema = z.object({
@@ -78,11 +78,22 @@ export async function reportsRoutes(app: FastifyInstance) {
   });
 
   app.post("/gerencial/exportar", { preHandler: [authenticate, tenantContext, requireTenantRoles(managementRoles)] }, async (request, reply) => {
-    const parsed = analyticalFilterSchema.safeParse(request.body);
+    const parsed = analyticalFilterSchema.extend({ formato: z.enum(["CSV", "XLSX", "PDF"]).default("CSV") }).safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ erro: "FILTROS_GERENCIAIS_INVALIDOS" });
     const report = await buildManagerialReport(request.tenant!.companyId, managerialFilters(parsed.data));
-    await prisma.auditLog.create({ data: { companyId: request.tenant!.companyId, userId: request.user.sub, action: "MANAGERIAL_REPORT_EXPORTED", entity: "ManagerialReport", requestId: request.id, after: { filters: parsed.data, rows: report.sales.length, format: "CSV" } } });
-    return reply.header("content-type", "text/csv; charset=utf-8").header("content-disposition", `attachment; filename="nexus-gerencial-${parsed.data.inicio.toISOString().slice(0, 10)}-${parsed.data.fim.toISOString().slice(0, 10)}.csv"`).send(managerialReportCsv(report));
+    const format = parsed.data.formato;
+    await prisma.auditLog.create({ data: { companyId: request.tenant!.companyId, userId: request.user.sub, action: "MANAGERIAL_REPORT_EXPORTED", entity: "ManagerialReport", requestId: request.id, after: { filters: parsed.data, rows: report.sales.length, format } } });
+    const baseName = `nexus-gerencial-${parsed.data.inicio.toISOString().slice(0, 10)}-${parsed.data.fim.toISOString().slice(0, 10)}`;
+    if (format === "XLSX") return reply.header("content-type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").header("content-disposition", `attachment; filename="${baseName}.xlsx"`).send(await managerialReportXlsx(report));
+    if (format === "PDF") return reply.header("content-type", "application/pdf").header("content-disposition", `attachment; filename="${baseName}.pdf"`).send(await managerialReportPdf(report));
+    return reply.header("content-type", "text/csv; charset=utf-8").header("content-disposition", `attachment; filename="${baseName}.csv"`).send(managerialReportCsv(report));
+  });
+
+  app.get<{ Params: { id: string } }>("/gerencial/vendas/:id", { preHandler: [authenticate, tenantContext, requireTenantRoles(managementRoles)] }, async (request, reply) => {
+    const id = z.string().uuid().safeParse(request.params.id);
+    if (!id.success) return reply.status(400).send({ erro: "VENDA_INVALIDA" });
+    try { return reply.send(await getManagerialSaleDetail(request.tenant!.companyId, id.data)); }
+    catch (error) { return reply.status(404).send({ erro: error instanceof Error ? error.message : "VENDA_NAO_ENCONTRADA" }); }
   });
 
   app.post("/gerencial/fechar", { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])] }, async (request, reply) => {

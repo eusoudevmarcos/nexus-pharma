@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import ExcelJS from "exceljs";
+import PDFDocument from "pdfkit";
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 
@@ -122,6 +124,63 @@ export function managerialReportCsv(report: Awaited<ReturnType<typeof buildManag
   const escape = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
   const rows = [["venda", "data", "loja", "pdv", "vendedor", "itens", "valor", "desconto", "tributos", "lucro"], ...report.sales.map((sale) => [sale.id, sale.soldAt.toISOString(), sale.store?.name ?? "", sale.pointOfSale?.name ?? "", sale.sellerName, sale.items, sale.gross.toFixed(2), sale.discount.toFixed(2), sale.tax.toFixed(2), sale.profit.toFixed(2)])];
   return `\uFEFF${rows.map((row) => row.map(escape).join(";")).join("\r\n")}`;
+}
+
+export async function managerialReportXlsx(report: Awaited<ReturnType<typeof buildManagerialReport>>) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Nexus Pharma"; workbook.created = new Date();
+  const summary = workbook.addWorksheet("Resumo");
+  summary.columns = [{ header: "Indicador", key: "label", width: 34 }, { header: "Valor", key: "value", width: 22 }];
+  summary.addRows([
+    { label: "Empresa", value: report.company.tradeName }, { label: "Receita líquida", value: report.dre.netRevenue },
+    { label: "Resultado gerencial", value: report.dre.result }, { label: "Tributos", value: report.dre.taxes },
+    { label: "Perdas", value: report.dre.losses }, { label: "Vendas", value: report.indicators.sales },
+  ]);
+  const sales = workbook.addWorksheet("Vendas");
+  sales.columns = [
+    { header: "ID", key: "id", width: 38 }, { header: "Data", key: "date", width: 22 }, { header: "Loja", key: "store", width: 24 },
+    { header: "PDV", key: "pdv", width: 20 }, { header: "Vendedor", key: "seller", width: 28 }, { header: "Itens", key: "items", width: 10 },
+    { header: "Valor", key: "gross", width: 16 }, { header: "Desconto", key: "discount", width: 16 }, { header: "Tributos", key: "tax", width: 16 }, { header: "Lucro", key: "profit", width: 16 },
+  ];
+  sales.addRows(report.sales.map((sale) => ({ id: sale.id, date: sale.soldAt, store: sale.store?.name ?? "", pdv: sale.pointOfSale?.name ?? "", seller: sale.sellerName, items: sale.items, gross: sale.gross, discount: sale.discount, tax: sale.tax, profit: sale.profit })));
+  for (const sheet of [summary, sales]) { sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } }; sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF063A5C" } }; sheet.views = [{ state: "frozen", ySplit: 1 }]; }
+  ["gross", "discount", "tax", "profit"].forEach((key) => { const column = sales.getColumn(key); column.numFmt = 'R$ #,##0.00'; });
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+export async function managerialReportPdf(report: Awaited<ReturnType<typeof buildManagerialReport>>) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const document = new PDFDocument({ size: "A4", margin: 42, info: { Title: `Relatório gerencial — ${report.company.tradeName}`, Author: "Nexus Pharma" } });
+    const chunks: Buffer[] = []; document.on("data", (chunk: Buffer) => chunks.push(chunk)); document.on("end", () => resolve(Buffer.concat(chunks))); document.on("error", reject);
+    document.fillColor("#063a5c").fontSize(22).text("Nexus Pharma — Relatório gerencial");
+    document.moveDown(0.3).fillColor("#4f6270").fontSize(10).text(`${report.company.tradeName} · ${report.period.start.toLocaleDateString("pt-BR")} a ${report.period.end.toLocaleDateString("pt-BR")}`);
+    document.moveDown().fillColor("#102331").fontSize(14).text("Resumo");
+    const rows = [["Receita líquida", report.dre.netRevenue], ["Resultado gerencial", report.dre.result], ["Tributos", report.dre.taxes], ["Perdas", report.dre.losses], ["Ticket médio", report.indicators.averageTicket]] as const;
+    for (const [label, value] of rows) document.fontSize(11).text(`${label}: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}`);
+    document.moveDown().fontSize(14).text("Vendas");
+    document.fontSize(8).fillColor("#334b5b");
+    for (const sale of report.sales.slice(0, 120)) {
+      if (document.y > 760) document.addPage();
+      document.text(`${sale.soldAt.toLocaleString("pt-BR")} · ${sale.store?.name ?? "Sem loja"} · ${sale.sellerName} · ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(sale.gross)} · tributos ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(sale.tax)}`);
+    }
+    document.moveDown().fontSize(8).fillColor("#6b7780").text("Relatório operacional auditável. Não substitui escrituração contábil ou fiscal oficial.");
+    document.end();
+  });
+}
+
+export async function getManagerialSaleDetail(companyId: string, saleId: string) {
+  const sale = await prisma.sale.findFirst({
+    where: { id: saleId, companyId },
+    include: {
+      seller: { select: { id: true, name: true } }, customer: { select: { id: true, name: true, taxId: true } },
+      cashSession: { select: { store: { select: { id: true, name: true } }, pointOfSale: { select: { id: true, name: true } } } },
+      payments: { select: { id: true, method: true, amount: true, status: true, externalReference: true } },
+      items: { include: { taxAssessments: { include: { lot: { select: { id: true, code: true, expiresAt: true } }, provenance: { select: { id: true, sourceAccessKey: true, sourceItemNumber: true, inputCfop: true, inputCstIcms: true, inputCstPisCofins: true } } }, orderBy: { evaluatedAt: "desc" } } } },
+      reversals: { include: { items: { select: { saleItemId: true, quantity: true, grossAmount: true, restocked: true } } } },
+    },
+  });
+  if (!sale) throw new Error("VENDA_NAO_ENCONTRADA");
+  return sale;
 }
 
 export async function closeManagerialPeriod(input: { companyId: string; period: Date; note: string; userId: string; requestId: string }) {

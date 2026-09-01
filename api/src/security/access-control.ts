@@ -163,13 +163,17 @@ export const tenantDomains: readonly AccessDomain<TenantRoleCode>[] = [
     code: "PRIVACY", name: "Privacidade pessoal", description: "Solicitações LGPD da própria pessoa e acompanhamento do protocolo.",
     access: { OWNER: "OPERATE", ADMIN: "OPERATE", MANAGER: "OPERATE", BUYER: "OPERATE", FINANCE: "OPERATE", PHARMACIST: "OPERATE", OPERATOR: "OPERATE", VIEWER: "OPERATE" },
   },
+  {
+    code: "SUPPORT", name: "Helpdesk e consentimento", description: "Chamados, conversa, SLA e autorização de diagnóstico temporário.",
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "OPERATE", BUYER: "OPERATE", FINANCE: "OPERATE", PHARMACIST: "OPERATE", OPERATOR: "OPERATE", VIEWER: "OPERATE" },
+  },
 ] as const;
 
 export const systemProfiles: readonly Profile<SystemRoleCode>[] = [
   {
     code: "INTERNAL_ADMIN", name: "Administração Nexus", shortName: "Admin Nexus", purpose: "Governança corporativa, segurança, continuidade e segregação de funções.",
     responsibilities: ["governança interna", "segurança e DR", "homologações", "supervisão departamental"],
-    boundaries: ["não entra diretamente na empresa do cliente", "acesso de suporte futuro exige sessão temporária e auditada"], defaultArea: "/portal/interno/monitoramento",
+    boundaries: ["não entra diretamente na empresa do cliente", "diagnóstico exige consentimento, prazo, escopo somente leitura e auditoria"], defaultArea: "/portal/interno/monitoramento",
   },
   {
     code: "DEVELOPER", name: "Desenvolvimento", shortName: "Desenvolvedor", purpose: "Mantém produto, observabilidade, releases e importação técnica de catálogos.",
@@ -179,7 +183,7 @@ export const systemProfiles: readonly Profile<SystemRoleCode>[] = [
   {
     code: "HELPDESK", name: "Helpdesk", shortName: "Helpdesk", purpose: "Atende chamados sem herdar privilégios administrativos da farmácia.",
     responsibilities: ["triagem", "SLA", "comunicação e resolução de chamados"],
-    boundaries: ["sem acesso direto ao tenant", "sem financeiro, catálogo fiscal ou deploy"], defaultArea: "/portal/interno/suporte",
+    boundaries: ["sem acesso direto ao tenant", "diagnóstico somente em sessão consentida, temporária e auditada", "sem financeiro, catálogo fiscal ou deploy"], defaultArea: "/portal/interno/suporte",
   },
   {
     code: "FINANCE", name: "Financeiro Nexus", shortName: "Financeiro Nexus", purpose: "Cuida do faturamento SaaS e contratos, separado do financeiro da farmácia.",
@@ -216,7 +220,7 @@ export function tenantRolesAtLeast(domainCode: string, level: Exclude<AccessLeve
 
 export function accessControlCatalog() {
   return {
-    version: "2026.08.31",
+    version: "2026.09.01",
     policy: {
       model: "RBAC_COM_MENOR_PRIVILEGIO",
       levels: accessLevels,

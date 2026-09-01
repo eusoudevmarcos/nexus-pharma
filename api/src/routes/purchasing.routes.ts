@@ -9,6 +9,8 @@ import {
   linkPurchaseReceipt,
   saveSupplier,
   saveSupplierProduct,
+  savePurchasePolicy,
+  saveDemandSeasonality,
 } from "../services/purchasing.service.js";
 import { createSupplierReturn, getSupplierReturnPreview } from "../services/supplier-return.service.js";
 
@@ -31,6 +33,24 @@ export async function purchasingRoutes(app: FastifyInstance) {
     const parsed = z.object({ loja_id: uuid.optional(), dias_cobertura: z.coerce.number().int().min(7).max(90).optional() }).safeParse(request.query);
     if (!parsed.success) return reply.status(400).send({ erro: "FILTROS_DE_COMPRA_INVALIDOS", detalhes: parsed.error.flatten() });
     return getPurchasingDashboard({ companyId: request.tenant!.companyId, storeId: parsed.data.loja_id, targetDays: parsed.data.dias_cobertura });
+  });
+
+  app.put("/politica", { preHandler: manage }, async (request, reply) => {
+    const parsed = z.object({
+      dias_cobertura_padrao: z.number().int().min(7).max(90),
+      aumento_promocional_percentual: z.number().min(0).max(3),
+      limite_aprovacao_gerencial: z.number().min(0).max(100_000_000),
+      exigir_proprietario_acima_limite: z.boolean(),
+      sazonalidade_ativa: z.boolean(),
+    }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ erro: "POLITICA_DE_COMPRAS_INVALIDA", detalhes: parsed.error.flatten() });
+    return reply.send(await savePurchasePolicy({ companyId: request.tenant!.companyId, defaultCoverageDays: parsed.data.dias_cobertura_padrao, promotionLiftPercent: parsed.data.aumento_promocional_percentual, managerApprovalLimit: parsed.data.limite_aprovacao_gerencial, ownerApprovalAboveLimit: parsed.data.exigir_proprietario_acima_limite, seasonalityEnabled: parsed.data.sazonalidade_ativa, userId: request.user.sub, requestId: request.id }));
+  });
+
+  app.put("/sazonalidade", { preHandler: manage }, async (request, reply) => {
+    const parsed = z.object({ loja_id: uuid, produto_id: uuid, mes: z.number().int().min(1).max(12), fator: z.number().min(0.1).max(10), motivo: nullableText(500) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ erro: "SAZONALIDADE_INVALIDA", detalhes: parsed.error.flatten() });
+    return reply.send(await saveDemandSeasonality({ companyId: request.tenant!.companyId, storeId: parsed.data.loja_id, productId: parsed.data.produto_id, month: parsed.data.mes, factor: parsed.data.fator, reason: parsed.data.motivo, userId: request.user.sub, requestId: request.id }));
   });
 
   app.post("/fornecedores", { preHandler: maintainSuppliers }, async (request, reply) => {
@@ -56,15 +76,15 @@ export async function purchasingRoutes(app: FastifyInstance) {
   });
 
   app.post("/pedidos", { preHandler: operate }, async (request, reply) => {
-    const parsed = z.object({ fornecedor_id: uuid, loja_id: uuid, previsao_entrega: z.coerce.date().nullable().optional(), observacao: nullableText(1000), itens: z.array(z.object({ produto_id: uuid, quantidade: z.number().positive().max(10_000_000), custo_unitario: z.number().min(0).max(100_000_000) })).min(1).max(300) }).safeParse(request.body);
+    const parsed = z.object({ fornecedor_id: uuid, loja_id: uuid, previsao_entrega: z.coerce.date().nullable().optional(), observacao: nullableText(1000), itens: z.array(z.object({ produto_id: uuid, quantidade: z.number().positive().max(10_000_000), custo_unitario: z.number().min(0).max(100_000_000), recomendacao_id: uuid.optional() })).min(1).max(300) }).safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ erro: "PEDIDO_DE_COMPRA_INVALIDO", detalhes: parsed.error.flatten() });
-    return reply.status(201).send(await createPurchaseOrder({ companyId: request.tenant!.companyId, supplierId: parsed.data.fornecedor_id, storeId: parsed.data.loja_id, expectedAt: parsed.data.previsao_entrega, notes: parsed.data.observacao, items: parsed.data.itens.map((item) => ({ productId: item.produto_id, quantity: item.quantidade, unitCost: item.custo_unitario })), userId: request.user.sub, requestId: request.id }));
+    return reply.status(201).send(await createPurchaseOrder({ companyId: request.tenant!.companyId, supplierId: parsed.data.fornecedor_id, storeId: parsed.data.loja_id, expectedAt: parsed.data.previsao_entrega, notes: parsed.data.observacao, items: parsed.data.itens.map((item) => ({ productId: item.produto_id, quantity: item.quantidade, unitCost: item.custo_unitario, recommendationId: item.recomendacao_id })), userId: request.user.sub, requestId: request.id }));
   });
 
   app.put<{ Params: { id: string } }>("/pedidos/:id/aprovar", { preHandler: manage }, async (request, reply) => {
     const id = uuid.safeParse(request.params.id);
     if (!id.success) return reply.status(400).send({ erro: "PEDIDO_DE_COMPRA_INVALIDO" });
-    return reply.send(await approvePurchaseOrder({ companyId: request.tenant!.companyId, orderId: id.data, userId: request.user.sub, requestId: request.id }));
+    return reply.send(await approvePurchaseOrder({ companyId: request.tenant!.companyId, orderId: id.data, userId: request.user.sub, approverRole: request.tenant!.role, requestId: request.id }));
   });
 
   app.put<{ Params: { id: string } }>("/pedidos/:id/cancelar", { preHandler: manage }, async (request, reply) => {

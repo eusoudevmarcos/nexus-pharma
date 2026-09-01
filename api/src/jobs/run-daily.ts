@@ -1,12 +1,14 @@
 import { prisma } from "../infra/prisma.js";
 import { runDailyBusinessAutomation } from "./daily-business-automation.js";
 import { runPrivacyRetention } from "./privacy-retention.js";
+import { measurePurchaseRecommendations } from "../services/purchasing.service.js";
 
 try {
   const results = [];
   for (const [name, execute] of [
     ["business", runDailyBusinessAutomation],
     ["privacy-retention", runPrivacyRetention],
+    ["purchase-recommendations", measurePurchaseRecommendations],
   ] as const) {
     try {
       const result = await execute();

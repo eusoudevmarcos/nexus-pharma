@@ -5,6 +5,7 @@ import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 import {
   authenticate,
+  requireRecentMfa,
   requireSystemRoles,
   requireTenantRoles,
   tenantContext,
@@ -106,6 +107,24 @@ export async function operationsRoutes(app: FastifyInstance) {
       }),
   );
 
+  app.get<{ Params: { id: string } }>(
+    "/suporte/tickets/:id",
+    { preHandler: [authenticate, tenantContext] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      if (!id.success) return reply.status(400).send({ erro: "TICKET_INVALIDO" });
+      const ticket = await prisma.supportTicket.findFirst({
+        where: { id: id.data, companyId: request.tenant!.companyId },
+        include: {
+          createdBy: { select: { id: true, name: true, email: true } }, assignedTo: { select: { id: true, name: true, systemRole: true } },
+          messages: { where: { internalOnly: false }, include: { author: { select: { id: true, name: true, systemRole: true } } }, orderBy: { createdAt: "asc" } },
+          supportAccessSessions: { include: { requestedBy: { select: { name: true, email: true, systemRole: true } }, approvedBy: { select: { name: true } }, revokedBy: { select: { name: true } } }, orderBy: { requestedAt: "desc" } },
+        },
+      });
+      return ticket ? reply.send(ticket) : reply.status(404).send({ erro: "TICKET_NAO_ENCONTRADO" });
+    },
+  );
+
   app.post(
     "/suporte/tickets",
     { preHandler: [authenticate, tenantContext] },
@@ -115,8 +134,9 @@ export async function operationsRoutes(app: FastifyInstance) {
         return reply
           .status(400)
           .send({ erro: "TICKET_INVALIDO", detalhes: parsed.error.flatten() });
-      const ticket = await prisma.supportTicket.create({
-        data: {
+      const slaHours = parsed.data.prioridade === "URGENT" ? 4 : parsed.data.prioridade === "HIGH" ? 8 : parsed.data.prioridade === "NORMAL" ? 24 : 48;
+      const ticket = await prisma.$transaction(async (tx) => {
+        const created = await tx.supportTicket.create({ data: {
           code: `NX-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4).toUpperCase()}`,
           companyId: request.tenant!.companyId,
           createdById: request.user.sub,
@@ -124,7 +144,10 @@ export async function operationsRoutes(app: FastifyInstance) {
           priority: parsed.data.prioridade,
           subject: parsed.data.assunto,
           description: parsed.data.descricao,
-        },
+          slaDueAt: new Date(Date.now() + slaHours * 60 * 60_000),
+        } });
+        await tx.auditLog.create({ data: { companyId: request.tenant!.companyId, userId: request.user.sub, action: "SUPPORT_TICKET_CREATED", entity: "SupportTicket", entityId: created.id, requestId: request.id, ipAddress: request.ip, after: { code: created.code, area: created.area, priority: created.priority, slaDueAt: created.slaDueAt } } });
+        return created;
       });
       return reply.status(201).send(ticket);
     },
@@ -166,9 +189,35 @@ export async function operationsRoutes(app: FastifyInstance) {
               request.user.systemRole === "CUSTOMER" ? "OPEN" : "IN_PROGRESS",
           },
         });
+        await tx.auditLog.create({ data: { companyId: ticket.companyId, userId: request.user.sub, action: "SUPPORT_TICKET_MESSAGE_CREATED", entity: "SupportTicket", entityId: ticket.id, requestId: request.id, ipAddress: request.ip, after: { messageId: created.id, internalOnly: created.internalOnly } } });
         return created;
       });
       return reply.status(201).send(message);
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/suporte/acessos/:id",
+    { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN"]), requireRecentMfa()] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = z.object({ decisao: z.enum(["APPROVE", "REJECT", "REVOKE"]), confirmacao: z.string().trim().min(3).max(80) }).safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "DECISAO_DE_SUPORTE_INVALIDA" });
+      const expected = parsed.data.decisao === "APPROVE" ? "AUTORIZAR SUPORTE" : parsed.data.decisao === "REJECT" ? "RECUSAR SUPORTE" : "REVOGAR SUPORTE";
+      if (parsed.data.confirmacao !== expected) return reply.status(400).send({ erro: "CONFIRMACAO_DE_SUPORTE_INVALIDA" });
+      const access = await prisma.supportAccessSession.findFirst({ where: { id: id.data, companyId: request.tenant!.companyId } });
+      if (!access) return reply.status(404).send({ erro: "SESSAO_DE_SUPORTE_NAO_ENCONTRADA" });
+      if (parsed.data.decisao === "APPROVE" && access.status !== "REQUESTED") return reply.status(409).send({ erro: "SESSAO_DE_SUPORTE_NAO_AGUARDA_AUTORIZACAO" });
+      if (parsed.data.decisao === "REJECT" && access.status !== "REQUESTED") return reply.status(409).send({ erro: "SESSAO_DE_SUPORTE_NAO_AGUARDA_RECUSA" });
+      if (parsed.data.decisao === "REVOKE" && !["APPROVED", "ACTIVE"].includes(access.status)) return reply.status(409).send({ erro: "SESSAO_DE_SUPORTE_NAO_PODE_SER_REVOGADA" });
+      const now = new Date();
+      const status = parsed.data.decisao === "APPROVE" ? "APPROVED" : parsed.data.decisao === "REJECT" ? "REJECTED" : "REVOKED";
+      const saved = await prisma.$transaction(async (tx) => {
+        const updated = await tx.supportAccessSession.update({ where: { id: access.id }, data: { status, ...(status === "APPROVED" ? { approvedById: request.user.sub, approvedAt: now, expiresAt: new Date(now.getTime() + access.durationMinutes * 60_000), consentSnapshot: { confirmation: expected, approvedAt: now.toISOString(), role: request.tenant!.role, scope: access.scope } } : status === "REVOKED" ? { revokedById: request.user.sub, revokedAt: now } : { revokedById: request.user.sub, revokedAt: now }) } });
+        await tx.auditLog.create({ data: { companyId: access.companyId, userId: request.user.sub, action: `SUPPORT_ACCESS_${status}`, entity: "SupportAccessSession", entityId: access.id, requestId: request.id, ipAddress: request.ip, before: { status: access.status }, after: { status, durationMinutes: access.durationMinutes, scope: access.scope } } });
+        return updated;
+      });
+      return reply.send(saved);
     },
   );
 

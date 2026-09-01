@@ -1,0 +1,3 @@
+import { requireInternal } from "@/lib/portal";
+import { SupportDiagnostics } from "./support-diagnostics";
+export default async function SupportDiagnosticsPage({ searchParams }: { searchParams: Promise<{ session?: string }> }) { await requireInternal(["HELPDESK"]); const { session = "" } = await searchParams; return <section className="report-page"><div className="report-heading"><div><span>SESSÃO CONSENTIDA</span><h1>Diagnóstico de suporte</h1><p>Visão somente leitura, temporária e auditada. Nenhuma operação da empresa pode ser alterada aqui.</p></div><div className="report-period">Acesso controlado</div></div><SupportDiagnostics sessionId={session}/></section>; }

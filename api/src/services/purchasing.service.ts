@@ -5,6 +5,7 @@ const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100)
 const quantity = (value: unknown) => Number(value ?? 0);
 
 export type ReorderSuggestion = {
+  recommendationId?: string;
   productId: string;
   ean: string;
   productName: string;
@@ -19,6 +20,9 @@ export type ReorderSuggestion = {
   soldLast30Days: number;
   revenueLast30Days: number;
   dailySalesAverage: number;
+  baseDailySalesAverage: number;
+  seasonalFactor: number;
+  promotionFactor: number;
   coverageDays: number | null;
   leadTimeDays: number;
   minimumStock: number;
@@ -44,12 +48,17 @@ export function calculateReorderSuggestion(input: {
   revenueLast30Days: number;
   incoming: number;
   targetDays: number;
+  seasonalFactor?: number;
+  promotionFactor?: number;
 }): ReorderSuggestion | null {
   const onHand = input.product.storeStockBalances.reduce((sum, item) => sum + quantity(item.onHand), 0);
   const reserved = input.product.storeStockBalances.reduce((sum, item) => sum + quantity(item.reserved), 0);
   const available = Math.max(0, onHand - reserved);
   const actualDailyAverage = input.soldLast30Days / 30;
-  const dailyAverage = actualDailyAverage > 0 ? actualDailyAverage : quantity(input.product.dailySalesAverage);
+  const baseDailyAverage = actualDailyAverage > 0 ? actualDailyAverage : quantity(input.product.dailySalesAverage);
+  const seasonalFactor = Math.min(10, Math.max(0.1, input.seasonalFactor ?? 1));
+  const promotionFactor = Math.min(5, Math.max(1, input.promotionFactor ?? 1));
+  const dailyAverage = baseDailyAverage * seasonalFactor * promotionFactor;
   const preferred = input.product.supplierProducts.find((entry) => entry.preferred) ?? input.product.supplierProducts[0];
   const leadTimeDays = preferred?.supplier.leadTimeDays ?? 7;
   const minimumStock = quantity(input.product.minimumStock);
@@ -101,6 +110,9 @@ export function calculateReorderSuggestion(input: {
     soldLast30Days: input.soldLast30Days,
     revenueLast30Days: roundMoney(input.revenueLast30Days),
     dailySalesAverage: Number(dailyAverage.toFixed(3)),
+    baseDailySalesAverage: Number(baseDailyAverage.toFixed(3)),
+    seasonalFactor: Number(seasonalFactor.toFixed(4)),
+    promotionFactor: Number(promotionFactor.toFixed(4)),
     coverageDays: coverageDays === null ? null : Number(coverageDays.toFixed(1)),
     leadTimeDays,
     minimumStock,
@@ -118,8 +130,14 @@ export function calculateReorderSuggestion(input: {
 export async function getPurchasingDashboard(input: { companyId: string; storeId?: string; targetDays?: number }) {
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 30);
-  const targetDays = Math.min(90, Math.max(7, input.targetDays ?? 30));
-  const [suppliers, stores, products, sales, orders, availableReceivings, supplierReturns] = await Promise.all([
+  const policy = await prisma.purchasePolicy.upsert({
+    where: { companyId: input.companyId },
+    create: { companyId: input.companyId },
+    update: {},
+  });
+  const targetDays = Math.min(90, Math.max(7, input.targetDays ?? policy.defaultCoverageDays));
+  const currentMonth = new Date().getUTCMonth() + 1;
+  const [suppliers, stores, products, sales, orders, availableReceivings, supplierReturns, seasonalities, measuredRecommendations] = await Promise.all([
     prisma.supplier.findMany({
       where: { companyId: input.companyId },
       include: { _count: { select: { products: true, purchaseOrders: true } } },
@@ -169,6 +187,14 @@ export async function getPurchasingDashboard(input: { companyId: string; storeId
       },
       orderBy: { createdAt: "desc" }, take: 100,
     }),
+    prisma.demandSeasonality.findMany({
+      where: { companyId: input.companyId, month: currentMonth, ...(input.storeId ? { storeId: input.storeId } : {}) },
+      select: { id: true, storeId: true, productId: true, month: true, factor: true, source: true, reason: true },
+    }),
+    prisma.purchaseRecommendation.findMany({
+      where: { companyId: input.companyId, recommendationDate: { gte: new Date(Date.now() - 90 * 86_400_000) } },
+      select: { status: true, suggestedQuantity: true, actualPurchased: true, recommendationAccuracy: true, avoidedStockout: true, avoidedLossQuantity: true, estimatedInvestment: true },
+    }),
   ]);
   const salesByProduct = new Map<string, { quantity: number; revenue: number }>();
   for (const item of sales) {
@@ -184,13 +210,52 @@ export async function getPurchasingDashboard(input: { companyId: string; storeId
     for (const item of order.items) incomingByProduct.set(item.productId, (incomingByProduct.get(item.productId) ?? 0) + Math.max(0, quantity(item.requestedQuantity) - quantity(item.receivedQuantity)));
   }
   const urgencyScore = { CRITICAL: 3, HIGH: 2, NORMAL: 1 } as const;
+  const seasonalFactorByProduct = new Map<string, number>();
+  for (const entry of seasonalities) seasonalFactorByProduct.set(entry.productId, quantity(entry.factor));
+  const now = new Date();
   const suggestions = products
     .map((product) => {
       const sold = salesByProduct.get(product.id) ?? { quantity: 0, revenue: 0 };
-      return calculateReorderSuggestion({ product, soldLast30Days: sold.quantity, revenueLast30Days: sold.revenue, incoming: incomingByProduct.get(product.id) ?? 0, targetDays });
+      const promotionActive = product.salesStrategy === "PROMOTION" && (!product.strategyStartsAt || product.strategyStartsAt <= now) && (!product.strategyEndsAt || product.strategyEndsAt >= now);
+      return calculateReorderSuggestion({
+        product,
+        soldLast30Days: sold.quantity,
+        revenueLast30Days: sold.revenue,
+        incoming: incomingByProduct.get(product.id) ?? 0,
+        targetDays,
+        seasonalFactor: policy.seasonalityEnabled ? seasonalFactorByProduct.get(product.id) ?? 1 : 1,
+        promotionFactor: promotionActive ? 1 + quantity(policy.promotionLiftPercent) : 1,
+      });
     })
     .filter((entry): entry is ReorderSuggestion => Boolean(entry))
     .sort((a, b) => urgencyScore[b.urgency] - urgencyScore[a.urgency] || b.revenueLast30Days - a.revenueLast30Days || b.marginPercent - a.marginPercent);
+  if (input.storeId) {
+    const recommendationDate = new Date(); recommendationDate.setUTCHours(0, 0, 0, 0);
+    for (const entry of suggestions) {
+      const expectedStockoutAt = entry.dailySalesAverage > 0 ? new Date(recommendationDate.getTime() + Math.max(0, entry.effectiveAvailable / entry.dailySalesAverage) * 86_400_000) : null;
+      const saved = await prisma.purchaseRecommendation.upsert({
+        where: { storeId_productId_recommendationDate: { storeId: input.storeId, productId: entry.productId, recommendationDate } },
+        create: {
+          companyId: input.companyId, storeId: input.storeId, productId: entry.productId, recommendationDate,
+          baseDailyAverage: entry.baseDailySalesAverage, seasonalFactor: entry.seasonalFactor, promotionFactor: entry.promotionFactor,
+          forecastDailyAverage: entry.dailySalesAverage, effectiveAvailable: entry.effectiveAvailable, incomingQuantity: entry.incoming,
+          expiryRiskQuantity: entry.expiryRiskQuantity, suggestedQuantity: entry.suggestedQuantity, estimatedInvestment: entry.estimatedInvestment,
+          expectedStockoutAt, metadata: { targetDays, source: "PURCHASING_DASHBOARD" },
+        },
+        update: {
+          baseDailyAverage: entry.baseDailySalesAverage, seasonalFactor: entry.seasonalFactor, promotionFactor: entry.promotionFactor,
+          forecastDailyAverage: entry.dailySalesAverage, effectiveAvailable: entry.effectiveAvailable, incomingQuantity: entry.incoming,
+          expiryRiskQuantity: entry.expiryRiskQuantity, suggestedQuantity: entry.suggestedQuantity, estimatedInvestment: entry.estimatedInvestment,
+          expectedStockoutAt, metadata: { targetDays, source: "PURCHASING_DASHBOARD" },
+        },
+        select: { id: true },
+      });
+      entry.recommendationId = saved.id;
+    }
+  }
+  const measured = measuredRecommendations.filter((entry) => entry.status === "MEASURED");
+  const soldUnits = [...salesByProduct.values()].reduce((sum, entry) => sum + entry.quantity, 0);
+  const availableUnits = products.reduce((sum, product) => sum + product.storeStockBalances.reduce((inner, balance) => inner + Math.max(0, quantity(balance.onHand) - quantity(balance.reserved)), 0), 0);
   return {
     indicators: {
       critical: suggestions.filter((entry) => entry.urgency === "CRITICAL").length,
@@ -198,8 +263,12 @@ export async function getPurchasingDashboard(input: { companyId: string; storeId
       potentialGrossProfit: roundMoney(suggestions.reduce((sum, entry) => sum + entry.estimatedGrossProfit, 0)),
       openOrders: orders.filter((entry) => ["DRAFT", "APPROVED", "PARTIALLY_RECEIVED"].includes(entry.status)).length,
       returnsPendingFiscal: supplierReturns.filter((entry) => entry.status === "PENDING_FISCAL").length,
+      avoidedStockouts: measured.filter((entry) => entry.avoidedStockout).length,
+      avoidedLossQuantity: Number(measured.reduce((sum, entry) => sum + quantity(entry.avoidedLossQuantity), 0).toFixed(3)),
+      recommendationAccuracy: measured.length ? Number((measured.reduce((sum, entry) => sum + quantity(entry.recommendationAccuracy), 0) / measured.length * 100).toFixed(1)) : null,
+      stockTurnover30Days: availableUnits > 0 ? Number((soldUnits / availableUnits).toFixed(2)) : null,
     },
-    targetDays, suppliers, stores,
+    targetDays, policy: { ...policy, promotionLiftPercent: quantity(policy.promotionLiftPercent), managerApprovalLimit: quantity(policy.managerApprovalLimit) }, seasonalities, suppliers, stores,
     products: products.map((entry) => ({ id: entry.id, ean: entry.ean, name: entry.name, currentCost: quantity(entry.currentCost) })),
     suggestions, orders, availableReceivings, supplierReturns,
   };
@@ -240,7 +309,7 @@ export async function saveSupplierProduct(input: { companyId: string; supplierId
   });
 }
 
-export async function createPurchaseOrder(input: { companyId: string; supplierId: string; storeId: string; expectedAt?: Date | null; notes?: string | null; items: Array<{ productId: string; quantity: number; unitCost: number }>; userId: string; requestId?: string }) {
+export async function createPurchaseOrder(input: { companyId: string; supplierId: string; storeId: string; expectedAt?: Date | null; notes?: string | null; items: Array<{ productId: string; quantity: number; unitCost: number; recommendationId?: string }>; userId: string; requestId?: string }) {
   const uniqueItems = new Map(input.items.map((item) => [item.productId, item]));
   if (uniqueItems.size !== input.items.length) throw new Error("PEDIDO_COM_PRODUTO_DUPLICADO");
   const [supplier, store, products] = await Promise.all([
@@ -255,23 +324,90 @@ export async function createPurchaseOrder(input: { companyId: string; supplierId
   const code = `PC-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${randomUUID().slice(0, 6).toUpperCase()}`;
   return prisma.$transaction(async (tx) => {
     const order = await tx.purchaseOrder.create({ data: { companyId: input.companyId, supplierId: input.supplierId, storeId: input.storeId, createdById: input.userId, code, expectedAt: input.expectedAt ?? null, notes: input.notes ?? null, totalAmount, items: { create: input.items.map((item) => ({ productId: item.productId, requestedQuantity: item.quantity, unitCost: item.unitCost, totalAmount: roundMoney(item.quantity * item.unitCost) })) } }, include: { items: true } });
+    for (const item of input.items) {
+      if (!item.recommendationId) continue;
+      const orderItem = order.items.find((entry) => entry.productId === item.productId);
+      if (!orderItem) continue;
+      await tx.purchaseRecommendation.updateMany({
+        where: { id: item.recommendationId, companyId: input.companyId, storeId: input.storeId, productId: item.productId, status: "OPEN" },
+        data: { status: "ADOPTED", adoptedOrderItemId: orderItem.id, adoptedAt: new Date(), actualPurchased: item.quantity },
+      });
+    }
     await tx.auditLog.create({ data: { companyId: input.companyId, userId: input.userId, action: "PURCHASE_ORDER_CREATED", entity: "PurchaseOrder", entityId: order.id, requestId: input.requestId, after: { code, supplierId: input.supplierId, storeId: input.storeId, totalAmount, itemCount: input.items.length } } });
     return order;
   });
 }
 
-export async function approvePurchaseOrder(input: { companyId: string; orderId: string; userId: string; requestId?: string }) {
+export async function approvePurchaseOrder(input: { companyId: string; orderId: string; userId: string; approverRole: string; requestId?: string }) {
   const order = await prisma.purchaseOrder.findFirst({ where: { id: input.orderId, companyId: input.companyId }, include: { supplier: true, items: true } });
   if (!order) throw new Error("PEDIDO_DE_COMPRA_NAO_ENCONTRADO");
   if (order.status === "APPROVED") return order;
   if (order.status !== "DRAFT") throw new Error("PEDIDO_DE_COMPRA_NAO_PODE_SER_APROVADO");
   if (!order.items.length) throw new Error("PEDIDO_DE_COMPRA_SEM_ITENS");
   if (quantity(order.totalAmount) < quantity(order.supplier.minimumOrderValue)) throw new Error("PEDIDO_ABAIXO_DO_MINIMO_DO_FORNECEDOR");
+  const policy = await prisma.purchasePolicy.findUnique({ where: { companyId: input.companyId } });
+  const approvalLimit = quantity(policy?.managerApprovalLimit ?? 5000);
+  if ((policy?.ownerApprovalAboveLimit ?? true) && quantity(order.totalAmount) > approvalLimit && input.approverRole !== "OWNER") {
+    throw new Error(`APROVACAO_DO_PROPRIETARIO_NECESSARIA:${approvalLimit.toFixed(2)}`);
+  }
   return prisma.$transaction(async (tx) => {
     const saved = await tx.purchaseOrder.update({ where: { id: order.id }, data: { status: "APPROVED", approvedById: input.userId, approvedAt: new Date() } });
     await tx.auditLog.create({ data: { companyId: input.companyId, userId: input.userId, action: "PURCHASE_ORDER_APPROVED", entity: "PurchaseOrder", entityId: order.id, requestId: input.requestId, before: { status: order.status }, after: { status: saved.status } } });
     return saved;
   });
+}
+
+export async function savePurchasePolicy(input: { companyId: string; defaultCoverageDays: number; promotionLiftPercent: number; managerApprovalLimit: number; ownerApprovalAboveLimit: boolean; seasonalityEnabled: boolean; userId: string; requestId?: string }) {
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.purchasePolicy.findUnique({ where: { companyId: input.companyId } });
+    const saved = await tx.purchasePolicy.upsert({
+      where: { companyId: input.companyId },
+      create: { companyId: input.companyId, defaultCoverageDays: input.defaultCoverageDays, promotionLiftPercent: input.promotionLiftPercent, managerApprovalLimit: input.managerApprovalLimit, ownerApprovalAboveLimit: input.ownerApprovalAboveLimit, seasonalityEnabled: input.seasonalityEnabled, updatedById: input.userId },
+      update: { defaultCoverageDays: input.defaultCoverageDays, promotionLiftPercent: input.promotionLiftPercent, managerApprovalLimit: input.managerApprovalLimit, ownerApprovalAboveLimit: input.ownerApprovalAboveLimit, seasonalityEnabled: input.seasonalityEnabled, updatedById: input.userId },
+    });
+    await tx.auditLog.create({ data: { companyId: input.companyId, userId: input.userId, action: "PURCHASE_POLICY_UPDATED", entity: "PurchasePolicy", entityId: saved.id, requestId: input.requestId, before: before ? { defaultCoverageDays: before.defaultCoverageDays, managerApprovalLimit: before.managerApprovalLimit } : undefined, after: { defaultCoverageDays: saved.defaultCoverageDays, promotionLiftPercent: saved.promotionLiftPercent, managerApprovalLimit: saved.managerApprovalLimit, ownerApprovalAboveLimit: saved.ownerApprovalAboveLimit, seasonalityEnabled: saved.seasonalityEnabled } } });
+    return saved;
+  });
+}
+
+export async function saveDemandSeasonality(input: { companyId: string; storeId: string; productId: string; month: number; factor: number; reason?: string | null; userId: string; requestId?: string }) {
+  const [store, product] = await Promise.all([
+    prisma.store.findFirst({ where: { id: input.storeId, companyId: input.companyId, active: true }, select: { id: true } }),
+    prisma.product.findFirst({ where: { id: input.productId, companyId: input.companyId, active: true }, select: { id: true } }),
+  ]);
+  if (!store || !product) throw new Error("LOJA_OU_PRODUTO_DA_SAZONALIDADE_NAO_ENCONTRADO");
+  return prisma.$transaction(async (tx) => {
+    const saved = await tx.demandSeasonality.upsert({
+      where: { storeId_productId_month: { storeId: input.storeId, productId: input.productId, month: input.month } },
+      create: { companyId: input.companyId, storeId: input.storeId, productId: input.productId, month: input.month, factor: input.factor, reason: input.reason ?? null, updatedById: input.userId },
+      update: { factor: input.factor, reason: input.reason ?? null, source: "MANUAL", updatedById: input.userId },
+    });
+    await tx.auditLog.create({ data: { companyId: input.companyId, userId: input.userId, action: "DEMAND_SEASONALITY_UPDATED", entity: "DemandSeasonality", entityId: saved.id, requestId: input.requestId, after: { storeId: input.storeId, productId: input.productId, month: input.month, factor: input.factor, reason: input.reason } } });
+    return saved;
+  });
+}
+
+export async function measurePurchaseRecommendations(referenceDate = new Date()) {
+  const cutoff = new Date(referenceDate.getTime() - 30 * 86_400_000);
+  const adopted = await prisma.purchaseRecommendation.findMany({
+    where: { status: "ADOPTED", adoptedAt: { lte: cutoff } },
+    include: { adoptedOrderItem: { select: { requestedQuantity: true, receivedQuantity: true, purchaseOrder: { select: { status: true } } } }, store: { select: { stockBalances: { select: { productId: true, onHand: true, reserved: true } } } } },
+    take: 5000,
+  });
+  let measured = 0;
+  for (const entry of adopted) {
+    const actual = quantity(entry.adoptedOrderItem?.receivedQuantity ?? entry.actualPurchased ?? 0);
+    const suggested = quantity(entry.suggestedQuantity);
+    const denominator = Math.max(suggested, actual, 1);
+    const accuracy = Math.max(0, 1 - Math.abs(actual - suggested) / denominator);
+    const currentAvailable = entry.store.stockBalances.filter((balance) => balance.productId === entry.productId).reduce((sum, balance) => sum + Math.max(0, quantity(balance.onHand) - quantity(balance.reserved)), 0);
+    const avoidedStockout = Boolean(entry.expectedStockoutAt && entry.expectedStockoutAt <= referenceDate && actual > 0 && currentAvailable > 0);
+    await prisma.purchaseRecommendation.update({ where: { id: entry.id }, data: { status: "MEASURED", measuredAt: referenceDate, actualPurchased: actual, recommendationAccuracy: accuracy, avoidedStockout, avoidedLossQuantity: entry.expiryRiskQuantity } });
+    measured += 1;
+  }
+  const expired = await prisma.purchaseRecommendation.updateMany({ where: { status: "OPEN", expectedStockoutAt: { lt: referenceDate }, recommendationDate: { lt: cutoff } }, data: { status: "EXPIRED", measuredAt: referenceDate, avoidedStockout: false, recommendationAccuracy: 0 } });
+  const expiredSupportSessions = await prisma.supportAccessSession.updateMany({ where: { status: { in: ["APPROVED", "ACTIVE"] }, expiresAt: { lt: referenceDate } }, data: { status: "EXPIRED" } });
+  return { duplicate: false, counters: { measured, expired: expired.count, expiredSupportSessions: expiredSupportSessions.count } };
 }
 
 export async function cancelPurchaseOrder(input: { companyId: string; orderId: string; userId: string; reason: string; requestId?: string }) {
