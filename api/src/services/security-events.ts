@@ -17,6 +17,9 @@ export const securityActions = [
   "AUTH_MFA_ENROLLED",
   "AUTH_MFA_DISABLED",
   "AUTH_MFA_STEP_UP",
+  "AUTH_PASSWORD_RESET_REQUESTED",
+  "AUTH_PASSWORD_RESET_COMPLETED",
+  "AUTH_PASSWORD_CHANGED",
 ] as const;
 
 export function identityFingerprint(value: string) {

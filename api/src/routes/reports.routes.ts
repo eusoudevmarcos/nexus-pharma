@@ -49,9 +49,12 @@ function getPeriod(query: unknown) {
 }
 
 const money = (value: unknown) => Number(value ?? 0);
-const analyticalFilterSchema = z.object({
+const analyticalFilterBaseSchema = z.object({
   inicio: z.coerce.date(), fim: z.coerce.date(), loja_id: z.string().uuid().optional(), pdv_id: z.string().uuid().optional(), categoria_id: z.string().uuid().optional(), produto_id: z.string().uuid().optional(), vendedor_id: z.string().uuid().optional(),
-}).refine((data) => data.inicio <= data.fim && data.fim.getTime() - data.inicio.getTime() <= 366 * 86_400_000, { message: "período inválido" });
+});
+const validAnalyticalPeriod = (data: { inicio: Date; fim: Date }) => data.inicio <= data.fim && data.fim.getTime() - data.inicio.getTime() <= 366 * 86_400_000;
+const analyticalFilterSchema = analyticalFilterBaseSchema.refine(validAnalyticalPeriod, { message: "período inválido" });
+const analyticalExportSchema = analyticalFilterBaseSchema.extend({ formato: z.enum(["CSV", "XLSX", "PDF"]).default("CSV") }).refine(validAnalyticalPeriod, { message: "período inválido" });
 
 function managerialFilters(value: z.infer<typeof analyticalFilterSchema>) {
   const start = new Date(value.inicio); start.setHours(0, 0, 0, 0);
@@ -78,7 +81,7 @@ export async function reportsRoutes(app: FastifyInstance) {
   });
 
   app.post("/gerencial/exportar", { preHandler: [authenticate, tenantContext, requireTenantRoles(managementRoles)] }, async (request, reply) => {
-    const parsed = analyticalFilterSchema.extend({ formato: z.enum(["CSV", "XLSX", "PDF"]).default("CSV") }).safeParse(request.body);
+    const parsed = analyticalExportSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ erro: "FILTROS_GERENCIAIS_INVALIDOS" });
     const report = await buildManagerialReport(request.tenant!.companyId, managerialFilters(parsed.data));
     const format = parsed.data.formato;
