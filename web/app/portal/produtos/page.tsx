@@ -7,7 +7,7 @@ import type { FiscalCategory, ProductRecord, RegistrationCatalogs } from "../cad
 export const metadata: Metadata = { title: "Cadastro de produtos" };
 
 export default async function ProductsPage() {
-  const session = await requireCompany(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "OPERATOR", "VIEWER"]);
+  const session = await requireCompany(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "ATTENDANT", "OPERATOR", "VIEWER"]);
   const [products, categories, catalogs, imports] = await Promise.all([
     portalFetch<ProductRecord[]>("/api/v1/cadastros/produtos"),
     portalFetch<FiscalCategory[]>("/api/v1/cadastros/categorias"),

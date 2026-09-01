@@ -29,6 +29,7 @@ export type ProcessarVendaInput = {
   discountPercent?: number;
   sellerId?: string | null;
   pharmacistCredentialId?: string | null;
+  counterOrderId?: string | null;
   buyer?: BuyerContext | null;
   operationAt?: Date;
 };
@@ -42,6 +43,7 @@ const defaultDiscountLimits: Record<string, number> = {
   VIEWER: 0,
   OPERATOR: 5,
   PHARMACIST: 10,
+  ATTENDANT: 5,
   MANAGER: 15,
   ADMIN: 20,
   OWNER: 20,
@@ -98,7 +100,7 @@ async function processarVendaOnce(input: ProcessarVendaInput) {
       const operationNow = input.operationAt ?? new Date();
       const sellerId = input.sellerId ?? input.usuarioId;
       const sellerMembership = await tx.membership.findFirst({
-        where: { companyId: input.empresaId, userId: sellerId, active: true, role: { in: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"] }, user: { status: "ACTIVE" } },
+        where: { companyId: input.empresaId, userId: sellerId, active: true, role: { in: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "ATTENDANT", "OPERATOR"] }, user: { status: "ACTIVE" } },
         include: { user: { select: { name: true } } },
       });
       if (!sellerMembership) throw new Error("VENDEDOR_ATIVO_NAO_ENCONTRADO");
@@ -124,7 +126,7 @@ async function processarVendaOnce(input: ProcessarVendaInput) {
           })
         : null;
       const requestedDiscount = input.discountPercent ?? 0;
-      const discountLimit = discountLimitForRole(input.actorRole ?? "OPERATOR", company.settings);
+      const discountLimit = discountLimitForRole(input.counterOrderId ? sellerMembership.role : input.actorRole ?? "OPERATOR", company.settings);
       if (requestedDiscount < 0 || requestedDiscount > discountLimit)
         throw new Error(`DESCONTO_ACIMA_DO_LIMITE:${discountLimit.toFixed(2)}`);
       const discountRate = requestedDiscount / 100;
@@ -143,6 +145,19 @@ async function processarVendaOnce(input: ProcessarVendaInput) {
         throw new Error("SESSAO_CAIXA_NAO_ENCONTRADA_OU_FECHADA");
       if (Boolean(input.cashSessionId) !== Boolean(input.pagamentos?.length))
         throw new Error("CAIXA_E_PAGAMENTOS_DEVEM_SER_INFORMADOS_JUNTOS");
+      const counterOrder = input.counterOrderId
+        ? await tx.counterOrder.findFirst({
+            where: {
+              id: input.counterOrderId,
+              companyId: input.empresaId,
+              status: "IN_CHECKOUT",
+              cashSessionId: cashSession?.id,
+              expiresAt: { gt: operationNow },
+            },
+          })
+        : null;
+      if (input.counterOrderId && !counterOrder)
+        throw new Error("PRE_VENDA_NAO_ASSUMIDA_NESTE_CAIXA");
 
       const eans = input.itens.map((item) => item.ean);
       const products = await tx.product.findMany({
@@ -431,6 +446,7 @@ async function processarVendaOnce(input: ProcessarVendaInput) {
           customerId: customer?.id,
           sellerId,
           pharmacistCredentialId: pharmacistCredential?.id,
+          counterOrderId: counterOrder?.id,
           idempotencyKey: input.idempotencyKey,
           invoiceModel: input.modeloNota === "55" ? "NF55" : "NFC65",
           status: "COMPLETED",
@@ -453,6 +469,14 @@ async function processarVendaOnce(input: ProcessarVendaInput) {
           soldAt: operationNow,
         },
       });
+
+      if (counterOrder) {
+        const completed = await tx.counterOrder.updateMany({
+          where: { id: counterOrder.id, status: "IN_CHECKOUT", cashSessionId: cashSession?.id },
+          data: { status: "COMPLETED", completedAt: operationNow },
+        });
+        if (completed.count !== 1) throw new Error("PRE_VENDA_JA_FINALIZADA_OU_CANCELADA");
+      }
 
       if (cashSession && input.pagamentos?.length) {
         await tx.salePayment.createMany({
@@ -729,6 +753,7 @@ async function processarVendaOnce(input: ProcessarVendaInput) {
             customer_id: customer?.id ?? null,
             customer_identified: Boolean(customer),
             pharmacist_credential_id: pharmacistCredential?.id ?? null,
+            counter_order_id: counterOrder?.id ?? null,
             controlled_items: lines.filter((line) => line.controlPolicy.controlLevel !== "NONE").map((line) => ({ ean: line.product.ean, level: line.controlPolicy.controlLevel, rule_version: line.controlPolicy.controlRuleVersion })),
             cash_session_id: cashSession?.id ?? null,
             payments: input.pagamentos?.map((payment) => ({

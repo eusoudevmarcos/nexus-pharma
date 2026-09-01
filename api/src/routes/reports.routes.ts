@@ -69,7 +69,7 @@ export async function reportsRoutes(app: FastifyInstance) {
       prisma.store.findMany({ where: { companyId, active: true }, select: { id: true, code: true, name: true, pointsOfSale: { where: { active: true }, select: { id: true, code: true, name: true } } }, orderBy: { name: "asc" } }),
       prisma.fiscalCategory.findMany({ where: { companyId, active: true }, select: { id: true, code: true, name: true }, orderBy: { name: "asc" } }),
       prisma.product.findMany({ where: { companyId, active: true }, select: { id: true, ean: true, name: true, categoryId: true }, orderBy: { name: "asc" } }),
-      prisma.membership.findMany({ where: { companyId, active: true, role: { in: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"] } }, select: { role: true, user: { select: { id: true, name: true } } }, orderBy: { user: { name: "asc" } } }),
+      prisma.membership.findMany({ where: { companyId, active: true, role: { in: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "ATTENDANT", "OPERATOR"] } }, select: { role: true, user: { select: { id: true, name: true } } }, orderBy: { user: { name: "asc" } } }),
     ]);
     return { stores, categories, products, sellers: sellers.map((entry) => ({ ...entry.user, role: entry.role })) };
   });

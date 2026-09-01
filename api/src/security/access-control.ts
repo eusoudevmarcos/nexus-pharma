@@ -8,6 +8,7 @@ export const tenantRoles = [
   "BUYER",
   "FINANCE",
   "PHARMACIST",
+  "ATTENDANT",
   "OPERATOR",
   "VIEWER",
 ] as const;
@@ -95,6 +96,15 @@ export const tenantProfiles: readonly Profile<TenantRoleCode>[] = [
     defaultArea: "/portal/fiscal",
   },
   {
+    code: "ATTENDANT",
+    name: "Atendente de balcão",
+    shortName: "Balcão",
+    purpose: "Inicia o atendimento, consulta produtos e preços e encaminha a pré-venda confirmada ao caixa.",
+    responsibilities: ["consulta de produtos", "registro do consumidor", "desconto permitido", "pré-venda e envio ao caixa"],
+    boundaries: ["não recebe pagamentos", "não abre ou fecha caixa", "não altera estoque, fiscal ou financeiro"],
+    defaultArea: "/portal/balcao",
+  },
+  {
     code: "OPERATOR",
     name: "Caixa / operador",
     shortName: "Caixa",
@@ -117,55 +127,59 @@ export const tenantProfiles: readonly Profile<TenantRoleCode>[] = [
 export const tenantDomains: readonly AccessDomain<TenantRoleCode>[] = [
   {
     code: "DASHBOARDS", name: "Painéis e alertas", description: "Indicadores de gestão, ruptura, validade, margem e relatórios.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "VIEW", FINANCE: "VIEW", PHARMACIST: "VIEW", OPERATOR: "NONE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "VIEW", FINANCE: "VIEW", PHARMACIST: "VIEW", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
   },
   {
     code: "PRODUCTS", name: "Produtos e categorias", description: "Cadastros, composição, ANVISA, classificação e importação em massa.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "ADMIN", BUYER: "VIEW", FINANCE: "NONE", PHARMACIST: "OPERATE", OPERATOR: "VIEW", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "ADMIN", BUYER: "VIEW", FINANCE: "NONE", PHARMACIST: "OPERATE", ATTENDANT: "VIEW", OPERATOR: "VIEW", VIEWER: "VIEW" },
   },
   {
     code: "INVENTORY", name: "Estoque e lotes", description: "Entradas, lotes, validade, inventário, perdas e ajustes.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "OPERATE", FINANCE: "NONE", PHARMACIST: "OPERATE", OPERATOR: "NONE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "OPERATE", FINANCE: "NONE", PHARMACIST: "OPERATE", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
   },
   {
     code: "PURCHASING", name: "Compras e cotações", description: "Fornecedores, propostas, pedidos, aprovação e recebimento comercial.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "OPERATE", FINANCE: "VIEW", PHARMACIST: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "OPERATE", FINANCE: "VIEW", PHARMACIST: "NONE", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
   },
   {
     code: "FINANCIAL", name: "Financeiro da farmácia", description: "Contas a pagar, parcelas, baixa, estorno e visão financeira.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "OPERATE", BUYER: "NONE", FINANCE: "OPERATE", PHARMACIST: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "OPERATE", BUYER: "NONE", FINANCE: "OPERATE", PHARMACIST: "NONE", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
   },
   {
     code: "POS", name: "Caixa e pós-venda", description: "Sessão de caixa, venda, pagamentos, devolução e conciliação.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "ADMIN", BUYER: "NONE", FINANCE: "VIEW", PHARMACIST: "OPERATE", OPERATOR: "OPERATE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "ADMIN", BUYER: "NONE", FINANCE: "VIEW", PHARMACIST: "OPERATE", ATTENDANT: "NONE", OPERATOR: "OPERATE", VIEWER: "VIEW" },
+  },
+  {
+    code: "COUNTER_SERVICE", name: "Balcão e pré-venda", description: "Consulta, atendimento, identificação do consumidor e envio do pedido ao caixa.",
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "ADMIN", BUYER: "NONE", FINANCE: "NONE", PHARMACIST: "OPERATE", ATTENDANT: "OPERATE", OPERATOR: "VIEW", VIEWER: "VIEW" },
   },
   {
     code: "MEDICATIONS", name: "Medicamentos controlados", description: "Credenciais farmacêuticas, comprador, retenção e rastreabilidade.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "NONE", FINANCE: "NONE", PHARMACIST: "OPERATE", OPERATOR: "NONE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "NONE", FINANCE: "NONE", PHARMACIST: "OPERATE", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
   },
   {
     code: "FISCAL", name: "Motor fiscal e IA", description: "Análises, sugestões, propagação, trilha legal e aprovação em quatro olhos.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "NONE", FINANCE: "VIEW", PHARMACIST: "APPROVE", OPERATOR: "NONE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "NONE", FINANCE: "VIEW", PHARMACIST: "APPROVE", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
   },
   {
     code: "DFE", name: "NF-e e recebimento", description: "Distribuição DFe, manifestação, conferência e devolução ao fornecedor.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "OPERATE", FINANCE: "NONE", PHARMACIST: "OPERATE", OPERATOR: "NONE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "APPROVE", BUYER: "OPERATE", FINANCE: "NONE", PHARMACIST: "OPERATE", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "VIEW" },
   },
   {
     code: "NFCE", name: "NFC-e", description: "Preparação, transmissão, cancelamento, contingência e configuração fiscal.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "ADMIN", BUYER: "NONE", FINANCE: "NONE", PHARMACIST: "OPERATE", OPERATOR: "OPERATE", VIEWER: "VIEW" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "ADMIN", BUYER: "NONE", FINANCE: "NONE", PHARMACIST: "OPERATE", ATTENDANT: "NONE", OPERATOR: "OPERATE", VIEWER: "VIEW" },
   },
   {
     code: "USERS", name: "Usuários e acessos", description: "Convites, perfis, suspensão, sessões e responsabilidades.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "VIEW", BUYER: "NONE", FINANCE: "NONE", PHARMACIST: "NONE", OPERATOR: "NONE", VIEWER: "NONE" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "VIEW", BUYER: "NONE", FINANCE: "NONE", PHARMACIST: "NONE", ATTENDANT: "NONE", OPERATOR: "NONE", VIEWER: "NONE" },
   },
   {
     code: "PRIVACY", name: "Privacidade pessoal", description: "Solicitações LGPD da própria pessoa e acompanhamento do protocolo.",
-    access: { OWNER: "OPERATE", ADMIN: "OPERATE", MANAGER: "OPERATE", BUYER: "OPERATE", FINANCE: "OPERATE", PHARMACIST: "OPERATE", OPERATOR: "OPERATE", VIEWER: "OPERATE" },
+    access: { OWNER: "OPERATE", ADMIN: "OPERATE", MANAGER: "OPERATE", BUYER: "OPERATE", FINANCE: "OPERATE", PHARMACIST: "OPERATE", ATTENDANT: "OPERATE", OPERATOR: "OPERATE", VIEWER: "OPERATE" },
   },
   {
     code: "SUPPORT", name: "Helpdesk e consentimento", description: "Chamados, conversa, SLA e autorização de diagnóstico temporário.",
-    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "OPERATE", BUYER: "OPERATE", FINANCE: "OPERATE", PHARMACIST: "OPERATE", OPERATOR: "OPERATE", VIEWER: "OPERATE" },
+    access: { OWNER: "ADMIN", ADMIN: "ADMIN", MANAGER: "OPERATE", BUYER: "OPERATE", FINANCE: "OPERATE", PHARMACIST: "OPERATE", ATTENDANT: "OPERATE", OPERATOR: "OPERATE", VIEWER: "OPERATE" },
   },
 ] as const;
 
@@ -220,7 +234,7 @@ export function tenantRolesAtLeast(domainCode: string, level: Exclude<AccessLeve
 
 export function accessControlCatalog() {
   return {
-    version: "2026.09.01",
+    version: "2026.09.02",
     policy: {
       model: "RBAC_COM_MENOR_PRIVILEGIO",
       levels: accessLevels,

@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { PlanGrid } from "@/components/plan-grid";
-import { audiences, features, securityItems } from "@/lib/content";
+import { audiences, departments, features, securityItems, storeJourney } from "@/lib/content";
 
 export default function Home() {
   return (
     <>
       <section className="hero shell">
         <div className="hero-copy">
-          <span className="eyebrow">INTELIGÊNCIA FISCAL PARA FARMÁCIAS</span>
-          <h1>Sua farmácia cresce quando cada produto está no lugar certo.</h1>
+          <span className="eyebrow">DA OPERAÇÃO DA LOJA À INTELIGÊNCIA FISCAL</span>
+          <h1>Atenda, venda e proteja a margem em uma única plataforma.</h1>
           <p className="hero-lead">
-            Classificação fiscal, tributação, estoque, validade e margem trabalhando juntos para você decidir com clareza e operar com segurança.
+            O Nexus Pharma conecta o atendimento no balcão, a venda no caixa, o estoque, as compras, o financeiro e a tributação para a farmácia operar com agilidade hoje e se preparar para IBS e CBS.
           </p>
           <div className="hero-actions">
             <Link className="button" href="#como-funciona">Ver como funciona</Link>
@@ -47,7 +47,7 @@ export default function Home() {
           <div><strong>1 regra</strong><span>alimenta produtos vinculados</span></div>
           <div><strong>4 sinais</strong><span>saldo, giro, validade e margem</span></div>
           <div><strong>100%</strong><span>das alterações com histórico</span></div>
-          <div><strong>1 visão</strong><span>para fiscal, gestão e operação</span></div>
+          <div><strong>1 fluxo</strong><span>do balcão à gestão</span></div>
         </div>
       </section>
 
@@ -78,6 +78,13 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="section shell store-journey-section">
+        <div className="section-heading split-heading"><div><span className="eyebrow">OPERAÇÃO REAL DE FARMÁCIA</span><h2>Do primeiro atendimento ao fechamento da venda.</h2></div><p>O balcão orienta e confirma o pedido. O caixa recebe e conclui. Cada responsabilidade fica no lugar certo e o consumidor não precisa repetir tudo.</p></div>
+        <div className="store-journey">{storeJourney.map((step) => <article key={step.number}><span>{step.number}</span><h3>{step.title}</h3><p>{step.copy}</p></article>)}</div>
+      </section>
+
+      <section className="section soft-section"><div className="shell"><div className="section-heading centered"><span className="eyebrow">TODOS OS SETORES CONECTADOS</span><h2>Uma plataforma completa, com uma janela para cada função.</h2><p>Cada equipe acessa somente o necessário; os dados se encontram na gestão e na trilha de auditoria.</p></div><div className="department-grid">{departments.map((department, index) => <article key={department.title}><span>{String(index + 1).padStart(2, "0")}</span><h3>{department.title}</h3><p>{department.copy}</p></article>)}</div></div></section>
+
       <section className="section shell">
         <div className="section-heading split-heading">
           <div><span className="eyebrow">UMA PLATAFORMA, VÁRIAS ROTINAS</span><h2>Cada pessoa vê o que precisa para trabalhar.</h2></div>
@@ -101,7 +108,7 @@ export default function Home() {
       </section>
 
       <section className="section final-cta shell">
-        <div><span className="eyebrow light-eyebrow">PRÓXIMO PASSO</span><h2>Transforme informação fiscal em uma vantagem para o negócio.</h2></div>
+        <div><span className="eyebrow light-eyebrow">PRÓXIMO PASSO</span><h2>Transforme cada atendimento, produto e regra fiscal em uma decisão melhor.</h2></div>
         <Link className="button button-yellow" href="/entrar">Solicitar acesso</Link>
       </section>
     </>

@@ -21,10 +21,10 @@ export type PendingInvitation = {
   invitedBy: { name: string };
 };
 
-const roles = ["ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"];
+const roles = ["ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "ATTENDANT", "OPERATOR", "VIEWER"];
 const labels: Record<string, string> = {
   OWNER: "Proprietário", ADMIN: "Administrador", MANAGER: "Gestor", BUYER: "Compras",
-  FINANCE: "Financeiro da farmácia", PHARMACIST: "Farmacêutico", OPERATOR: "Caixa / operador", VIEWER: "Auditoria / consulta",
+  FINANCE: "Financeiro da farmácia", PHARMACIST: "Farmacêutico", ATTENDANT: "Atendente de balcão", OPERATOR: "Caixa / operador", VIEWER: "Auditoria / consulta",
 };
 const formatDate = (value: string) => new Intl.DateTimeFormat("pt-BR").format(new Date(value));
 

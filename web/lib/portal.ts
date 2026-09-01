@@ -50,6 +50,7 @@ export async function requireCompany(roles?: string[]) {
 
 export function defaultArea(role: string) {
   if (["PHARMACIST"].includes(role)) return "/portal/fiscal";
+  if (["ATTENDANT"].includes(role)) return "/portal/balcao";
   if (["OPERATOR"].includes(role)) return "/portal/caixa";
   if (["BUYER"].includes(role)) return "/portal/operacao";
   return "/portal/gestao";

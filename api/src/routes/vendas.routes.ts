@@ -9,6 +9,7 @@ import {
   tenantContext,
 } from "../security/auth.js";
 import { processarVenda } from "../services/processar-venda.service.js";
+import { getCounterOrderSalePayload } from "../services/counter-service.service.js";
 import { TaxGuardError } from "../services/tax-chain.service.js";
 
 const toJson = (value: unknown) =>
@@ -41,6 +42,7 @@ const bodySchema = z
     desconto_percentual: z.number().min(0).max(50).default(0),
     vendedor_id: z.string().uuid().nullable().default(null),
     farmaceutico_credencial_id: z.string().uuid().nullable().default(null),
+    pre_venda_id: z.string().uuid().nullable().default(null),
     consumidor: z.object({
       documento: z.string().min(11).max(18),
       nome: z.string().trim().min(2).max(180).nullable().default(null),
@@ -111,6 +113,13 @@ export async function vendasRoutes(app: FastifyInstance) {
       }
 
       try {
+        const counterPayload = parsed.data.pre_venda_id
+          ? await getCounterOrderSalePayload({
+              companyId: request.tenant!.companyId,
+              orderId: parsed.data.pre_venda_id,
+              cashSessionId: parsed.data.sessao_caixa_id ?? "",
+            })
+          : null;
         const result = await processarVenda({
           empresaId: request.tenant!.companyId,
           usuarioId: request.user.sub,
@@ -119,7 +128,7 @@ export async function vendasRoutes(app: FastifyInstance) {
           modeloNota: parsed.data.modelo_nota,
           ufDestino: parsed.data.uf_destino,
           tipoOperacao: parsed.data.tipo_operacao,
-          itens: parsed.data.itens.map((item) => ({
+          itens: counterPayload?.items ?? parsed.data.itens.map((item) => ({
             ean: item.ean,
             quantidade: item.quantidade,
             prescricao: item.prescricao ? {
@@ -138,14 +147,15 @@ export async function vendasRoutes(app: FastifyInstance) {
             referenciaExterna: payment.referencia_externa,
           })),
           actorRole: request.tenant!.role,
-          discountPercent: parsed.data.desconto_percentual,
-          sellerId: parsed.data.vendedor_id,
-          pharmacistCredentialId: parsed.data.farmaceutico_credencial_id,
-          buyer: parsed.data.consumidor ? {
+          discountPercent: counterPayload?.discountPercent ?? parsed.data.desconto_percentual,
+          sellerId: counterPayload?.sellerId ?? parsed.data.vendedor_id,
+          pharmacistCredentialId: counterPayload?.pharmacistCredentialId ?? parsed.data.farmaceutico_credencial_id,
+          counterOrderId: counterPayload?.counterOrderId ?? null,
+          buyer: counterPayload?.buyer ?? (parsed.data.consumidor ? {
             taxId: parsed.data.consumidor.documento,
             name: parsed.data.consumidor.nome,
             birthDate: parsed.data.consumidor.data_nascimento,
-          } : null,
+          } : null),
         });
         return reply.status(result.idempotente ? 200 : 201).send(result);
       } catch (error) {
@@ -190,6 +200,7 @@ export async function vendasRoutes(app: FastifyInstance) {
           || message.startsWith("VENDEDOR_ATIVO_NAO_ENCONTRADO")
           || message.startsWith("CREDENCIAL_FARMACEUTICA_NAO_VERIFICADA_OU_FORA_DA_VIGENCIA")
           || message.startsWith("DOCUMENTO_DO_COMPRADOR_INVALIDO")
+          || message.startsWith("PRE_VENDA_")
         ) {
           return reply.status(409).send({ erro: message });
         }

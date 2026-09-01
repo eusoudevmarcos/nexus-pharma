@@ -239,7 +239,7 @@ export default function Home() {
   };
   const titles: Record<string, string> = {
     overview: "Resumo do negócio",
-    pdv: "Nova venda",
+    pdv: "Balcão e caixa",
     stock: "Estoque e validades",
     fiscal: "Regras fiscais",
     products: "Produtos",
@@ -247,7 +247,7 @@ export default function Home() {
   };
   const descriptions: Record<string, string> = {
     overview: "Veja agora o que precisa da sua atenção.",
-    pdv: "Busque os itens e conclua a venda com segurança.",
+    pdv: "Monte o pedido no balcão, confirme com o consumidor e envie ao caixa.",
     stock: "Acompanhe saldos, lotes e próximos vencimentos.",
     fiscal: "Confira a tributação aplicada em cada categoria.",
     products: "Cadastre custos, preços, estoque e validade.",
@@ -272,7 +272,7 @@ export default function Home() {
         <nav aria-label="Navegação principal">
           {[
             ["overview", "overview", "Início"],
-            ["pdv", "pdv", "Vender"],
+            ["pdv", "pdv", "Balcão e caixa"],
             ["stock", "stock", "Estoque"],
             ["fiscal", "fiscal", "Fiscal"],
             ["products", "cadastros", "Produtos"],
@@ -636,6 +636,9 @@ function Pdv({
     [products, query],
   );
   const total = cart.reduce((s, p) => s + p.preco * p.quantidade, 0);
+  const [stage, setStage] = useState<"COUNTER" | "CASHIER">("COUNTER");
+  const [customerTaxId, setCustomerTaxId] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const tax = cart.reduce(
     (s, p) =>
       s +
@@ -684,16 +687,20 @@ function Pdv({
       );
     }
     setCart([]);
-    notify("Venda conferida, estoque atualizado e tributos provisionados.");
+    setCustomerTaxId("");
+    setCustomerName("");
+    setStage("COUNTER");
+    notify("Pagamento concluído no caixa; estoque e memória fiscal atualizados.");
   };
   return (
-    <div className="pdv-layout">
+    <><div className="counter-demo-flow"><span className={stage === "COUNTER" ? "active" : "done"}><b>1</b> Atendimento e pedido</span><i>→</i><span className={stage === "CASHIER" ? "active" : ""}><b>2</b> Caixa e pagamento</span><p>{stage === "COUNTER" ? "O balcão consulta, confirma e encaminha. Ainda não há pagamento nem baixa de estoque." : "A pré-venda chegou pronta. O caixa recebe e conclui sem redigitação."}</p></div><div className="pdv-layout">
       <section className="panel pdv-products">
         <div className="search-box">
           <Icon name="search" />
           <input
             ref={searchRef}
             value={query}
+            disabled={stage === "CASHIER"}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Bipe ou digite EAN / nome do produto"
             aria-label="Buscar produto"
@@ -744,9 +751,9 @@ function Pdv({
                   </small>
                 </div>
                 <div className="quantity">
-                  <button onClick={() => change(p.ean, -1)}>−</button>
+                  <button disabled={stage === "CASHIER"} onClick={() => change(p.ean, -1)}>−</button>
                   <strong>{p.quantidade}</strong>
-                  <button onClick={() => change(p.ean, 1)}>+</button>
+                  <button disabled={stage === "CASHIER"} onClick={() => change(p.ean, 1)}>+</button>
                 </div>
                 <strong className="line-total">
                   {money.format(p.preco * p.quantidade)}
@@ -763,7 +770,8 @@ function Pdv({
         </div>
       </section>
       <aside className="checkout">
-        <span className="label">RESUMO DA VENDA</span>
+        <span className="label">{stage === "COUNTER" ? "CONFIRMAÇÃO DO BALCÃO" : "RECEBIMENTO NO CAIXA"}</span>
+        <div className="counter-demo-customer"><label>CPF do consumidor<input disabled={stage === "CASHIER"} inputMode="numeric" placeholder="Somente números" value={customerTaxId} onChange={(event) => setCustomerTaxId(event.target.value)} /></label><label>Nome<input disabled={stage === "CASHIER"} placeholder="Nome do cliente" value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></label></div>
         <div className="checkout-lines">
           <p>
             <span>Subtotal</span>
@@ -794,19 +802,12 @@ function Pdv({
           <strong>{money.format(total)}</strong>
           <small>Margem líquida considerada na DRE</small>
         </div>
-        <button
-          className="finish-button"
-          disabled={!cart.length}
-          onClick={finish}
-        >
-          Finalizar venda <kbd>F8</kbd>
-        </button>
+        {stage === "COUNTER" ? <button className="finish-button" disabled={!cart.length} onClick={() => { setStage("CASHIER"); notify("Pré-venda confirmada e enviada à fila do caixa."); }}>Confirmar e enviar ao caixa</button> : <button className="finish-button" disabled={!cart.length} onClick={finish}>Receber e concluir venda <kbd>F8</kbd></button>}
         <p className="security-note">
-          A saída grava um retrato do NCM, CST/CSOSN e valores fiscais
-          aplicados.
+          {stage === "COUNTER" ? "O balcão não recebe pagamento nem baixa estoque." : "A conclusão grava pagamento, estoque e o retrato da regra fiscal aplicada."}
         </p>
       </aside>
-    </div>
+    </div></>
   );
 }
 

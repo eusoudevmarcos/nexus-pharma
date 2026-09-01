@@ -13,11 +13,12 @@ const links: PortalLink[] = [
   { href: "/portal/gestao", label: "Gestão", icon: "▦", roles: ["OWNER", "ADMIN", "MANAGER", "FINANCE", "VIEWER"] },
   { href: "/portal/operacao", label: "Painel de controle", icon: "◎", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "VIEWER"] },
   { href: "/portal/estoque", label: "Estoque", icon: "≋", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "VIEWER"] },
-  { href: "/portal/produtos", label: "Produtos", icon: "▤", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "OPERATOR", "VIEWER"] },
+  { href: "/portal/produtos", label: "Produtos", icon: "▤", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "ATTENDANT", "OPERATOR", "VIEWER"] },
   { href: "/portal/categorias", label: "Categorias", icon: "◉", roles: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "VIEWER"] },
   { href: "/portal/compras", label: "Compras", icon: "◆", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "VIEWER"] },
   { href: "/portal/cotacoes", label: "Cotações", icon: "⇄", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "VIEWER"] },
   { href: "/portal/financeiro", label: "Contas a pagar", icon: "$", roles: ["OWNER", "ADMIN", "MANAGER", "FINANCE", "VIEWER"] },
+  { href: "/portal/balcao", label: "Balcão e pré-venda", icon: "⌁", roles: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "ATTENDANT"] },
   { href: "/portal/caixa", label: "Frente de caixa", icon: "▣", roles: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR", "VIEWER"] },
   { href: "/portal/pos-venda", label: "Pós-venda", icon: "↶", roles: ["OWNER", "ADMIN", "MANAGER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
   { href: "/portal/controle-medicamentos", label: "Medicamentos", icon: "✚", roles: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "VIEWER"] },
@@ -25,14 +26,14 @@ const links: PortalLink[] = [
   { href: "/portal/recebimento", label: "Recebimento NF-e", icon: "⇣", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "VIEWER"], externalFiscalDocument: true },
   { href: "/portal/nfce", label: "Emissão NFC-e", icon: "▤", roles: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR", "VIEWER"], externalFiscalDocument: true },
   { href: "/portal/usuarios", label: "Usuários", icon: "◌", roles: ["OWNER", "ADMIN", "MANAGER"] },
-  { href: "/portal/minha-seguranca", label: "Minha segurança", icon: "◆", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
-  { href: "/portal/privacidade", label: "Privacidade", icon: "◈", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
-  { href: "/portal/suporte", label: "Helpdesk", icon: "?", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "OPERATOR", "VIEWER"] },
+  { href: "/portal/minha-seguranca", label: "Minha segurança", icon: "◆", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "ATTENDANT", "OPERATOR", "VIEWER"] },
+  { href: "/portal/privacidade", label: "Privacidade", icon: "◈", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "ATTENDANT", "OPERATOR", "VIEWER"] },
+  { href: "/portal/suporte", label: "Helpdesk", icon: "?", roles: ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "ATTENDANT", "OPERATOR", "VIEWER"] },
 ];
 
 const roleLabels: Record<string, string> = {
   OWNER: "Proprietário", ADMIN: "Administrador", MANAGER: "Gerente", BUYER: "Compras",
-  FINANCE: "Financeiro da farmácia", PHARMACIST: "Farmacêutico", OPERATOR: "Caixa", VIEWER: "Auditoria / consulta",
+  FINANCE: "Financeiro da farmácia", PHARMACIST: "Farmacêutico", ATTENDANT: "Atendente de balcão", OPERATOR: "Caixa", VIEWER: "Auditoria / consulta",
 };
 
 export function PortalShell({ profile, membership, children }: { profile: PortalProfile; membership: CompanyMembership; children: React.ReactNode }) {

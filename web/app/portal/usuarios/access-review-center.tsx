@@ -18,7 +18,7 @@ export type AccessReviewDetail = AccessReviewListItem & {
   summary: Required<ReviewSummary>;
 };
 
-const roleLabels: Record<string, string> = { OWNER: "Proprietário", ADMIN: "Administrador", MANAGER: "Gerente", BUYER: "Compras", FINANCE: "Financeiro loja", PHARMACIST: "Farmacêutico", OPERATOR: "Caixa", VIEWER: "Auditoria" };
+const roleLabels: Record<string, string> = { OWNER: "Proprietário", ADMIN: "Administrador", MANAGER: "Gerente", BUYER: "Compras", FINANCE: "Financeiro loja", PHARMACIST: "Farmacêutico", ATTENDANT: "Atendente de balcão", OPERATOR: "Caixa", VIEWER: "Auditoria" };
 const decisionLabels: Record<Decision, string> = { PENDING: "Pendente", CONFIRMED: "Confirmado", ADJUSTMENT_REQUIRED: "Ajuste necessário", REVOKED: "Revogado" };
 const formatDate = (value: string) => new Intl.DateTimeFormat("pt-BR").format(new Date(value));
 

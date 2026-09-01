@@ -126,15 +126,24 @@ export async function proxyPortal(path: string, init: RequestInit) {
       MFA_CONFIGURACAO_OBRIGATORIA: "Ative a autenticação em duas etapas em Minha segurança antes de executar esta ação.",
       MFA_CONFIRMACAO_RECENTE_OBRIGATORIA: "Confirme sua identidade em Minha segurança para liberar ações críticas por dez minutos.",
       APROVACAO_DO_PROPRIETARIO_NECESSARIA: "Este pedido ultrapassa o limite gerencial. A aprovação precisa ser feita pelo proprietário.",
+      ATENDIMENTO_DE_BALCAO_NAO_AUTORIZADO: "Seu perfil ou a loja selecionada não permitem abrir este atendimento de balcão.",
+      PRE_VENDA_NAO_ENCONTRADA_OU_EXPIRADA: "A pré-venda não existe mais ou ultrapassou o prazo de duas horas.",
+      PRE_VENDA_DE_OUTRA_LOJA: "Esta pré-venda pertence a outra loja e não pode ser recebida neste caixa.",
+      PRE_VENDA_JA_ASSUMIDA_EM_OUTRO_CAIXA: "Outro caixa já está atendendo esta pré-venda.",
+      PRE_VENDA_NAO_ASSUMIDA_NESTE_CAIXA: "Assuma a pré-venda nesta sessão antes de concluir o recebimento.",
+      PRE_VENDA_NAO_PODE_SER_CANCELADA_POR_ESTE_USUARIO: "Somente o atendente responsável ou a gestão pode cancelar esta pré-venda.",
     };
-    const dfeFallback = body.erro && /^(DFE_|NFCE_|CAIXA_|SESSAO_CAIXA_|PDV_|SANGRIA_|DIVERGENCIA_CAIXA_|CONCILIACAO_|TOTAL_PAGAMENTOS_|ESTORNO_|DEVOLUCAO_|VENDA_|VENDEDOR_|ITEM_VENDA_|ITEM_ESTORNO_|QUANTIDADE_DEVOLUCAO_|QUANTIDADE_DE_DEVOLUCAO_|LOTE_DEVOLVIDO_|SALDO_PAGAMENTO_|SALDO_DA_LOJA_|SALDO_DISPONIVEL_|SALDO_CONSOLIDADO_|SALDO_FISCAL_|DINHEIRO_INSUFICIENTE_|ESTOQUE_ALTERADO_|DESCONTO_|DESCONTOS_|CANCELAMENTO_TOTAL_|RESERVA_|TRANSFERENCIA_|LOTE_DUPLICADO_|LOTE_VENCIDO_|INVENTARIO_|CONTAGEM_|APROVACAO_|RECEBIMENTO_|AJUSTE_|PERDA_|FORNECEDOR_|VINCULO_FORNECEDOR_|PEDIDO_|COTACAO_|PROPOSTA_|ADJUDICACAO_|TITULO_|PARCELA_|PAGAMENTO_|SOMA_DAS_PARCELAS_|CONFIGURACAO_DO_TITULO_|BAIXA_DE_PAGAMENTO_|ESTORNO_PAGAMENTO_|FILTROS_DE_CONTAS_|FILTROS_DE_COMPRA_|FECHAMENTO_GERENCIAL_|FILTROS_GERENCIAIS_|CREDENCIAL_FARMACEUTICA_|DOCUMENTO_DO_COMPRADOR_|USUARIO_NAO_E_FARMACEUTICO_|POLITICA_DE_CONTROLE_|CERTIFICADO_|TRANSMISSAO_SEFAZ_|CNPJ_|XML_|CONFERENCIA_|DIVERGENCIAS_|ITEM_|NFE_|SEFAZ_|ANALISE_|SUGESTAO_|REJEICAO_)/.test(body.erro)
+    const dfeFallback = body.erro && /^(DFE_|NFCE_|CAIXA_|SESSAO_CAIXA_|PDV_|SANGRIA_|DIVERGENCIA_CAIXA_|CONCILIACAO_|TOTAL_PAGAMENTOS_|ESTORNO_|DEVOLUCAO_|VENDA_|VENDEDOR_|ITEM_VENDA_|ITEM_ESTORNO_|QUANTIDADE_DEVOLUCAO_|QUANTIDADE_DE_DEVOLUCAO_|LOTE_DEVOLVIDO_|SALDO_PAGAMENTO_|SALDO_DA_LOJA_|SALDO_DISPONIVEL_|SALDO_CONSOLIDADO_|SALDO_FISCAL_|DINHEIRO_INSUFICIENTE_|ESTOQUE_ALTERADO_|DESCONTO_|DESCONTOS_|CANCELAMENTO_TOTAL_|RESERVA_|TRANSFERENCIA_|LOTE_DUPLICADO_|LOTE_VENCIDO_|INVENTARIO_|CONTAGEM_|APROVACAO_|RECEBIMENTO_|AJUSTE_|PERDA_|FORNECEDOR_|VINCULO_FORNECEDOR_|PEDIDO_|COTACAO_|PROPOSTA_|ADJUDICACAO_|TITULO_|PARCELA_|PAGAMENTO_|SOMA_DAS_PARCELAS_|CONFIGURACAO_DO_TITULO_|BAIXA_DE_PAGAMENTO_|ESTORNO_PAGAMENTO_|FILTROS_DE_CONTAS_|FILTROS_DE_COMPRA_|FECHAMENTO_GERENCIAL_|FILTROS_GERENCIAIS_|CREDENCIAL_FARMACEUTICA_|DOCUMENTO_DO_COMPRADOR_|USUARIO_NAO_E_FARMACEUTICO_|POLITICA_DE_CONTROLE_|CERTIFICADO_|TRANSMISSAO_SEFAZ_|CNPJ_|XML_|CONFERENCIA_|DIVERGENCIAS_|ITEM_|NFE_|SEFAZ_|ANALISE_|SUGESTAO_|REJEICAO_|PRE_VENDA_|ATENDIMENTO_)/.test(body.erro)
       ? `Validação controlada: ${body.erro.toLowerCase().replaceAll("_", " ")}.`
       : null;
     const controlledSaleMessage = body.erro?.startsWith("VENDA_CONTROLADA_BLOQUEADA:")
       ? `Venda controlada bloqueada: ${body.erro.split(":").slice(2).join(", ").toLowerCase().replaceAll("_", " ")}.`
       : null;
+    const controlledCounterMessage = body.erro?.startsWith("ATENDIMENTO_CONTROLADO_INCOMPLETO:")
+      ? `Atendimento controlado incompleto: ${body.erro.split(":").slice(2).join(", ").toLowerCase().replaceAll("_", " ")}.`
+      : null;
     const validationMessage = body.validacoes?.map((item) => item.message).filter(Boolean).join(" ");
-    return NextResponse.json({ message: body.message ?? validationMessage ?? messages[body.erro ?? ""] ?? controlledSaleMessage ?? dfeFallback ?? "Não foi possível concluir a operação." }, { status: upstream.status });
+    return NextResponse.json({ message: body.message ?? validationMessage ?? messages[body.erro ?? ""] ?? controlledSaleMessage ?? controlledCounterMessage ?? dfeFallback ?? "Não foi possível concluir a operação." }, { status: upstream.status });
   }
   return NextResponse.json(body, { status: upstream.status });
 }

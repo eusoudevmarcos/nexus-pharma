@@ -18,6 +18,7 @@ const tenantRoles = [
   "BUYER",
   "FINANCE",
   "PHARMACIST",
+  "ATTENDANT",
   "OPERATOR",
   "VIEWER",
 ] as const;

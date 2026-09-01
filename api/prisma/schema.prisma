@@ -45,6 +45,7 @@ enum TenantRole {
   BUYER
   FINANCE
   PHARMACIST
+  ATTENDANT
   OPERATOR
   VIEWER
 }
@@ -302,6 +303,14 @@ enum SaleStatus {
   PENDING
   COMPLETED
   CANCELLED
+}
+
+enum CounterOrderStatus {
+  WAITING_CASHIER
+  IN_CHECKOUT
+  COMPLETED
+  CANCELLED
+  EXPIRED
 }
 
 enum InvoiceModel {
@@ -790,6 +799,8 @@ model User {
   reconciliationsReviewed    CashReconciliation[]        @relation("CashReconciliationReviewer")
   saleReversalsCreated       SaleReversal[]              @relation("SaleReversalCreator")
   salesAsSeller              Sale[]                      @relation("SaleSeller")
+  counterOrdersAttended      CounterOrder[]              @relation("CounterOrderAttendant")
+  counterOrdersClaimed       CounterOrder[]              @relation("CounterOrderCashier")
   pharmacistCredentials      PharmacistCredential[]
   controlledSalesCreated     ControlledSaleRecord[]      @relation("ControlledSaleCreator")
   stockReservationsCreated   StockReservation[]          @relation("StockReservationCreator")
@@ -933,6 +944,7 @@ model Company {
   products                   Product[]
   stockMovements             StockMovement[]
   sales                      Sale[]
+  counterOrders              CounterOrder[]
   monthlyProvisions          MonthlyProvision[]
   reorderAlerts              ReorderAlert[]
   taxAnalyses                TaxAnalysis[]
@@ -1293,6 +1305,7 @@ model Store {
   primeOpportunities      PrimeOpportunity[]
   demandSeasonalities     DemandSeasonality[]
   purchaseRecommendations PurchaseRecommendation[]
+  counterOrders           CounterOrder[]
 
   @@unique([companyId, code])
   @@index([companyId, active, type])
@@ -1346,6 +1359,7 @@ model CashSession {
   reconciliation   CashReconciliation?
   offlineSnapshots OfflinePosSnapshot[]
   offlineCommands  OfflinePosCommand[]
+  counterOrders    CounterOrder[]
 
   @@index([companyId, status, openedAt])
   @@index([pointOfSaleId, status])
@@ -1896,6 +1910,7 @@ model Product {
   primeOpportunities      PrimeOpportunity[]
   demandSeasonalities     DemandSeasonality[]
   purchaseRecommendations PurchaseRecommendation[]
+  counterOrderItems       CounterOrderItem[]
 
   @@unique([companyId, ean])
   @@index([companyId, name])
@@ -2204,6 +2219,7 @@ model Sale {
   customerId             String?                @map("customer_id") @db.Uuid
   sellerId               String?                @map("seller_id") @db.Uuid
   pharmacistCredentialId String?                @map("pharmacist_credential_id") @db.Uuid
+  counterOrderId         String?                @unique @map("counter_order_id") @db.Uuid
   idempotencyKey         String                 @map("idempotency_key") @db.Uuid
   invoiceModel           InvoiceModel           @default(NFC65) @map("invoice_model")
   status                 SaleStatus             @default(PENDING)
@@ -2230,6 +2246,7 @@ model Sale {
   customer               Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
   seller                 User?                  @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: Restrict)
   pharmacistCredential   PharmacistCredential?  @relation(fields: [pharmacistCredentialId], references: [id], onDelete: Restrict)
+  counterOrder           CounterOrder?          @relation(fields: [counterOrderId], references: [id], onDelete: Restrict)
   items                  SaleItem[]
   nfceDocuments          NfceDocument[]
   payments               SalePayment[]
@@ -2243,6 +2260,66 @@ model Sale {
   @@index([customerId, soldAt])
   @@index([sellerId, soldAt])
   @@map("sales")
+}
+
+model CounterOrder {
+  id                     String                @id @default(uuid()) @db.Uuid
+  companyId              String                @map("company_id") @db.Uuid
+  storeId                String                @map("store_id") @db.Uuid
+  attendantId            String                @map("attendant_id") @db.Uuid
+  pharmacistCredentialId String?               @map("pharmacist_credential_id") @db.Uuid
+  cashSessionId          String?               @map("cash_session_id") @db.Uuid
+  claimedById            String?               @map("claimed_by_id") @db.Uuid
+  code                   String                @db.VarChar(32)
+  status                 CounterOrderStatus    @default(WAITING_CASHIER)
+  customerTaxId          String?               @map("customer_tax_id") @db.VarChar(14)
+  customerName           String?               @map("customer_name") @db.VarChar(180)
+  customerBirthDate      DateTime?             @map("customer_birth_date") @db.Date
+  discountPercent        Decimal               @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  originalGrossAmount    Decimal               @map("original_gross_amount") @db.Decimal(15, 2)
+  grossAmount            Decimal               @map("gross_amount") @db.Decimal(15, 2)
+  notes                  String?               @db.VarChar(500)
+  expiresAt              DateTime              @map("expires_at") @db.Timestamptz(3)
+  sentAt                 DateTime              @default(now()) @map("sent_at") @db.Timestamptz(3)
+  claimedAt              DateTime?             @map("claimed_at") @db.Timestamptz(3)
+  completedAt            DateTime?             @map("completed_at") @db.Timestamptz(3)
+  cancelledAt            DateTime?             @map("cancelled_at") @db.Timestamptz(3)
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company                Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store                  Store                 @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  attendant              User                  @relation("CounterOrderAttendant", fields: [attendantId], references: [id], onDelete: Restrict)
+  pharmacistCredential   PharmacistCredential? @relation(fields: [pharmacistCredentialId], references: [id], onDelete: Restrict)
+  cashSession            CashSession?          @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
+  claimedBy              User?                 @relation("CounterOrderCashier", fields: [claimedById], references: [id], onDelete: Restrict)
+  items                  CounterOrderItem[]
+  sale                   Sale?
+
+  @@unique([companyId, code])
+  @@index([companyId, status, sentAt])
+  @@index([storeId, status, expiresAt])
+  @@index([attendantId, sentAt])
+  @@map("counter_orders")
+}
+
+model CounterOrderItem {
+  id                  String       @id @default(uuid()) @db.Uuid
+  counterOrderId      String       @map("counter_order_id") @db.Uuid
+  productId           String       @map("product_id") @db.Uuid
+  ean                 String       @db.VarChar(14)
+  productName         String       @map("product_name") @db.VarChar(180)
+  quantity            Decimal      @db.Decimal(15, 3)
+  listUnitPrice       Decimal      @map("list_unit_price") @db.Decimal(15, 2)
+  commercialUnitPrice Decimal      @map("commercial_unit_price") @db.Decimal(15, 2)
+  prescription        Json         @default("{}")
+  controlSnapshot     Json         @default("{}") @map("control_snapshot")
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  counterOrder        CounterOrder @relation(fields: [counterOrderId], references: [id], onDelete: Cascade)
+  product             Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([counterOrderId, productId])
+  @@index([productId])
+  @@map("counter_order_items")
 }
 
 model NfceNumberSequence {
@@ -2422,6 +2499,7 @@ model PharmacistCredential {
   user              User                       @relation(fields: [userId], references: [id], onDelete: Restrict)
   sales             Sale[]
   controlledRecords ControlledSaleRecord[]
+  counterOrders     CounterOrder[]
 
   @@unique([companyId, userId])
   @@unique([companyId, council, registration, state])

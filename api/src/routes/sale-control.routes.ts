@@ -40,7 +40,7 @@ export async function saleControlRoutes(app: FastifyInstance) {
     const now = new Date();
     const [members, pharmacists] = await Promise.all([
       prisma.membership.findMany({
-        where: { companyId: request.tenant!.companyId, active: true, role: { in: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "OPERATOR"] }, user: { status: "ACTIVE" } },
+        where: { companyId: request.tenant!.companyId, active: true, role: { in: ["OWNER", "ADMIN", "MANAGER", "PHARMACIST", "ATTENDANT", "OPERATOR"] }, user: { status: "ACTIVE" } },
         select: { role: true, user: { select: { id: true, name: true, email: true } } }, orderBy: { user: { name: "asc" } },
       }),
       prisma.pharmacistCredential.findMany({
