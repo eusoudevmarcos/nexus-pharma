@@ -55,6 +55,10 @@ services:
         generateValue: true
       - key: DFE_CERTIFICATE_ENCRYPTION_KEY
         generateValue: true
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true
+      - key: PRIME_ENABLED
+        value: "false"
       - key: DFE_ENABLE_SEFAZ_TRANSMISSION
         value: "false"
       - key: DFE_MAX_RESPONSE_BYTES
