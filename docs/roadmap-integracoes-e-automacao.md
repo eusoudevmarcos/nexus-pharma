@@ -103,11 +103,9 @@ grupo **`rastro`** com **`nLote`, `dFab`, `dVal`, `qLote`**. Ou seja: ao **receb
 mercadoria**, lote + fabricação + validade podem ser **preenchidos automaticamente**
 a partir do XML — sem escanear nada.
 
-- **Ação de código:** estender o parser de DF-e (`nfe-xml.service.ts`) para ler o
-  grupo `rastro` de cada `det`, e o fluxo de recebimento
-  (`dfe-receiving.service.ts`) para pré-preencher `InventoryLot`
-  (`manufactureDate`/`expiryDate`/lote). Conferência humana confirma divergências.
-- Cobre a maior parte das **entradas** de medicamentos. É por aqui que se começa.
+- **✅ Implementado.** O parser lê o grupo `rastro`, a importação persiste em
+  `dfe_document_items.rastro` e o recebimento pré-preenche lote/fabricação/validade
+  (só a quantidade física fica para conferência). Cobre a maior parte das entradas.
 
 ### Nível 2 — DataMatrix GS1 da caixa (para conferência e o que não veio no XML)
 Medicamentos sob rastreabilidade ANVISA (SNCM) trazem um **DataMatrix 2D** que
@@ -123,8 +121,9 @@ codifica, em GS1 Application Identifiers:
 Um leitor **imager 2D** (ou a câmera do celular) lê tudo de uma vez → **lote +
 validade + serial estruturados**, sem OCR e sem digitar.
 
-- **Ação de código:** um parser GS1 (separa AIs por FNC1) que devolve
-  `{ gtin, validade, lote, serial }`, usado tanto no recebimento quanto no balcão.
+- **✅ Implementado (backend).** `gs1-barcode.service` faz o parse e
+  `POST /estoque/codigo/resolver` devolve `{ produto, lote, validade, serial }`.
+  Falta o **frontend** consumir (campo com foco no leitor 2D e/ou câmera ZXing).
 
 ### Nível 3 — OCR da data (fallback para packs sem 2D)
 Perfumaria/OTC antigos podem ter só o EAN-13 (1D), que **não** carrega validade.
@@ -152,14 +151,15 @@ de lote e a auditoria já existem, o app é uma **casca de captura** sobre a API
 
 ## Resumo de próximos passos de código
 
-| Prioridade | Tarefa | Depende de |
-|---|---|---|
-| Alta | Ler grupo `rastro` da NF-e e pré-preencher `InventoryLot` no recebimento | nada (só código) |
-| Alta | Expor `tipo_cobranca` na tela de cadastro do backoffice | frontend |
-| Média | Parser GS1 (AI 01/17/10/21) + detecção no PDV | nada (só código) |
-| Média | Especificar/implementar o **Nexus Bridge** de TEF (PayGo/SiTef) | escolha do TEF |
-| Baixa | Leitura por câmera (ZXing) no PDV/mobile | nada (só código) |
-| Futuro | App de captura (PWA) + endpoint de ingestão de lotes | os itens acima |
+| Prioridade | Tarefa | Depende de | Status |
+|---|---|---|---|
+| Alta | Ler grupo `rastro` da NF-e e pré-preencher lote/validade no recebimento | nada (só código) | ✅ feito |
+| Alta | Parser GS1 (AI 01/17/10/21) + endpoint `POST /estoque/codigo/resolver` | nada (só código) | ✅ feito |
+| Alta | Expor `tipo_cobranca` na tela de cadastro do backoffice | frontend | pendente |
+| Média | Consumir `/codigo/resolver` no PDV/conferência (campo com foco no scanner) | frontend | pendente |
+| Média | Leitura por câmera (ZXing) no PDV/mobile (usa o mesmo endpoint) | frontend | pendente |
+| Média | Especificar/implementar o **Nexus Bridge** de TEF (PayGo/SiTef) | escolha do TEF | pendente |
+| Futuro | App de captura (PWA) que escaneia e chama `/codigo/resolver` | os itens acima | pendente |
 
 > Filosofia mantida em tudo: **automatizar sugerindo, confirmar com humano, registrar
 > a decisão.** Vale para fiscal, para validade e para pagamento.
