@@ -1,17 +1,21 @@
 # Checklist de execução — o que falta, por frente
 
-Consolida tudo que foi construído na branch `feat/nfce-emissor-oficial` (11 commits)
-e o que falta em cada frente, para acompanhamento. Marque conforme avançar.
+Consolida o que foi construído e o que falta em cada frente. Marque conforme avançar.
 
 ---
 
-## Frente 0 — Publicar o trabalho (curto prazo, é sua ação)
+## Frente 0 — Publicar o trabalho mais recente (curto prazo, é sua ação)
 
-- [ ] `git push -u origin feat/nfce-emissor-oficial`
-- [ ] Abrir PR: `https://github.com/eusoudevmarcos/nexus-pharma/pull/new/feat/nfce-emissor-oficial`
-- [ ] Revisar e mergear
-- [ ] No ambiente de destino: `npm install` (fastify subiu de versão) + `npx prisma migrate deploy`
-  (aplica 3 migrations: `inutilization_url`, `billing_type`, `dfe_item_rastro`)
+O emissor NFC-e, brinde/free e as automações de estoque **já foram mergeados
+em `main` e estão em produção** (Vercel + Render). O que falta publicar agora
+é o pacote de **funcionalidades da Central Nexus** (equipe interna, catálogos
+fiscais, lojas/histórico), commitado localmente (`ee075c1`) mas ainda sem push:
+
+- [ ] Confirmar comigo o push de `main` (ele traz uma migration nova:
+  `invitation_internal_staff`, que só altera a tabela `invitations`)
+- [ ] Acompanhar o CI (GitHub Actions) + deploy automático do Render
+- [ ] Testar: convidar um membro da equipe, importar/ativar um catálogo,
+  adicionar uma loja e ver o histórico de aditivos
 
 ---
 
@@ -89,6 +93,23 @@ Contrato completo: [nexus-bridge-tef.md](nexus-bridge-tef.md)
 
 ---
 
+## Frente 4.5 — Central Nexus: controles do admin ✅ maior parte pronta
+
+Auditoria encontrou 5 páginas do admin interno 100% somente-leitura. Detalhe
+completo, página a página e por perfil, em
+[central-nexus-admin.md](central-nexus-admin.md).
+
+- [x] Cadastro de cliente + convite do responsável (feito em rodada anterior)
+- [x] Equipe interna Nexus: listar + convidar (Admin/Dev/Helpdesk/Financeiro/Comercial)
+- [x] Catálogos fiscais: importar (JSON) + ativar/homologar com quatro olhos
+- [x] Comercial: adicionar loja/PDV + ver histórico de aditivos do contrato
+- [ ] Desenvolvimento (releases/aprovações): gap conhecido, precisa de desenho
+      de produto antes de codar — backend não tem nem rota de criar release
+- [ ] Financeiro interno: ações de retry (e-mail/webhook com falha) — baixa
+      prioridade, hoje resolve-se manualmente
+
+---
+
 ## Frente 5 — Do diagnóstico original (produção plena, mais longo prazo)
 
 - [ ] Testes de **isolamento multiempresa** e concorrência (maior risco silencioso
@@ -111,6 +132,7 @@ Contrato completo: [nexus-bridge-tef.md](nexus-bridge-tef.md)
 | Documento | Cobre |
 |---|---|
 | [homologacao-nfce-df.md](homologacao-nfce-df.md) | Insumos e passo-a-passo da homologação fiscal |
+| [central-nexus-admin.md](central-nexus-admin.md) | Cada página do admin interno: o que faz, quem pode, qual rota |
 | [roadmap-integracoes-e-automacao.md](roadmap-integracoes-e-automacao.md) | Visão geral: brinde/free, TEF, leitores, automação de validade |
 | [nexus-bridge-tef.md](nexus-bridge-tef.md) | Contrato de mensagens do agente de maquininha |
 | [frontend-leitura-codigo.md](frontend-leitura-codigo.md) | Código de referência: proxy, leitor USB, câmera |
