@@ -1078,21 +1078,28 @@ model AccessReviewItem {
   @@map("access_review_items")
 }
 
+// Convite de acesso. Dois usos, mutuamente exclusivos:
+//  - convite de TENANT: companyId + role preenchidos, systemRole nulo
+//    (primeiro usuário de um cliente ou convite feito por um OWNER/ADMIN dele)
+//  - convite de EQUIPE INTERNA NEXUS: systemRole preenchido, companyId/role
+//    nulos (Helpdesk, Financeiro, Comercial, Developer, Admin interno)
 model Invitation {
   id          String          @id @default(uuid()) @db.Uuid
-  companyId   String          @map("company_id") @db.Uuid
+  companyId   String?         @map("company_id") @db.Uuid
   email       String          @db.VarChar(254)
-  role        TenantRole
+  role        TenantRole?
+  systemRole  SystemRole?     @map("system_role")
   tokenHash   String          @unique @map("token_hash") @db.VarChar(255)
   invitedById String          @map("invited_by_id") @db.Uuid
   expiresAt   DateTime        @map("expires_at") @db.Timestamptz(3)
   acceptedAt  DateTime?       @map("accepted_at") @db.Timestamptz(3)
   createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company     Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invitedBy   User            @relation("InvitationCreator", fields: [invitedById], references: [id])
   deliveries  EmailDelivery[]
 
   @@index([companyId, email])
+  @@index([systemRole, email])
   @@map("invitations")
 }
 

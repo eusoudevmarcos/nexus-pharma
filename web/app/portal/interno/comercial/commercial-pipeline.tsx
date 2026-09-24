@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ContractHistory, StoreManager, type CompanyStore } from "./company-details";
 
 export type CommercialPlan = { code: string; name: string; monthlyPrice: number; setupPrice: number; hasFineTuning: boolean };
 export type PipelineCompany = {
@@ -16,6 +17,7 @@ export type PipelineCompany = {
   members: number;
   products: number;
   pendingInvitations: number;
+  stores: CompanyStore[];
   subscription: {
     status: string;
     contractStartedAt: string;
@@ -159,6 +161,8 @@ function CompanyCard({ company, plans }: { company: PipelineCompany; plans: Comm
 
       <InviteResponsible companyId={company.id} pendingInvitations={company.pendingInvitations} />
 
+      <StoreManager companyId={company.id} stores={company.stores} />
+
       <div className="contract-row">
         <label>
           Plano contratado
@@ -203,6 +207,8 @@ function CompanyCard({ company, plans }: { company: PipelineCompany; plans: Comm
       </div>
 
       {feedback && <p className="contract-feedback">{feedback}</p>}
+
+      <ContractHistory companyId={company.id} />
     </article>
   );
 }

@@ -55,6 +55,11 @@ const ownerInviteSchema = z.object({
 });
 const invitationTokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 const invitationExpiry = () => new Date(Date.now() + 72 * 60 * 60 * 1000);
+const internalSystemRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"] as const;
+const staffInviteSchema = z.object({
+  email: z.string().email().transform((value) => value.trim().toLowerCase()),
+  perfil: z.enum(internalSystemRoles),
+});
 const storeSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120), tipo: z.enum(["MAIN", "BRANCH"]).default("BRANCH") });
 const pdvSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120) });
 const activationSchema = z.object({ ativo: z.boolean() });
@@ -65,6 +70,67 @@ export async function internalRoutes(app: FastifyInstance) {
     "/go-live",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "DEVELOPER"])] },
     async () => getProductionReadiness(),
+  );
+
+  // Equipe Nexus (perfis internos: Admin, Developer, Helpdesk, Financeiro,
+  // Comercial). Gestão restrita a INTERNAL_ADMIN — é quem decide quem entra na
+  // operação interna do SaaS.
+  app.get(
+    "/equipe",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN"])] },
+    async () => {
+      const [staff, pendingInvites] = await Promise.all([
+        prisma.user.findMany({
+          where: { systemRole: { not: "CUSTOMER" } },
+          select: { id: true, name: true, email: true, systemRole: true, status: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
+        }),
+        prisma.invitation.findMany({
+          where: { systemRole: { not: null }, acceptedAt: null, expiresAt: { gt: new Date() } },
+          select: { id: true, email: true, systemRole: true, expiresAt: true, createdAt: true, invitedBy: { select: { name: true } } },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+      return { staff, pendingInvites };
+    },
+  );
+
+  app.post(
+    "/equipe/convite",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN"]), requireRecentMfa()] },
+    async (request, reply) => {
+      const parsed = staffInviteSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ erro: "CONVITE_INVALIDO", detalhes: parsed.error.flatten() });
+      const existingUser = await prisma.user.findUnique({ where: { email: parsed.data.email }, select: { systemRole: true, status: true } });
+      if (existingUser && existingUser.systemRole !== "CUSTOMER" && existingUser.status === "ACTIVE") {
+        return reply.status(409).send({ erro: "USUARIO_JA_E_EQUIPE_INTERNA" });
+      }
+      const pending = await prisma.invitation.findFirst({ where: { systemRole: { not: null }, email: parsed.data.email, acceptedAt: null, expiresAt: { gt: new Date() } } });
+      if (pending) return reply.status(409).send({ erro: "CONVITE_JA_ENVIADO" });
+
+      const token = randomBytes(36).toString("base64url");
+      const invitation = await prisma.$transaction(async (tx) => {
+        const created = await tx.invitation.create({
+          data: {
+            email: parsed.data.email, systemRole: parsed.data.perfil,
+            tokenHash: invitationTokenHash(token), invitedById: request.user.sub, expiresAt: invitationExpiry(),
+          },
+          select: { id: true, email: true, systemRole: true, expiresAt: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: request.user.sub, action: "INTERNAL_STAFF_INVITED", entity: "Invitation", entityId: created.id,
+            requestId: request.id, ipAddress: request.ip, after: { email: created.email, systemRole: created.systemRole },
+          },
+        });
+        return created;
+      });
+      const delivery = await deliverInvitationEmail({
+        invitationId: invitation.id, companyId: null, companyName: "Nexus Pharma",
+        recipient: invitation.email, role: invitation.systemRole!, token,
+      });
+      return reply.status(201).send({ ...invitation, inviteUrl: delivery.inviteUrl, delivery: { status: delivery.delivery.status, automatic: delivery.automatic } });
+    },
   );
 
   app.get(
@@ -282,7 +348,7 @@ export async function internalRoutes(app: FastifyInstance) {
       });
       const delivery = await deliverInvitationEmail({
         invitationId: invitation.id, companyId: company.id, companyName: company.tradeName,
-        recipient: invitation.email, role: invitation.role, token,
+        recipient: invitation.email, role: invitation.role!, token,
       });
       return reply.status(201).send({ ...invitation, inviteUrl: delivery.inviteUrl, delivery: { status: delivery.delivery.status, automatic: delivery.automatic } });
     },
@@ -689,6 +755,11 @@ export async function internalRoutes(app: FastifyInstance) {
               orderBy: { updatedAt: "desc" },
               take: 1,
             },
+            stores: {
+              where: { active: true },
+              select: { id: true, code: true, name: true, type: true, pointsOfSale: { where: { active: true }, select: { id: true, code: true, name: true } } },
+              orderBy: { createdAt: "asc" },
+            },
             _count: {
               select: {
                 memberships: true,
@@ -717,6 +788,7 @@ export async function internalRoutes(app: FastifyInstance) {
           members: company._count.memberships,
           products: company._count.products,
           pendingInvitations: company._count.invitations,
+          stores: company.stores,
           subscription: company.subscriptions[0]
             ? { ...company.subscriptions[0], plan: { ...company.subscriptions[0].plan, monthlyPrice: money(company.subscriptions[0].plan.monthlyPrice) } }
             : null,
@@ -758,6 +830,26 @@ export async function internalRoutes(app: FastifyInstance) {
         return result;
       });
       return reply.send(updated);
+    },
+  );
+
+  // Histórico de aditivos do contrato: leitura pura da trilha de auditoria já
+  // gravada em cada ação (criação, mudança de plano/cobrança, loja/PDV
+  // ativados, convite do responsável) — nenhuma escrita nova.
+  const contractHistoryActions = ["COMPANY_CREATED", "COMPANY_PIPELINE_UPDATED", "SUBSCRIPTION_CONFIGURED", "COMPANY_RESPONSIBLE_INVITED", "STORE_ACTIVATED", "POINT_OF_SALE_ACTIVATED"] as const;
+  app.get<{ Params: { id: string } }>(
+    "/comercial/empresas/:id/historico",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      if (!id.success) return reply.status(400).send({ erro: "EMPRESA_INVALIDA" });
+      const entries = await prisma.auditLog.findMany({
+        where: { companyId: id.data, action: { in: [...contractHistoryActions] } },
+        select: { id: true, action: true, before: true, after: true, createdAt: true, user: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+      return entries;
     },
   );
 

@@ -155,7 +155,7 @@ export async function usersRoutes(app: FastifyInstance) {
         companyId,
         companyName: company.tradeName,
         recipient: invitation.email,
-        role: invitation.role,
+        role: invitation.role!,
         token,
       });
       return reply.status(201).send({
@@ -210,9 +210,9 @@ export async function usersRoutes(app: FastifyInstance) {
       const delivery = await deliverInvitationEmail({
         invitationId: invitation.id,
         companyId: invitation.companyId,
-        companyName: invitation.company.tradeName,
+        companyName: invitation.company!.tradeName,
         recipient: invitation.email,
-        role: invitation.role,
+        role: invitation.role!,
         token,
       });
       return reply.send({
@@ -343,7 +343,8 @@ export async function usersRoutes(app: FastifyInstance) {
     if (!invitation || invitation.acceptedAt || invitation.expiresAt <= new Date()) {
       return reply.status(410).send({ erro: "CONVITE_EXPIRADO_OU_UTILIZADO" });
     }
-    if (["SUSPENDED", "CANCELLED"].includes(invitation.company.status)) {
+    const isStaffInvite = invitation.systemRole !== null;
+    if (!isStaffInvite && invitation.company && ["SUSPENDED", "CANCELLED"].includes(invitation.company.status)) {
       return reply.status(403).send({ erro: "EMPRESA_INATIVA" });
     }
     const existing = await prisma.user.findUnique({ where: { email: invitation.email } });
@@ -357,8 +358,10 @@ export async function usersRoutes(app: FastifyInstance) {
         ? await tx.user.update({
             where: { id: existing.id },
             data: requiresLogin
-              ? {}
-              : { name: parsed.data.nome, passwordHash, status: "ACTIVE" },
+              ? isStaffInvite
+                ? { systemRole: invitation.systemRole! }
+                : {}
+              : { name: parsed.data.nome, passwordHash, status: "ACTIVE", ...(isStaffInvite && { systemRole: invitation.systemRole! }) },
           })
         : await tx.user.create({
             data: {
@@ -366,20 +369,23 @@ export async function usersRoutes(app: FastifyInstance) {
               name: parsed.data.nome,
               passwordHash: passwordHash!,
               status: "ACTIVE",
+              ...(isStaffInvite && { systemRole: invitation.systemRole! }),
             },
           });
-      await tx.membership.upsert({
-        where: {
-          companyId_userId: { companyId: invitation.companyId, userId: user.id },
-        },
-        create: {
-          companyId: invitation.companyId,
-          userId: user.id,
-          role: invitation.role,
-          active: true,
-        },
-        update: { role: invitation.role, active: true },
-      });
+      if (!isStaffInvite) {
+        await tx.membership.upsert({
+          where: {
+            companyId_userId: { companyId: invitation.companyId!, userId: user.id },
+          },
+          create: {
+            companyId: invitation.companyId!,
+            userId: user.id,
+            role: invitation.role!,
+            active: true,
+          },
+          update: { role: invitation.role!, active: true },
+        });
+      }
       await tx.invitation.update({
         where: { id: invitation.id },
         data: { acceptedAt: new Date() },
@@ -388,12 +394,12 @@ export async function usersRoutes(app: FastifyInstance) {
         data: {
           companyId: invitation.companyId,
           userId: user.id,
-          action: "INVITATION_ACCEPTED",
+          action: isStaffInvite ? "INTERNAL_STAFF_INVITATION_ACCEPTED" : "INVITATION_ACCEPTED",
           entity: "Invitation",
           entityId: invitation.id,
           requestId: request.id,
           ipAddress: request.ip,
-          after: { role: invitation.role },
+          after: { role: invitation.role, systemRole: invitation.systemRole },
         },
       });
       return user;
@@ -401,7 +407,7 @@ export async function usersRoutes(app: FastifyInstance) {
     return reply.send({
       accepted: true,
       requiresLogin,
-      company: invitation.company.tradeName,
+      company: invitation.company?.tradeName ?? "Nexus Pharma",
       user: { id: result.id, email: result.email, name: result.name },
     });
   });
