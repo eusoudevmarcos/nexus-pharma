@@ -10,6 +10,13 @@ const parser = new XMLParser({
 
 type XmlNode = Record<string, unknown>;
 
+export type NfeRastroEntry = {
+  lote: string | null;
+  quantidade: number | null;
+  fabricacao: Date | null;
+  validade: Date | null;
+};
+
 export type ParsedNfeItem = {
   itemNumber: number;
   supplierCode: string | null;
@@ -27,6 +34,8 @@ export type ParsedNfeItem = {
   cstPis: string | null;
   cstCofins: string | null;
   originalTax: Record<string, unknown>;
+  /** Grupo rastro (rastreabilidade): lote, fabricação e validade por lote. */
+  rastro: NfeRastroEntry[];
 };
 
 export type ParsedNfeDocument = {
@@ -143,6 +152,17 @@ function parseFullNfe(root: XmlNode): ParsedNfeDocument {
         ipi: tax.IPI ?? null,
         ibsCbs: tax.IBSCBS ?? tax.IBSCBSMono ?? null,
       },
+      rastro: asArray(product.rastro)
+        .map((entry): NfeRastroEntry => {
+          const group = asObject(entry);
+          return {
+            lote: text(group.nLote),
+            quantidade: group.qLote != null ? numberValue(group.qLote) : null,
+            fabricacao: dateValue(group.dFab),
+            validade: dateValue(group.dVal),
+          };
+        })
+        .filter((entry) => Boolean(entry.lote) || Boolean(entry.validade)),
     };
   });
 

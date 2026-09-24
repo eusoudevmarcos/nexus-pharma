@@ -3666,6 +3666,7 @@ model DfeDocumentItem {
   unitPrice      Decimal            @map("unit_price") @db.Decimal(15, 4)
   totalAmount    Decimal            @map("total_amount") @db.Decimal(15, 2)
   originalTax    Json               @default("{}") @map("original_tax")
+  rastro         Json               @default("[]") @map("rastro")
   suggestedTax   Json               @default("{}") @map("suggested_tax")
   matchedRuleId  String?            @map("matched_rule_id") @db.Uuid
   status         DfeItemStatus      @default(PENDING)

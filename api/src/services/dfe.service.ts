@@ -192,6 +192,7 @@ export async function importDfeXml(input: {
           unitPrice: item.unitPrice,
           totalAmount: item.totalAmount,
           originalTax: toJson(item.originalTax),
+          rastro: toJson(item.rastro),
           suggestedTax: toJson(suggestedTax),
           matchedRuleId: matrixRule?.id,
           status: product ? "MATCHED" : "PENDING",
