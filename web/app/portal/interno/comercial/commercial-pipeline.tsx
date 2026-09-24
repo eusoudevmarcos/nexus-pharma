@@ -4,10 +4,89 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export type CommercialPlan = { code: string; name: string; monthlyPrice: number; setupPrice: number; hasFineTuning: boolean };
-export type PipelineCompany = { id: string; tradeName: string; legalName: string; status: string; onboardingStep: number; city: string | null; state: string | null; updatedAt: string; members: number; products: number; subscription: { status: string; contractStartedAt: string; plan: { code: string; name: string; monthlyPrice: number } } | null };
+export type PipelineCompany = {
+  id: string;
+  tradeName: string;
+  legalName: string;
+  status: string;
+  onboardingStep: number;
+  city: string | null;
+  state: string | null;
+  updatedAt: string;
+  members: number;
+  products: number;
+  pendingInvitations: number;
+  subscription: {
+    status: string;
+    contractStartedAt: string;
+    billingType: "PAYING" | "COMPLIMENTARY" | "FREE";
+    complimentaryUntil: string | null;
+    plan: { code: string; name: string; monthlyPrice: number };
+  } | null;
+};
 const statusLabels: Record<string, string> = { LEAD: "Lead", ONBOARDING: "Implantação", ACTIVE: "Ativa", SUSPENDED: "Suspensa", CANCELLED: "Cancelada" };
+const billingTypeLabels: Record<string, string> = { PAGANTE: "Pagante", BRINDE: "Brinde / cortesia", FREE: "Gratuita (piloto)" };
+const billingTypeFromApi: Record<string, string> = { PAYING: "PAGANTE", COMPLIMENTARY: "BRINDE", FREE: "FREE" };
+const tenantRoles = ["OWNER", "ADMIN", "MANAGER", "BUYER", "FINANCE", "PHARMACIST", "ATTENDANT", "OPERATOR", "VIEWER"] as const;
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const localDate = (value?: string) => value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
+const localDate = (value?: string | null) => (value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10));
+
+function InviteResponsible({ companyId, pendingInvitations }: { companyId: string; pendingInvitations: number }) {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [perfil, setPerfil] = useState<(typeof tenantRoles)[number]>("OWNER");
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
+
+  async function send() {
+    setBusy(true);
+    setFeedback(null);
+    const response = await fetch(`/api/portal/internal/companies/${companyId}/invite-owner`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, perfil }),
+    });
+    if (response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setFeedback({ tone: "ok", text: body?.delivery?.automatic ? "Convite enviado por e-mail." : "Convite criado. E-mail automático não está configurado — copie o link e envie você mesmo." });
+      setEmail("");
+      router.refresh();
+    } else {
+      const body = await response.json().catch(() => ({}));
+      const messages: Record<string, string> = {
+        CONVITE_JA_ENVIADO: "Já existe um convite pendente para este e-mail.",
+        USUARIO_JA_VINCULADO: "Este e-mail já está vinculado a esta empresa.",
+        EMPRESA_INATIVA: "Empresa suspensa ou cancelada não recebe convites.",
+      };
+      setFeedback({ tone: "error", text: body.erro ? messages[body.erro] ?? body.message ?? "Não foi possível enviar o convite." : (body.message ?? "Não foi possível enviar o convite.") });
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="invite-row">
+      <label>
+        E-mail do responsável
+        <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="responsavel@farmacia.com.br" />
+      </label>
+      <label>
+        Perfil
+        <select value={perfil} onChange={(event) => setPerfil(event.target.value as (typeof tenantRoles)[number])}>
+          {tenantRoles.map((role) => (
+            <option key={role} value={role}>
+              {role}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" disabled={busy || !email} onClick={send}>
+        {busy ? "Enviando..." : "Convidar"}
+      </button>
+      {pendingInvitations > 0 && !feedback && <span className="invite-status pending">{pendingInvitations} convite(s) aguardando aceite.</span>}
+      {feedback && <span className={feedback.tone === "ok" ? "invite-status" : "invite-status error"}>{feedback.text}</span>}
+    </div>
+  );
+}
 
 function CompanyCard({ company, plans }: { company: PipelineCompany; plans: CommercialPlan[] }) {
   const router = useRouter();
@@ -15,12 +94,15 @@ function CompanyCard({ company, plans }: { company: PipelineCompany; plans: Comm
   const [step, setStep] = useState(company.onboardingStep);
   const [plan, setPlan] = useState(company.subscription?.plan.code ?? plans[0]?.code ?? "BASIC");
   const [contractStart, setContractStart] = useState(localDate(company.subscription?.contractStartedAt));
+  const [tipoCobranca, setTipoCobranca] = useState(company.subscription ? billingTypeFromApi[company.subscription.billingType] ?? "PAGANTE" : "PAGANTE");
+  const [brindeAte, setBrindeAte] = useState(localDate(company.subscription?.complimentaryUntil));
   const [busy, setBusy] = useState<"pipeline" | "contract" | null>(null);
   const [feedback, setFeedback] = useState("");
   const selectedPlan = plans.find((item) => item.code === plan);
 
   async function savePipeline() {
-    setBusy("pipeline"); setFeedback("");
+    setBusy("pipeline");
+    setFeedback("");
     const response = await fetch(`/api/portal/internal/companies/${company.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status, etapa_onboarding: step }) });
     setFeedback(response.ok ? "Andamento atualizado." : "Não foi possível atualizar o andamento.");
     if (response.ok) router.refresh();
@@ -28,16 +110,109 @@ function CompanyCard({ company, plans }: { company: PipelineCompany; plans: Comm
   }
 
   async function saveContract() {
-    setBusy("contract"); setFeedback("");
-    const response = await fetch(`/api/portal/internal/companies/${company.id}/subscription`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ plano: plan, inicio_contrato: contractStart, status: "ACTIVE" }) });
+    setBusy("contract");
+    setFeedback("");
+    const response = await fetch(`/api/portal/internal/companies/${company.id}/subscription`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        plano: plan,
+        inicio_contrato: contractStart,
+        status: "ACTIVE",
+        tipo_cobranca: tipoCobranca,
+        brinde_ate: tipoCobranca === "BRINDE" ? brindeAte : null,
+      }),
+    });
     setFeedback(response.ok ? "Contrato ativado. Matriz, PDV e cronograma do setup foram criados." : "Não foi possível ativar o contrato; confira se existem faturas no plano atual.");
     if (response.ok) router.refresh();
     setBusy(null);
   }
 
-  return <article className="commercial-company-card"><div className="internal-row company-row"><div><strong>{company.tradeName}</strong><small>{company.city && company.state ? `${company.city}/${company.state}` : company.legalName} · {company.members} usuários · {company.products} produtos</small></div><div><span>Plano</span><b>{company.subscription?.plan.name ?? "Sem assinatura"}</b></div><select aria-label={`Situação de ${company.tradeName}`} onChange={(event) => setStatus(event.target.value)} value={status}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><label>Etapa<input max={10} min={1} onChange={(event) => setStep(Number(event.target.value))} type="number" value={step}/></label><button disabled={busy !== null || (status === company.status && step === company.onboardingStep)} onClick={savePipeline} type="button">{busy === "pipeline" ? "…" : "Salvar"}</button></div><div className="contract-row"><label>Plano contratado<select value={plan} onChange={(event) => setPlan(event.target.value)}>{plans.map((item) => <option key={item.code} value={item.code}>{item.name} · {brl.format(item.monthlyPrice)}/mês</option>)}</select></label><label>Início do contrato<input type="date" value={contractStart} onChange={(event) => setContractStart(event.target.value)}/></label><div><span>Onboarding gerado</span><strong>{selectedPlan?.hasFineTuning ? "R$ 5.000 + 4× R$ 1.250" : `Setup único de ${brl.format(selectedPlan?.setupPrice ?? 890)}`}</strong></div><button disabled={busy !== null || !contractStart} onClick={saveContract} type="button">{busy === "contract" ? "Ativando..." : company.subscription ? "Atualizar contrato" : "Ativar contrato"}</button></div>{feedback && <p className="contract-feedback">{feedback}</p>}</article>;
+  return (
+    <article className="commercial-company-card">
+      <div className="internal-row company-row">
+        <div>
+          <strong>{company.tradeName}</strong>
+          <small>
+            {company.city && company.state ? `${company.city}/${company.state}` : company.legalName} · {company.members} usuários · {company.products} produtos
+          </small>
+        </div>
+        <div>
+          <span>Plano</span>
+          <b>{company.subscription?.plan.name ?? "Sem assinatura"}</b>
+        </div>
+        <select aria-label={`Situação de ${company.tradeName}`} onChange={(event) => setStatus(event.target.value)} value={status}>
+          {Object.entries(statusLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <label>
+          Etapa
+          <input max={10} min={1} onChange={(event) => setStep(Number(event.target.value))} type="number" value={step} />
+        </label>
+        <button disabled={busy !== null || (status === company.status && step === company.onboardingStep)} onClick={savePipeline} type="button">
+          {busy === "pipeline" ? "…" : "Salvar"}
+        </button>
+      </div>
+
+      <InviteResponsible companyId={company.id} pendingInvitations={company.pendingInvitations} />
+
+      <div className="contract-row">
+        <label>
+          Plano contratado
+          <select value={plan} onChange={(event) => setPlan(event.target.value)}>
+            {plans.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.name} · {brl.format(item.monthlyPrice)}/mês
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Início do contrato
+          <input type="date" value={contractStart} onChange={(event) => setContractStart(event.target.value)} />
+        </label>
+        <div>
+          <span>Onboarding gerado</span>
+          <strong>{tipoCobranca !== "PAGANTE" ? "Sem cobrança (brinde/gratuita)" : selectedPlan?.hasFineTuning ? "R$ 5.000 + 4× R$ 1.250" : `Setup único de ${brl.format(selectedPlan?.setupPrice ?? 890)}`}</strong>
+        </div>
+        <button disabled={busy !== null || !contractStart} onClick={saveContract} type="button">
+          {busy === "contract" ? "Ativando..." : company.subscription ? "Atualizar contrato" : "Ativar contrato"}
+        </button>
+      </div>
+
+      <div className="contract-billing-row">
+        <label>
+          Tipo de cobrança
+          <select value={tipoCobranca} onChange={(event) => setTipoCobranca(event.target.value)}>
+            {Object.entries(billingTypeLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {tipoCobranca === "BRINDE" && (
+          <label>
+            Brinde até
+            <input type="date" value={brindeAte} onChange={(event) => setBrindeAte(event.target.value)} />
+          </label>
+        )}
+      </div>
+
+      {feedback && <p className="contract-feedback">{feedback}</p>}
+    </article>
+  );
 }
 
 export function CommercialPipeline({ companies, plans }: { companies: PipelineCompany[]; plans: CommercialPlan[] }) {
-  return <div className="internal-list commercial-contract-list">{companies.map((company) => <CompanyCard company={company} key={company.id} plans={plans}/>)}</div>;
+  return (
+    <div className="internal-list commercial-contract-list">
+      {companies.map((company) => (
+        <CompanyCard company={company} key={company.id} plans={plans} />
+      ))}
+    </div>
+  );
 }

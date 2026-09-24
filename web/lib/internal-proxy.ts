@@ -16,6 +16,6 @@ export async function proxyInternal(path: string, init: RequestInit) {
   if (!upstream) return NextResponse.json({ message: "API indisponível." }, { status: 503 });
   if (upstream.status === 204) return new NextResponse(null, { status: 204 });
   const body = await upstream.json().catch(() => ({})) as { erro?: string };
-  if (!upstream.ok) return NextResponse.json({ message: body.erro === "PERFIL_NAO_AUTORIZADO" ? "Seu perfil não pode executar esta ação." : "Não foi possível concluir a operação." }, { status: upstream.status });
+  if (!upstream.ok) return NextResponse.json({ erro: body.erro, message: body.erro === "PERFIL_NAO_AUTORIZADO" ? "Seu perfil não pode executar esta ação." : "Não foi possível concluir a operação." }, { status: upstream.status });
   return NextResponse.json(body, { status: upstream.status });
 }

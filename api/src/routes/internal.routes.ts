@@ -1,13 +1,16 @@
 import type { FastifyInstance } from "fastify";
+import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { config } from "../config.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireRecentMfa, requireSystemRoles } from "../security/auth.js";
+import { tenantRoles } from "../security/access-control.js";
 import { runtimeSnapshot } from "../services/observability.js";
 import { closeMonthlyInvoice, ensureCustomerBillingStructure, normalizeBillingPeriod } from "../services/monthly-billing.js";
 import { securityActions } from "../services/security-events.js";
 import { getProductionReadiness } from "../services/production-readiness.js";
+import { deliverInvitationEmail } from "../services/email-delivery.js";
 
 const money = (value: unknown) => Number(value ?? 0);
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -36,6 +39,22 @@ const savingsSchema = z.object({
 });
 const invoiceCloseSchema = z.object({ empresa_id: z.string().uuid(), periodo: z.coerce.date(), vencimento: z.coerce.date() });
 const subscriptionSetupSchema = z.object({ plano: z.enum(["BASIC", "SMART", "FISCAL_INTELIGENTE", "ULTIMATE"]), inicio_contrato: z.coerce.date(), status: z.enum(["TRIALING", "ACTIVE"]).default("ACTIVE"), tipo_cobranca: z.enum(["PAGANTE", "BRINDE", "FREE"]).default("PAGANTE"), brinde_ate: z.coerce.date().nullable().optional() });
+const onlyDigits = (value: string) => value.replace(/\D/g, "");
+const companyCreateSchema = z.object({
+  cnpj: z.string().trim().transform(onlyDigits).refine((value) => value === "" || value.length === 14, "CNPJ deve ter 14 dígitos numéricos.").optional(),
+  razao_social: z.string().trim().min(3).max(180),
+  nome_fantasia: z.string().trim().min(2).max(180),
+  nome_filial: z.string().trim().min(2).max(120).default("Matriz"),
+  regime_tributario: z.enum(["SIMPLES_NACIONAL", "LUCRO_PRESUMIDO", "LUCRO_REAL"]).default("SIMPLES_NACIONAL"),
+  uf: z.string().trim().length(2).optional(),
+  cidade: z.string().trim().min(2).max(120).optional(),
+});
+const ownerInviteSchema = z.object({
+  email: z.string().email().transform((value) => value.trim().toLowerCase()),
+  perfil: z.enum(tenantRoles).default("OWNER"),
+});
+const invitationTokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+const invitationExpiry = () => new Date(Date.now() + 72 * 60 * 60 * 1000);
 const storeSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120), tipo: z.enum(["MAIN", "BRANCH"]).default("BRANCH") });
 const pdvSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120) });
 const activationSchema = z.object({ ativo: z.boolean() });
@@ -183,6 +202,89 @@ export async function internalRoutes(app: FastifyInstance) {
         if (["ASSINATURA_ATIVA_NAO_ENCONTRADA", "ASSINATURA_NAO_ENCONTRADA"].includes(message)) return reply.status(409).send({ erro: message });
         throw error;
       }
+    },
+  );
+
+  // Cadastro de um novo cliente (farmácia) do zero, feito pela equipe comercial
+  // interna. Nasce como LEAD; a ativação do contrato (assinatura) acontece à
+  // parte, em /comercial/empresas/:id/assinatura.
+  app.post(
+    "/comercial/empresas",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
+    async (request, reply) => {
+      const parsed = companyCreateSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ erro: "EMPRESA_INVALIDA", detalhes: parsed.error.flatten() });
+      if (parsed.data.cnpj) {
+        const existing = await prisma.company.findUnique({ where: { cnpj: parsed.data.cnpj } });
+        if (existing) return reply.status(409).send({ erro: "CNPJ_JA_CADASTRADO" });
+      }
+      const company = await prisma.$transaction(async (tx) => {
+        const created = await tx.company.create({
+          data: {
+            cnpj: parsed.data.cnpj || null,
+            legalName: parsed.data.razao_social,
+            tradeName: parsed.data.nome_fantasia,
+            branchName: parsed.data.nome_filial,
+            taxRegime: parsed.data.regime_tributario,
+            state: parsed.data.uf?.toUpperCase() ?? null,
+            city: parsed.data.cidade ?? null,
+            status: "LEAD",
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            companyId: created.id, userId: request.user.sub, action: "COMPANY_CREATED", entity: "Company", entityId: created.id,
+            requestId: request.id, ipAddress: request.ip, after: { tradeName: created.tradeName, legalName: created.legalName, cnpj: created.cnpj },
+          },
+        });
+        return created;
+      });
+      return reply.status(201).send(company);
+    },
+  );
+
+  // Convite do primeiro usuário (normalmente o proprietário) de uma empresa que
+  // ainda não tem nenhum membro — por isso não passa por tenantContext (não há
+  // vínculo ainda). Reaproveita o mesmo mecanismo de convite/e-mail/aceite do
+  // fluxo tenant-a-tenant; a senha é sempre criada pelo próprio destinatário ao
+  // aceitar (POST /usuarios/convites/aceitar), nunca definida pelo admin Nexus.
+  app.post<{ Params: { id: string } }>(
+    "/comercial/empresas/:id/convite-responsavel",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = ownerInviteSchema.safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "CONVITE_INVALIDO", detalhes: parsed.success ? undefined : parsed.error.flatten() });
+      const company = await prisma.company.findUnique({ where: { id: id.data }, select: { id: true, tradeName: true, status: true } });
+      if (!company) return reply.status(404).send({ erro: "EMPRESA_NAO_ENCONTRADA" });
+      if (["SUSPENDED", "CANCELLED"].includes(company.status)) return reply.status(409).send({ erro: "EMPRESA_INATIVA" });
+      const existingMember = await prisma.membership.findFirst({ where: { companyId: company.id, user: { email: parsed.data.email } } });
+      if (existingMember) return reply.status(409).send({ erro: "USUARIO_JA_VINCULADO" });
+      const pending = await prisma.invitation.findFirst({ where: { companyId: company.id, email: parsed.data.email, acceptedAt: null, expiresAt: { gt: new Date() } } });
+      if (pending) return reply.status(409).send({ erro: "CONVITE_JA_ENVIADO" });
+
+      const token = randomBytes(36).toString("base64url");
+      const invitation = await prisma.$transaction(async (tx) => {
+        const created = await tx.invitation.create({
+          data: {
+            companyId: company.id, email: parsed.data.email, role: parsed.data.perfil,
+            tokenHash: invitationTokenHash(token), invitedById: request.user.sub, expiresAt: invitationExpiry(),
+          },
+          select: { id: true, email: true, role: true, expiresAt: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            companyId: company.id, userId: request.user.sub, action: "COMPANY_RESPONSIBLE_INVITED", entity: "Invitation", entityId: created.id,
+            requestId: request.id, ipAddress: request.ip, after: { email: created.email, role: created.role },
+          },
+        });
+        return created;
+      });
+      const delivery = await deliverInvitationEmail({
+        invitationId: invitation.id, companyId: company.id, companyName: company.tradeName,
+        recipient: invitation.email, role: invitation.role, token,
+      });
+      return reply.status(201).send({ ...invitation, inviteUrl: delivery.inviteUrl, delivery: { status: delivery.delivery.status, automatic: delivery.automatic } });
     },
   );
 
@@ -583,11 +685,17 @@ export async function internalRoutes(app: FastifyInstance) {
         prisma.company.findMany({
           include: {
             subscriptions: {
-              include: { plan: { select: { code: true, name: true, monthlyPrice: true } } },
+              select: { status: true, contractStartedAt: true, billingType: true, complimentaryUntil: true, plan: { select: { code: true, name: true, monthlyPrice: true } } },
               orderBy: { updatedAt: "desc" },
               take: 1,
             },
-            _count: { select: { memberships: true, products: true } },
+            _count: {
+              select: {
+                memberships: true,
+                products: true,
+                invitations: { where: { acceptedAt: null, expiresAt: { gt: new Date() } } },
+              },
+            },
           },
           orderBy: { updatedAt: "desc" },
           take: 30,
@@ -608,6 +716,7 @@ export async function internalRoutes(app: FastifyInstance) {
           updatedAt: company.updatedAt,
           members: company._count.memberships,
           products: company._count.products,
+          pendingInvitations: company._count.invitations,
           subscription: company.subscriptions[0]
             ? { ...company.subscriptions[0], plan: { ...company.subscriptions[0].plan, monthlyPrice: money(company.subscriptions[0].plan.monthlyPrice) } }
             : null,
