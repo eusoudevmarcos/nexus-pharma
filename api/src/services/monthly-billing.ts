@@ -31,6 +31,9 @@ export async function ensureCustomerBillingStructure(subscriptionId: string) {
     create: { storeId: mainStore.id, code: "PDV-01", name: "Caixa 1", activatedAt: subscription.contractStartedAt },
     update: {},
   });
+  // Brinde/free têm loja e PDV para operar, mas nenhuma estrutura de cobrança
+  // (setup, parcelas) — só o cliente pagante gera onboarding financeiro.
+  if (subscription.billingType !== "PAYING") return subscription;
   if (subscription.onboarding) return subscription;
   const startPeriod = normalizeBillingPeriod(subscription.contractStartedAt);
   const fineTuning = subscription.plan.hasFineTuning;
@@ -71,11 +74,16 @@ export async function closeMonthlyInvoice(input: { companyId: string; period: Da
     orderBy: { updatedAt: "desc" },
   });
   if (!subscription) throw new Error("ASSINATURA_ATIVA_NAO_ENCONTRADA");
+  if (subscription.billingType !== "PAYING") {
+    // Cliente brinde/cortesia ou gratuito: garante loja/PDV para operar e não gera fatura.
+    await ensureCustomerBillingStructure(subscription.id);
+    return { invoice: null, duplicate: false, gateway: null, skipped: true as const, billingType: subscription.billingType };
+  }
   const existing = await prisma.invoice.findUnique({
     where: { subscriptionId_billingPeriod: { subscriptionId: subscription.id, billingPeriod: period } },
     include: { items: true, chargeRequests: true },
   });
-  if (existing && existing.status !== "DRAFT") return { invoice: existing, duplicate: true, gateway: null };
+  if (existing && existing.status !== "DRAFT") return { invoice: existing, duplicate: true, gateway: null, skipped: false as const };
   const structured = await ensureCustomerBillingStructure(subscription.id);
   const stores = await prisma.store.findMany({
     where: { companyId: input.companyId, activatedAt: { lte: periodEnd }, OR: [{ deactivatedAt: null }, { deactivatedAt: { gt: periodEnd } }] },
@@ -119,5 +127,5 @@ export async function closeMonthlyInvoice(input: { companyId: string; period: Da
     return tx.invoice.findUniqueOrThrow({ where: { id: saved.id }, include: { items: { orderBy: { createdAt: "asc" } }, subscription: { include: { company: { select: { tradeName: true } }, plan: { select: { name: true, code: true } } } } } });
   }, { isolationLevel: "Serializable" });
   const gateway = requiresReview ? null : await dispatchInvoiceCharge(invoice.id);
-  return { invoice, duplicate: false, gateway };
+  return { invoice, duplicate: false, gateway, skipped: false as const };
 }

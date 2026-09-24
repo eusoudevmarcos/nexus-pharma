@@ -35,7 +35,7 @@ const savingsSchema = z.object({
   evidencias: z.array(z.record(z.unknown())).min(1).max(100),
 });
 const invoiceCloseSchema = z.object({ empresa_id: z.string().uuid(), periodo: z.coerce.date(), vencimento: z.coerce.date() });
-const subscriptionSetupSchema = z.object({ plano: z.enum(["BASIC", "SMART", "FISCAL_INTELIGENTE", "ULTIMATE"]), inicio_contrato: z.coerce.date(), status: z.enum(["TRIALING", "ACTIVE"]).default("ACTIVE") });
+const subscriptionSetupSchema = z.object({ plano: z.enum(["BASIC", "SMART", "FISCAL_INTELIGENTE", "ULTIMATE"]), inicio_contrato: z.coerce.date(), status: z.enum(["TRIALING", "ACTIVE"]).default("ACTIVE"), tipo_cobranca: z.enum(["PAGANTE", "BRINDE", "FREE"]).default("PAGANTE"), brinde_ate: z.coerce.date().nullable().optional() });
 const storeSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120), tipo: z.enum(["MAIN", "BRANCH"]).default("BRANCH") });
 const pdvSchema = z.object({ codigo: z.string().trim().min(1).max(40), nome: z.string().trim().min(2).max(120) });
 const activationSchema = z.object({ ativo: z.boolean() });
@@ -199,11 +199,13 @@ export async function internalRoutes(app: FastifyInstance) {
       const current = await prisma.subscription.findFirst({ where: { companyId: company.id, status: { not: "CANCELLED" } }, include: { onboarding: { select: { id: true } }, _count: { select: { invoices: true } } } });
       if (current && current.planId !== plan.id && current._count.invoices > 0) return reply.status(409).send({ erro: "PLANO_COM_FATURAS_NAO_PODE_SER_SUBSTITUIDO" });
       if (current?.onboarding && (current.planId !== plan.id || current.contractStartedAt.getTime() !== parsed.data.inicio_contrato.getTime())) return reply.status(409).send({ erro: "ONBOARDING_INICIADO_NAO_PODE_SER_RECALCULADO" });
+      const billingType: "PAYING" | "COMPLIMENTARY" | "FREE" = parsed.data.tipo_cobranca === "BRINDE" ? "COMPLIMENTARY" : parsed.data.tipo_cobranca === "FREE" ? "FREE" : "PAYING";
+      const complimentaryUntil = billingType === "COMPLIMENTARY" ? parsed.data.brinde_ate ?? null : null;
       const subscription = current
-        ? await prisma.subscription.update({ where: { id: current.id }, data: { planId: plan.id, status: parsed.data.status, contractStartedAt: parsed.data.inicio_contrato } })
-        : await prisma.subscription.create({ data: { companyId: company.id, planId: plan.id, status: parsed.data.status, contractStartedAt: parsed.data.inicio_contrato } });
+        ? await prisma.subscription.update({ where: { id: current.id }, data: { planId: plan.id, status: parsed.data.status, contractStartedAt: parsed.data.inicio_contrato, billingType, complimentaryUntil } })
+        : await prisma.subscription.create({ data: { companyId: company.id, planId: plan.id, status: parsed.data.status, contractStartedAt: parsed.data.inicio_contrato, billingType, complimentaryUntil } });
       await ensureCustomerBillingStructure(subscription.id);
-      await prisma.auditLog.create({ data: { companyId: company.id, userId: request.user.sub, action: "SUBSCRIPTION_CONFIGURED", entity: "Subscription", entityId: subscription.id, requestId: request.id, ipAddress: request.ip, after: { plan: plan.code, status: subscription.status, contractStartedAt: subscription.contractStartedAt } } });
+      await prisma.auditLog.create({ data: { companyId: company.id, userId: request.user.sub, action: "SUBSCRIPTION_CONFIGURED", entity: "Subscription", entityId: subscription.id, requestId: request.id, ipAddress: request.ip, after: { plan: plan.code, status: subscription.status, billingType, complimentaryUntil, contractStartedAt: subscription.contractStartedAt } } });
       return reply.send(subscription);
     },
   );

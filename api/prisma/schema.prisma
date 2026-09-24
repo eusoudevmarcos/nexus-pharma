@@ -103,6 +103,16 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+// Como a assinatura é cobrada, independente do status/plano:
+//  PAYING        cliente pagante normal (faturamento mensal ativo)
+//  COMPLIMENTARY cliente brinde/cortesia (acesso completo, sem cobrança; converte para PAYING)
+//  FREE          conta gratuita para piloto/testes (acesso completo, sem cobrança, indefinido)
+enum SubscriptionBillingType {
+  PAYING
+  COMPLIMENTARY
+  FREE
+}
+
 enum InvoiceStatus {
   DRAFT
   OPEN
@@ -1117,6 +1127,8 @@ model Subscription {
   companyId          String                @map("company_id") @db.Uuid
   planId             String                @map("plan_id") @db.Uuid
   status             SubscriptionStatus    @default(TRIALING)
+  billingType        SubscriptionBillingType @default(PAYING) @map("billing_type")
+  complimentaryUntil DateTime?             @map("complimentary_until") @db.Timestamptz(3)
   interval           BillingInterval       @default(MONTHLY)
   provider           String?               @db.VarChar(40)
   providerCustomerId String?               @map("provider_customer_id") @db.VarChar(120)
