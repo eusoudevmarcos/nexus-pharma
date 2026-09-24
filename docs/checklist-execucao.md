@@ -61,12 +61,14 @@ só os insumos acima.
 
 ---
 
-## Frente 3 — Automação de estoque (validade/lote) ✅ backend pronto
+## Frente 3 — Automação de estoque (validade/lote) ✅ #1 e #2 completas (back + front)
 
 - [x] **#1** NF-e grupo `rastro` → pré-preenche lote/fabricação/validade no recebimento
 - [x] **#2** Parser GS1 (DataMatrix) + `POST /estoque/codigo/resolver`
-- [ ] **Frontend:** consumir `/codigo/resolver` na tela de recebimento/conferência
-- [ ] **Frontend:** consumir no balcão/caixa (bipagem 1D)
+- [x] **Frontend:** campo "Bipar código" na tela de recebimento/conferência
+      (`/portal/recebimento`) — preenche produto, lote, fabricação e validade
+- [ ] **Frontend:** consumir no balcão/caixa (bipagem 1D) — menor prioridade,
+      a busca por EAN no balcão já funciona (scanner já digita no campo)
 - [ ] **Frontend:** leitor por câmera (ZXing) — código de referência pronto em
       [frontend-leitura-codigo.md](frontend-leitura-codigo.md)
 - [ ] Comprar/testar 1 leitor **imager 2D** (não o laser 1D comum) para ler
