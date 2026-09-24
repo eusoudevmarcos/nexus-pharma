@@ -57,6 +57,7 @@ export type NfceConfigurationInput = {
   authorizationUrl?: string | null;
   statusServiceUrl?: string | null;
   eventUrl?: string | null;
+  inutilizationUrl?: string | null;
   qrCodeBaseUrl?: string | null;
   consultationUrl?: string | null;
   officialSchemaVersion?: string | null;
@@ -224,18 +225,23 @@ export async function saveNfceConfiguration(input: NfceConfigurationInput & { co
   const state = input.state.trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(state)) throw new Error("NFCE_UF_INVALIDA");
   const existing = await prisma.nfceConfiguration.findUnique({ where: { companyId_environment: { companyId: input.companyId, environment: input.environment } } });
-  let encryptedCsc = input.qrCodeVersion === 3 ? null : existing?.encryptedCsc ?? null;
-  if (input.qrCodeVersion === 2 && input.cscSecret) {
+  // O CSC é obrigatório para o QR Code da NFC-e em qualquer versão do QR Code.
+  // Persistimos sempre que informado (mantendo o existente quando não reenviado)
+  // e exigimos ao ATIVAR a configuração — evita salvar uma config ativa que
+  // nunca conseguiria transmitir (o QR precisa do CSC).
+  let encryptedCsc = existing?.encryptedCsc ?? null;
+  if (input.cscSecret) {
     encryptedCsc = encryptSensitivePayload({ csc: input.cscSecret }, certificateEncryptionKey(config.DFE_CERTIFICATE_ENCRYPTION_KEY));
   }
-  const cscIdentifier = input.qrCodeVersion === 3 ? null : input.cscIdentifier?.trim() || existing?.cscIdentifier || null;
-  if (input.qrCodeVersion === 2 && (!cscIdentifier || !encryptedCsc)) throw new Error("NFCE_CSC_OBRIGATORIO_PARA_QRCODE_V2");
+  const cscIdentifier = input.cscIdentifier?.trim() || existing?.cscIdentifier || null;
+  if (input.active && (!cscIdentifier || !encryptedCsc)) throw new Error("NFCE_CSC_OBRIGATORIO");
   const activeCatalogs = await prisma.fiscalCatalogRelease.findMany({ where: { catalog: { in: [...requiredOfficialCatalogs] }, status: "ACTIVE" }, select: { catalog: true, sourceVersion: true, payloadHash: true, activatedAt: true } });
   const catalogSnapshot = Object.fromEntries(activeCatalogs.map((catalog) => [catalog.catalog, { sourceVersion: catalog.sourceVersion, payloadHash: catalog.payloadHash, activatedAt: catalog.activatedAt?.toISOString() ?? null }]));
   const data = {
     editedById: input.userId, state, series: input.series, qrCodeVersion: input.qrCodeVersion,
     cscIdentifier, encryptedCsc, authorizationUrl: endpoint(input.authorizationUrl),
     statusServiceUrl: endpoint(input.statusServiceUrl), eventUrl: endpoint(input.eventUrl),
+    inutilizationUrl: endpoint(input.inutilizationUrl),
     qrCodeBaseUrl: endpoint(input.qrCodeBaseUrl), consultationUrl: endpoint(input.consultationUrl),
     officialSchemaVersion: input.officialSchemaVersion?.trim() || null, catalogSnapshot, active: input.active,
   };
@@ -264,7 +270,7 @@ export async function nfceReadiness(companyId: string, environment: "HOMOLOGATIO
   ]);
   const settings = (company?.settings && typeof company.settings === "object" ? company.settings : {}) as Record<string, unknown>;
   const baseReady = Boolean(company?.cnpj && company.state && (settings.stateRegistration ?? settings.inscricaoEstadual) && (settings.municipalityCode ?? settings.codigoMunicipio));
-  const configReady = Boolean(nfceConfiguration?.active && nfceConfiguration.state === company?.state && nfceConfiguration.authorizationUrl && nfceConfiguration.statusServiceUrl && nfceConfiguration.qrCodeBaseUrl && nfceConfiguration.consultationUrl && nfceConfiguration.officialSchemaVersion && (nfceConfiguration.qrCodeVersion === 3 || (nfceConfiguration.cscIdentifier && nfceConfiguration.encryptedCsc)));
+  const configReady = Boolean(nfceConfiguration?.active && nfceConfiguration.state === company?.state && nfceConfiguration.authorizationUrl && nfceConfiguration.statusServiceUrl && nfceConfiguration.qrCodeBaseUrl && nfceConfiguration.consultationUrl && nfceConfiguration.officialSchemaVersion && nfceConfiguration.cscIdentifier && nfceConfiguration.encryptedCsc);
   const activeCatalogs = new Map(catalogs.map((catalog) => [catalog.catalog, catalog]));
   const catalogsReady = requiredOfficialCatalogs.every((catalog) => activeCatalogs.has(catalog));
   const savedSnapshot = (nfceConfiguration?.catalogSnapshot && typeof nfceConfiguration.catalogSnapshot === "object" ? nfceConfiguration.catalogSnapshot : {}) as Record<string, { payloadHash?: string | null }>;

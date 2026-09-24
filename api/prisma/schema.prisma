@@ -2349,6 +2349,7 @@ model NfceConfiguration {
   authorizationUrl      String?         @map("authorization_url") @db.VarChar(500)
   statusServiceUrl      String?         @map("status_service_url") @db.VarChar(500)
   eventUrl              String?         @map("event_url") @db.VarChar(500)
+  inutilizationUrl      String?         @map("inutilization_url") @db.VarChar(500)
   qrCodeBaseUrl         String?         @map("qr_code_base_url") @db.VarChar(500)
   consultationUrl       String?         @map("consultation_url") @db.VarChar(500)
   officialSchemaVersion String?         @map("official_schema_version") @db.VarChar(40)

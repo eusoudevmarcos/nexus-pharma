@@ -79,21 +79,23 @@ Cadastre por empresa/ambiente via `PUT /api/v1/fiscal/nfce/configuracao`:
   "versao_qrcode": 2,
   "identificador_csc": "000001",
   "segredo_csc": "SEU_CSC_AQUI",
-  "url_autorizacao": "https://.../NFeAutorizacao4",
-  "url_status":      "https://.../NFeStatusServico4",
-  "url_evento":      "https://.../NFeRecepcaoEvento4",
-  "url_qrcode":      "https://.../nfce/qrcode",
-  "url_consulta":    "https://.../nfce/consulta",
+  "url_autorizacao":  "https://.../NFeAutorizacao4",
+  "url_status":       "https://.../NFeStatusServico4",
+  "url_evento":       "https://.../NFeRecepcaoEvento4",
+  "url_inutilizacao": "https://.../NFeInutilizacao4",
+  "url_qrcode":       "https://.../nfce/qrcode",
+  "url_consulta":     "https://.../nfce/consulta",
   "versao_schema_oficial": "PL_009p_NT2025.002"
 }
 ```
 
 - Use as URLs **de homologação** do SVRS/SEFAZ-DF primeiro; troque para produção
   depois de homologar.
-- ⚠️ **Verificar antes de homologar:** hoje o `saveNfceConfiguration` só persiste o
-  CSC quando `versao_qrcode = 2`. Como a NFC-e exige CSC para o QR, use
-  `versao_qrcode: 2` **ou** ajuste essa regra na `nfce-governance.service`. A
-  transmissão falha com `NFCE_CSC_NAO_CONFIGURADO` se o CSC não estiver salvo.
+- O CSC é **persistido em qualquer versão de QR** e é **exigido ao ativar** a
+  configuração (`ativa: true`) — uma config ativa sem CSC é recusada com
+  `NFCE_CSC_OBRIGATORIO`, evitando salvar algo que nunca conseguiria transmitir.
+- `url_inutilizacao` alimenta o endpoint dedicado de inutilização de numeração
+  (`POST /api/v1/fiscal/nfce/inutilizacoes`).
 
 ## 5. XSDs oficiais
 
@@ -145,7 +147,7 @@ Cadastre por empresa/ambiente via `PUT /api/v1/fiscal/nfce/configuracao`:
 - [ ] Certificado A1 (.pfx) obtido e carregado (`POST /fiscal/dfe/certificados`)
 - [ ] `DFE_CERTIFICATE_ENCRYPTION_KEY` configurada no servidor
 - [ ] IE habilitada + credenciamento NFC-e homologação (SEFAZ-DF)
-- [ ] CSC + idCSC gerados e salvos (`PUT /fiscal/nfce/configuracao`, `versao_qrcode: 2`)
+- [ ] CSC + idCSC gerados e salvos (`PUT /fiscal/nfce/configuracao`, obrigatório ao ativar)
 - [ ] Endereço fiscal em `Company.settings.fiscalAddress`
 - [ ] URLs SVRS/SEFAZ-DF de homologação cadastradas
 - [ ] XSDs oficiais baixados

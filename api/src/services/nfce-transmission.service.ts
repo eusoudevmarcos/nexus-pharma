@@ -8,7 +8,14 @@ import { buildNfceQrCode } from "./nfce-qrcode.service.js";
 import { injectNfceSupl } from "./nfce-layout.service.js";
 import { buildNfceAuthorizationSoap, parseNfceAuthorizationResponse } from "./nfce-sefaz.service.js";
 import { signSefazXml } from "./nfce-signature.service.js";
-import { buildNfceCancelamentoXml, buildEventSoap, parseEventResponse } from "./nfce-events.service.js";
+import { buildNfceCancelamentoXml, buildEventSoap, parseEventResponse, buildNfceInutilizacaoXml, buildInutilizacaoSoap, parseInutilizacaoResponse } from "./nfce-events.service.js";
+
+const ufToCode: Record<string, string> = {
+  RO: "11", AC: "12", AM: "13", RR: "14", PA: "15", AP: "16", TO: "17", MA: "21",
+  PI: "22", CE: "23", RN: "24", PB: "25", PE: "26", AL: "27", SE: "28", BA: "29",
+  MG: "31", ES: "32", RJ: "33", SP: "35", PR: "41", SC: "42", RS: "43", MS: "50",
+  MT: "51", GO: "52", DF: "53",
+};
 
 /**
  * Transmissão da NFC-e ao webservice NFeAutorizacao4, orquestrando as peças
@@ -249,4 +256,76 @@ export async function cancelNfceDocument(input: {
   });
 
   return { cancelled: result.registered, idempotent: false, status: result.eventStatus, message: result.eventMessage, protocol: result.protocol };
+}
+
+export type NfceInutilizacaoOutcome = {
+  homologated: boolean;
+  status: string | null;
+  message: string | null;
+  protocol: string | null;
+};
+
+/**
+ * Inutiliza uma faixa de numeração de NFC-e (NFeInutilizacao4).
+ * Gated por NFCE_ENABLE_SEFAZ_TRANSMISSION; usa o endpoint dedicado da config.
+ */
+export async function inutilizeNfceNumbers(input: {
+  companyId: string;
+  environment: "HOMOLOGATION" | "PRODUCTION";
+  series: number;
+  numberFrom: number;
+  numberTo: number;
+  justification: string;
+  userId: string;
+  requestId: string;
+}): Promise<NfceInutilizacaoOutcome> {
+  if (!config.NFCE_ENABLE_SEFAZ_TRANSMISSION) throw new Error("NFCE_TRANSMISSAO_SEFAZ_DESABILITADA");
+
+  const company = await prisma.company.findUnique({ where: { id: input.companyId }, select: { cnpj: true, state: true } });
+  if (!company?.cnpj || !company.state) throw new Error("NFCE_CNPJ_E_UF_OBRIGATORIOS");
+  const stateCode = ufToCode[company.state];
+  if (!stateCode) throw new Error("NFCE_UF_INVALIDA");
+
+  const cfg = await prisma.nfceConfiguration.findUnique({
+    where: { companyId_environment: { companyId: input.companyId, environment: input.environment } },
+  });
+  if (!cfg?.active) throw new Error("NFCE_CONFIGURACAO_NAO_ATIVA");
+  if (!cfg.inutilizationUrl) throw new Error("NFCE_ENDPOINT_INUTILIZACAO_NAO_CONFIGURADO");
+
+  const cert = await certificateForCompany(input.companyId, input.environment);
+  const { xml } = buildNfceInutilizacaoXml({
+    cnpj: company.cnpj,
+    stateCode,
+    year: new Date().getFullYear(),
+    series: input.series,
+    numberFrom: input.numberFrom,
+    numberTo: input.numberTo,
+    justification: input.justification,
+    environment: input.environment,
+  });
+  const signed = signSefazXml({ xml, tagName: "infInut", certificatePem: cert.material.certificatePem, privateKeyPem: cert.material.privateKeyPem });
+  const { body, action } = buildInutilizacaoSoap(signed.signedXml);
+
+  let responseXml: string;
+  try {
+    responseXml = await postSoap({ url: new URL(cfg.inutilizationUrl), action, body, pfx: cert.pfx, passphrase: cert.payload.passphrase });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : "ERRO_DESCONHECIDO";
+    throw new Error(`NFCE_INUTILIZACAO_FALHOU:${message}`);
+  }
+
+  const result = parseInutilizacaoResponse(responseXml);
+  await prisma.auditLog.create({
+    data: {
+      companyId: input.companyId,
+      userId: input.userId,
+      action: result.homologated ? "INUTILIZE" : "INUTILIZE_REJECTED",
+      entity: "NFCE_NUMBER_RANGE",
+      entityId: `${input.series}:${input.numberFrom}-${input.numberTo}`,
+      requestId: input.requestId,
+      after: { cStat: result.status, motivo: result.message, protocolo: result.protocol, justificativa: input.justification },
+    },
+  });
+
+  return { homologated: result.homologated, status: result.status, message: result.message, protocol: result.protocol };
 }
