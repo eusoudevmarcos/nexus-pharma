@@ -38,12 +38,19 @@ só os insumos acima.
 
 ---
 
-## Frente 2 — Onboarding brinde / free / pagante ✅ backend pronto
+## Frente 2 — Onboarding brinde / free / pagante ✅ completo (back + front)
 
 - [x] `SubscriptionBillingType` (PAYING/COMPLIMENTARY/FREE) + faturamento que pula
       cobrança para brinde/free
 - [x] Rota `PUT /interno/comercial/empresas/:id/assinatura` aceita `tipo_cobranca`
-- [ ] **Frontend:** expor o campo no cadastro do backoffice comercial
+- [x] **Frontend:** campo "Tipo de cobrança" + "Brinde até" na Central Nexus →
+      Comercial (ativação de contrato)
+- [x] **Cadastro de cliente novo:** `POST /interno/comercial/empresas` +
+      formulário "Novo cliente" na Central Nexus → Comercial
+- [x] **Convite do primeiro usuário do cliente:** `POST /interno/comercial/
+      empresas/:id/convite-responsavel` + mini-formulário no card de cada
+      empresa. A senha é sempre definida pelo próprio destinatário ao clicar
+      no link do e-mail (nunca pelo admin Nexus).
 - [ ] Definir os primeiros clientes brinde (quem, prazo em `brinde_ate`)
 - [ ] Processo de conversão: quando o brinde virar pagante, reenviar a mesma rota
       com `tipo_cobranca: "PAGANTE"` e o plano definitivo
