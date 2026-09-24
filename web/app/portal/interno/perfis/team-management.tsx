@@ -74,7 +74,7 @@ function StaffRow({ member }: { member: StaffMember }) {
           {member.status === "ACTIVE" ? "Suspender" : "Reativar"}
         </button>
       )}
-      {feedback && <small className="dfe-scan-feedback">{feedback}</small>}
+      {feedback && <small className="team-row-feedback">{feedback}</small>}
     </div>
   );
 }

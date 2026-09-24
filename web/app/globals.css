@@ -1194,6 +1194,7 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
 .team-seniority-select { height: 34px; padding: 0 8px; border: 1px solid #cad8dd; border-radius: 8px; font-size: .6rem; background: white; color: var(--ink); }
 .team-suspend-btn { min-height: 34px; padding-inline: 10px; border: 1px solid #cad8dd; border-radius: 8px; background: white; color: #8b2929; cursor: pointer; font-size: .58rem; font-weight: 800; }
 .team-suspend-btn:disabled { cursor: default; opacity: .5; }
+.team-row .team-row-feedback { grid-column: 1 / -1; color: #b3402f; font-size: .58rem; }
 .status-pill.diretoria { color: var(--navy); background: var(--yellow-soft); }
 .status-pill.pending { color: #a86b17; background: #fdf1de; }
 .status-pill.invited { color: #a86b17; background: #fdf1de; }

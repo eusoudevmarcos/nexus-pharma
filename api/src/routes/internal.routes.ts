@@ -896,6 +896,12 @@ export async function internalRoutes(app: FastifyInstance) {
       const colaborador = isCommercialColaborador(request);
       if (colaborador && company.commercialOwnerId !== request.user.sub) return reply.status(403).send({ erro: "EMPRESA_FORA_DA_SUA_CARTEIRA" });
       if (colaborador && parsed.data.responsavel_comercial_id !== undefined) return reply.status(403).send({ erro: "SOMENTE_GESTOR_REATRIBUI_RESPONSAVEL" });
+      if (parsed.data.responsavel_comercial_id) {
+        const agent = await prisma.user.findFirst({
+          where: { id: parsed.data.responsavel_comercial_id, systemRole: { in: ["INTERNAL_ADMIN", "COMMERCIAL"] }, status: "ACTIVE" },
+        });
+        if (!agent) return reply.status(400).send({ erro: "RESPONSAVEL_INVALIDO" });
+      }
       const updated = await prisma.$transaction(async (tx) => {
         const result = await tx.company.update({
           where: { id: company.id },

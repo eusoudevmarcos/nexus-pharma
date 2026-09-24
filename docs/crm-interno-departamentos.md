@@ -193,6 +193,21 @@ departamento é o próprio `systemRole` relabeled (`INTERNAL_ADMIN`=Diretoria,
   (`internalRoles` e `defaultInternalArea` em `lib/portal.ts`) — sem isso, um
   usuário Marketing entraria em loop de redirecionamento. Corrigido.
 
+**Teste ponta a ponta** — `npm run test:e2e:crm` (em `api/`, precisa de
+Postgres local; recusa rodar se o `DATABASE_URL` não for localhost). São 36
+verificações contra as rotas reais: carteira do colaborador, 403 fora da
+carteira/fila, reatribuição, promoção valendo na hora com o mesmo token,
+suspensão derrubando o acesso no request seguinte, MFA exigido, auditoria.
+Ele pegou um bug real depois do primeiro deploy: a reatribuição comercial
+aceitava qualquer usuário como responsável (inclusive usuário de farmácia) e
+um UUID inexistente virava erro 500. Agora só aceita membro ativo do Comercial
+ou da Diretoria (`RESPONSAVEL_INVALIDO`), igual à atribuição de ticket.
+
+**Mensagens de erro da Central** — o proxy interno (`web/lib/internal-proxy.ts`)
+trocava todo erro por "Não foi possível concluir a operação.". Agora traduz os
+códigos (MFA pendente, fora da carteira, só gestor reatribui etc.) para uma
+mensagem que diz o que fazer.
+
 **Financeiro e Desenvolvimento não ganharam escopo por colaborador** — não têm
 um campo de "dono" individual hoje (fatura não é de uma pessoa, release
 também não). Fica registrado como próximo passo se um dia fizer sentido.
