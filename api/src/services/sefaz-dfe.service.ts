@@ -37,7 +37,7 @@ function endpoint(kind: "distribution" | "event", environment: "HOMOLOGATION" | 
   return new URL(value);
 }
 
-async function postSoap(input: {
+export async function postSoap(input: {
   url: URL;
   action: string;
   body: string;
@@ -86,7 +86,7 @@ async function postSoap(input: {
   });
 }
 
-async function certificateForCompany(companyId: string, environment: "HOMOLOGATION" | "PRODUCTION") {
+export async function certificateForCompany(companyId: string, environment: "HOMOLOGATION" | "PRODUCTION") {
   const certificate = await prisma.dfeCertificate.findFirst({
     where: { companyId, environment, status: "ACTIVE", validUntil: { gt: new Date() } },
     orderBy: { validUntil: "desc" },

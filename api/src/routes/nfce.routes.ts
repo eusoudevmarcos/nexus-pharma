@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireRecentMfa, requireSystemRoles, requireTenantRoles, tenantContext } from "../security/auth.js";
 import { tenantRolesAtLeast } from "../security/access-control.js";
 import { blockNfceTransmission, nfcePublicDocument, prepareNfceDocument, type NfceValidationIssue } from "../services/nfce.service.js";
+import { authorizeNfceDocument, cancelNfceDocument, inutilizeNfceNumbers } from "../services/nfce-transmission.service.js";
 import { activateOfficialCatalog, catalogReleaseDiff, importOfficialCatalog, listOfficialCatalogReleases, nfceReadiness, publicNfceConfiguration, saveNfceConfiguration } from "../services/nfce-governance.service.js";
 
 const environmentSchema = z.enum(["HOMOLOGATION", "PRODUCTION"]);
@@ -20,7 +22,7 @@ const configurationSchema = z.object({
   ambiente: environmentSchema.default("HOMOLOGATION"), uf: z.string().trim().length(2), serie: z.number().int().min(1).max(999),
   versao_qrcode: z.union([z.literal(2), z.literal(3)]).default(3), identificador_csc: z.string().trim().max(20).nullable().optional(),
   segredo_csc: z.string().trim().min(6).max(200).nullable().optional(), url_autorizacao: nullableHttpsUrl,
-  url_status: nullableHttpsUrl, url_evento: nullableHttpsUrl, url_qrcode: nullableHttpsUrl,
+  url_status: nullableHttpsUrl, url_evento: nullableHttpsUrl, url_inutilizacao: nullableHttpsUrl, url_qrcode: nullableHttpsUrl,
   url_consulta: nullableHttpsUrl, versao_schema_oficial: z.string().trim().max(40).nullable().optional(), ativa: z.boolean().default(true),
 });
 const catalogImportSchema = z.object({
@@ -63,6 +65,7 @@ export async function nfceRoutes(app: FastifyInstance) {
       environment: parsed.data.ambiente, state: parsed.data.uf, series: parsed.data.serie, qrCodeVersion: parsed.data.versao_qrcode,
       cscIdentifier: parsed.data.identificador_csc, cscSecret: parsed.data.segredo_csc,
       authorizationUrl: parsed.data.url_autorizacao, statusServiceUrl: parsed.data.url_status, eventUrl: parsed.data.url_evento,
+      inutilizationUrl: parsed.data.url_inutilizacao,
       qrCodeBaseUrl: parsed.data.url_qrcode, consultationUrl: parsed.data.url_consulta,
       officialSchemaVersion: parsed.data.versao_schema_oficial, active: parsed.data.ativa,
     });
@@ -170,7 +173,55 @@ export async function nfceRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>("/documentos/:id/transmitir", { preHandler: write }, async (request, reply) => {
     const id = z.string().uuid().safeParse(request.params.id);
     if (!id.success) return reply.status(400).send({ erro: "NFCE_ID_INVALIDO" });
-    await blockNfceTransmission({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id });
-    return reply.status(503).send({ erro: "NFCE_TRANSMISSAO_SEFAZ_DESABILITADA" });
+    if (!config.NFCE_ENABLE_SEFAZ_TRANSMISSION) {
+      await blockNfceTransmission({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id });
+      return reply.status(503).send({ erro: "NFCE_TRANSMISSAO_SEFAZ_DESABILITADA" });
+    }
+    try {
+      const result = await authorizeNfceDocument({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id });
+      return reply.status(result.authorized ? (result.idempotent ? 200 : 201) : 409).send(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NFCE_TRANSMISSAO_FALHOU";
+      if (message === "NFCE_DOCUMENTO_NAO_ENCONTRADO") return reply.status(404).send({ erro: message });
+      if (message.startsWith("NFCE_") && /(NAO_CONFIGURAD|NAO_ATIVA|DESABILITADA|CSC_NAO|ENDPOINT_)/.test(message)) return reply.status(503).send({ erro: message });
+      throw error;
+    }
+  });
+
+  app.post<{ Params: { id: string } }>("/documentos/:id/cancelar", { preHandler: write }, async (request, reply) => {
+    const id = z.string().uuid().safeParse(request.params.id);
+    const parsed = z.object({ justificativa: z.string().trim().min(15).max(255) }).safeParse(request.body ?? {});
+    if (!id.success || !parsed.success) return reply.status(400).send({ erro: "NFCE_CANCELAMENTO_INVALIDO", detalhes: parsed.success ? undefined : parsed.error.flatten() });
+    if (!config.NFCE_ENABLE_SEFAZ_TRANSMISSION) return reply.status(503).send({ erro: "NFCE_TRANSMISSAO_SEFAZ_DESABILITADA" });
+    try {
+      const result = await cancelNfceDocument({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id, justification: parsed.data.justificativa });
+      return reply.status(result.cancelled ? 200 : 409).send(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NFCE_CANCELAMENTO_FALHOU";
+      if (message === "NFCE_DOCUMENTO_NAO_ENCONTRADO") return reply.status(404).send({ erro: message });
+      if (message === "NFCE_DOCUMENTO_NAO_AUTORIZADO_PARA_CANCELAMENTO") return reply.status(409).send({ erro: message });
+      if (message.startsWith("NFCE_") && /(NAO_CONFIGURAD|NAO_ATIVA|DESABILITADA|ENDPOINT_)/.test(message)) return reply.status(503).send({ erro: message });
+      throw error;
+    }
+  });
+
+  app.post("/inutilizacoes", { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])] }, async (request, reply) => {
+    const parsed = z.object({
+      ambiente: environmentSchema.default("HOMOLOGATION"),
+      serie: z.number().int().min(1).max(999),
+      numero_inicial: z.number().int().min(1).max(999_999_999),
+      numero_final: z.number().int().min(1).max(999_999_999),
+      justificativa: z.string().trim().min(15).max(255),
+    }).refine((value) => value.numero_final >= value.numero_inicial, { message: "numero_final deve ser >= numero_inicial" }).safeParse(request.body ?? {});
+    if (!parsed.success) return reply.status(400).send({ erro: "NFCE_INUTILIZACAO_INVALIDA", detalhes: parsed.error.flatten() });
+    if (!config.NFCE_ENABLE_SEFAZ_TRANSMISSION) return reply.status(503).send({ erro: "NFCE_TRANSMISSAO_SEFAZ_DESABILITADA" });
+    try {
+      const result = await inutilizeNfceNumbers({ companyId: request.tenant!.companyId, userId: request.user.sub, requestId: request.id, environment: parsed.data.ambiente, series: parsed.data.serie, numberFrom: parsed.data.numero_inicial, numberTo: parsed.data.numero_final, justification: parsed.data.justificativa });
+      return reply.status(result.homologated ? 200 : 409).send(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NFCE_INUTILIZACAO_FALHOU";
+      if (message.startsWith("NFCE_") && /(NAO_CONFIGURAD|NAO_ATIVA|DESABILITADA|ENDPOINT_|OBRIGATORIOS|UF_INVALIDA)/.test(message)) return reply.status(503).send({ erro: message });
+      throw error;
+    }
   });
 }

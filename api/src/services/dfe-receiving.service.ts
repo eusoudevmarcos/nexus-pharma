@@ -15,6 +15,28 @@ const stringValue = (value: unknown): string | null =>
     ? String(value).trim() || null
     : null;
 
+const asDate = (value: unknown): Date | null => {
+  const text = stringValue(value);
+  if (!text) return null;
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/**
+ * Extrai do grupo rastro da NF-e (armazenado no item do documento) o primeiro
+ * lote utilizável (com lote e validade) para pré-preencher o recebimento.
+ */
+export function firstRastroLot(rastro: Prisma.JsonValue | null): { lote: string | null; fabricacao: Date | null; validade: Date | null } | null {
+  const list = Array.isArray(rastro) ? rastro : [];
+  for (const entry of list) {
+    const group = objectValue(entry as Prisma.JsonValue);
+    const lote = stringValue(group.lote);
+    const validade = asDate(group.validade);
+    if (lote || validade) return { lote, fabricacao: asDate(group.fabricacao), validade };
+  }
+  return null;
+};
+
 export async function startDfeReceiving(input: {
   companyId: string;
   documentId: string;
@@ -43,13 +65,20 @@ export async function startDfeReceiving(input: {
         status: "IN_PROGRESS",
         startedAt: new Date(),
         items: {
-          create: document.items.map((item) => ({
-            documentItemId: item.id,
-            productId: item.productId,
-            expectedQuantity: item.quantity,
-            receivedQuantity: 0,
-            unitCost: item.unitPrice,
-          })),
+          create: document.items.map((item) => {
+            const lot = firstRastroLot(item.rastro);
+            return {
+              documentItemId: item.id,
+              productId: item.productId,
+              expectedQuantity: item.quantity,
+              receivedQuantity: 0,
+              unitCost: item.unitPrice,
+              lotCode: lot?.lote ?? null,
+              manufacturedAt: lot?.fabricacao ?? null,
+              expiresAt: lot?.validade ?? null,
+              notes: lot ? "Lote/fabricação/validade pré-preenchidos pela NF-e (rastro); confira a quantidade física." : null,
+            };
+          }),
         },
       },
       include: { items: true },

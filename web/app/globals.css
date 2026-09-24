@@ -1148,6 +1148,25 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
 .contract-row button { min-height: 40px; padding-inline: 13px; border: 0; border-radius: 10px; color: white; background: var(--navy); cursor: pointer; font-size: .62rem; font-weight: 850; }
 .contract-row button:disabled { cursor: default; opacity: .5; }
 .contract-feedback { margin: 9px 15px 0; color: #356b58; font-size: .61rem; }
+.contract-billing-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 15px 13px; }
+.contract-billing-row label { display: grid; gap: 4px; color: #708087; font-size: .58rem; font-weight: 800; }
+.contract-billing-row select, .contract-billing-row input { width: 100%; height: 40px; padding: 0 10px; border: 1px solid #cad8dd; border-radius: 10px; color: var(--ink); background: white; font-size: .64rem; }
+.invite-row { display: grid; grid-template-columns: 1.3fr .9fr auto; gap: 10px; align-items: end; padding: 10px 15px; }
+.invite-row label { display: grid; gap: 4px; color: #708087; font-size: .58rem; font-weight: 800; }
+.invite-row select, .invite-row input { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #cad8dd; border-radius: 10px; color: var(--ink); background: white; font-size: .64rem; }
+.invite-row button { min-height: 38px; padding-inline: 13px; border: 0; border-radius: 10px; color: white; background: var(--navy); cursor: pointer; font-size: .62rem; font-weight: 850; }
+.invite-row button:disabled { cursor: default; opacity: .5; }
+.invite-status { grid-column: 1 / -1; color: #356b58; font-size: .61rem; }
+.invite-status.pending { color: #a86b17; }
+.invite-status.error { color: #b3402f; }
+.new-client-panel { padding: 16px 18px; border-radius: 15px; background: #f2f7f8; margin-bottom: 18px; display: grid; gap: 12px; }
+.new-client-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.new-client-grid label { display: grid; gap: 4px; color: #708087; font-size: .58rem; font-weight: 800; }
+.new-client-grid select, .new-client-grid input { width: 100%; height: 40px; padding: 0 10px; border: 1px solid #cad8dd; border-radius: 10px; color: var(--ink); background: white; font-size: .64rem; }
+.new-client-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.new-client-actions button { min-height: 40px; padding-inline: 16px; border: 0; border-radius: 10px; color: white; background: var(--navy); cursor: pointer; font-size: .64rem; font-weight: 850; }
+.new-client-actions button:disabled { cursor: default; opacity: .5; }
+.new-client-actions .new-client-cancel { background: transparent; color: #708087; }
 .release-row { min-height: 82px; display: grid; grid-template-columns: 105px minmax(250px, 1fr) 100px 105px; gap: 15px; align-items: center; border-top: 1px solid #e7edef; }
 .release-row > div { display: grid; }
 .release-row strong { color: var(--ink); font-size: .78rem; }
@@ -1452,6 +1471,8 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
   .company-row { padding-block: 12px; grid-template-columns: 1fr 120px 120px; }
   .company-row label, .company-row button { grid-column: 2 / -1; }
   .contract-row { grid-template-columns: 1fr 1fr; }
+  .invite-row { grid-template-columns: 1fr; }
+  .new-client-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -1569,6 +1590,7 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
   .invitation-card { padding: 28px 22px; }
   .ticket-row, .finance-list .internal-row, .company-row, .release-row { padding-block: 15px; grid-template-columns: 1fr; }
   .contract-row { grid-template-columns: 1fr; }
+  .contract-billing-row, .new-client-grid { grid-template-columns: 1fr; }
   .service-health-grid { grid-template-columns: 1fr; }
   .incident-row { grid-template-columns: 1fr; padding-block: 16px; }
   .incident-actions { grid-column: auto; justify-content: flex-start; }
