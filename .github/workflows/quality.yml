@@ -33,6 +33,7 @@ jobs:
       - run: npm ci
       - run: npm run prisma:validate
       - run: npm run build
+      - run: node --test tests/*.test.mjs
 
   web:
     name: Site e portal

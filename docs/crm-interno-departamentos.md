@@ -127,8 +127,34 @@ Comparando o que você descreveu com o que já existe em
 
 **Conclusão: o modelo do lado do cliente não precisa ser redesenhado.** Ele já
 tem os 9 perfis certos, com fronteiras já bem definidas
-(`api/src/security/access-control.ts:43-124`). O que faltava era o **mindmap
+(`api/src/security/access-control.ts`). O que faltava era o **mindmap
 visual** para enxergar isso de uma vez — está na Parte 4.
+
+### 3.0 Verificado contra o código (24/09)
+
+A conclusão acima era de estudo; depois foi **conferida rota por rota**:
+
+- **152 rotas de tenant** (167 de 167 registros extraídos) × a matriz de
+  acesso: as **9 fronteiras** que o mapa promete ("Auditoria não altera nada",
+  "Balcão não recebe pagamento", "Caixa sem painel gerencial", "Gerente
+  consulta usuários mas não concede acesso"...) valem em todas as rotas.
+- **Menu do portal = guarda da página = área inicial** de cada perfil: as três
+  listas batem para os 9 perfis.
+- Onde a rota é mais restrita que a matriz, é intencional: aprovar, decidir,
+  configurar e mexer em certificado exigem nível acima de "operar" (ex.:
+  Compras não aprova o próprio pedido — exatamente o que o perfil diz).
+- **1 lacuna real, corrigida:** a Auditoria abria *Medicamentos* e via a lista
+  de produtos controlados vazia (a API negava a leitura, embora a matriz diga
+  `VIEW`). Agora lê, só leitura — os botões de salvar já eram bloqueados.
+- **Travado no CI:** `api/tests/access-boundaries.test.mjs` refaz essa
+  verificação a cada push. Uma rota nova que quebre uma fronteira do mapa
+  bloqueia o deploy.
+
+Observação para quando a SEFAZ for ligada: a sincronização de NF-e de entrada
+(`POST /fiscal/dfe/sincronizar`) é só manual e só Proprietário/Administrador —
+não há job automático. Enquanto o menu *Recebimento NF-e* está desligado
+(`NEXT_PUBLIC_FISCAL_DOCUMENTS_ENABLED`), não afeta ninguém; na homologação,
+vale um job periódico para Compras não depender de um clique do dono.
 
 ### 3.1 "Grupo" — atenção a um ponto que pode confundir
 

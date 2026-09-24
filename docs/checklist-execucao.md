@@ -6,16 +6,18 @@ Consolida o que foi construído e o que falta em cada frente. Marque conforme av
 
 ## Frente 0 — Publicar o trabalho mais recente (curto prazo, é sua ação)
 
-O emissor NFC-e, brinde/free e as automações de estoque **já foram mergeados
-em `main` e estão em produção** (Vercel + Render). O que falta publicar agora
-é o pacote de **funcionalidades da Central Nexus** (equipe interna, catálogos
-fiscais, lojas/histórico), commitado localmente (`ee075c1`) mas ainda sem push:
+Tudo até `41318a0` **está em produção** (Vercel + Render): emissor NFC-e,
+brinde/free, automações de estoque, funcionalidades da Central Nexus e o CRM
+interno (departamentos/senioridade).
 
-- [ ] Confirmar comigo o push de `main` (ele traz uma migration nova:
-  `invitation_internal_staff`, que só altera a tabela `invitations`)
-- [ ] Acompanhar o CI (GitHub Actions) + deploy automático do Render
-- [ ] Testar: convidar um membro da equipe, importar/ativar um catálogo,
-  adicionar uma loja e ver o histórico de aditivos
+- [x] Push + CI + deploy da Central Nexus (`5ba0899`) e do CRM interno
+  (`4b6a775` com migration `crm_interno_departamentos`, fix `41318a0`)
+- [x] **CI agora roda os testes** — antes o "quality gate" só compilava; os
+  testes (NFC-e, DANFE, cadeia tributária, fronteiras de perfil) nunca tinham
+  bloqueado um deploy. Agora um teste quebrado impede o Render de publicar.
+- [ ] Testar o CRM interno em produção: ativar MFA em Minha segurança →
+  convidar Marketing/Comercial → rebaixar para Colaborador → atribuir um
+  cliente → entrar como a pessoa e ver só a carteira dela
 
 ---
 

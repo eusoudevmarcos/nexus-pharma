@@ -33,6 +33,9 @@ const credentialSchema = z.object({
 
 export async function saleControlRoutes(app: FastifyInstance) {
   const read = [authenticate, tenantContext, requireTenantRoles(tenantRolesAtLeast("POS", "OPERATE"))];
+  // Lista de produtos e suas políticas: quem opera o caixa (exigências no ato da
+  // venda) e quem consulta Medicamentos — inclusive a Auditoria, só leitura.
+  const catalogRead = [authenticate, tenantContext, requireTenantRoles([...new Set([...tenantRolesAtLeast("POS", "OPERATE"), ...tenantRolesAtLeast("MEDICATIONS", "VIEW")])])];
   const manage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"] )];
   const fiscalManage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "PHARMACIST"] )];
 
@@ -74,7 +77,7 @@ export async function saleControlRoutes(app: FastifyInstance) {
     return reply.send(credential);
   });
 
-  app.get("/produtos", { preHandler: read }, async (request) => prisma.product.findMany({
+  app.get("/produtos", { preHandler: catalogRead }, async (request) => prisma.product.findMany({
     where: { companyId: request.tenant!.companyId },
     select: { id: true, ean: true, name: true, activeIngredient: true, laboratory: true, active: true, controlLevel: true, requiresBuyerId: true, requiresPrescription: true, requiresPharmacist: true, retainsPrescription: true, minimumBuyerAge: true, controlRuleVersion: true, controlLegalBasis: true, controlMetadata: true },
     orderBy: { name: "asc" },
