@@ -15,6 +15,7 @@ import {
   submitInventoryCount,
   updateInventoryCountItem,
 } from "../services/inventory-workflow.service.js";
+import { parseGs1 } from "../services/gs1-barcode.service.js";
 
 const uuid = z.string().uuid();
 const positiveQuantity = z.number().positive().max(10_000_000);
@@ -24,6 +25,31 @@ export async function inventoryRoutes(app: FastifyInstance) {
   const read = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST", "VIEWER"])];
   const operate = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER", "BUYER", "PHARMACIST"])];
   const manage = [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])];
+
+  // Resolve um código escaneado (DataMatrix GS1 ou EAN 1D) para produto + lote +
+  // validade estruturados, para o PDV/conferência/app preencher sem digitação.
+  app.post("/codigo/resolver", { preHandler: read }, async (request, reply) => {
+    const parsed = z.object({ codigo: z.string().min(1).max(200) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ erro: "CODIGO_INVALIDO" });
+    const companyId = request.tenant!.companyId;
+    const scan = parseGs1(parsed.data.codigo);
+    const candidates = Array.from(new Set([scan.gtin, scan.ean, scan.gtin?.replace(/^0+/, "")].filter((value): value is string => Boolean(value))));
+    const produto = candidates.length
+      ? await prisma.product.findFirst({ where: { companyId, ean: { in: candidates } }, select: { id: true, ean: true, name: true, active: true } })
+      : null;
+    const loteExistente = produto && scan.lote
+      ? await prisma.inventoryLot.findUnique({ where: { productId_code: { productId: produto.id, code: scan.lote } }, select: { id: true, code: true, expiresAt: true, quantity: true } })
+      : null;
+    return {
+      gs1: scan.gs1,
+      produto,
+      lote: scan.lote,
+      validade: scan.validade,
+      fabricacao: scan.fabricacao,
+      serial: scan.serial,
+      lote_existente: loteExistente,
+    };
+  });
 
   app.get("/painel", { preHandler: read }, async (request) => {
     const companyId = request.tenant!.companyId;
