@@ -47,9 +47,9 @@ export type SignedNfceXml = {
   signatureValue: string;
 };
 
-function extractInfNfceId(xml: string): string {
-  const match = xml.match(/<infNFe\b[^>]*\bId="([^"]+)"/);
-  if (!match?.[1]) throw new Error("NFCE_ASSINATURA_ID_INFNFE_NAO_ENCONTRADO");
+function extractElementId(xml: string, tagName: string): string {
+  const match = xml.match(new RegExp(`<${tagName}\\b[^>]*\\bId="([^"]+)"`));
+  if (!match?.[1]) throw new Error(`NFCE_ASSINATURA_ID_${tagName.toUpperCase()}_NAO_ENCONTRADO`);
   return match[1];
 }
 
@@ -60,15 +60,23 @@ function extractBetween(xml: string, tag: string): string {
 }
 
 /**
- * Assina o XML da NFC-e. Lança erro com prefixo NFCE_ASSINATURA_ quando o
- * certificado/chave são inválidos ou o documento não tem a estrutura esperada.
+ * Assina, com as regras do SEFAZ, um XML cujo elemento assinado (`tagName`)
+ * possui atributo Id. Usado para NFe (infNFe), eventos (infEvento) e
+ * inutilização (infInut) — a Signature é inserida como irmã, logo após ele.
  */
-export function signNfceXml(input: SignNfceXmlInput): SignedNfceXml {
-  if (!/<infNFe\b/.test(input.xml)) throw new Error("NFCE_ASSINATURA_XML_SEM_INFNFE");
+export function signSefazXml(input: {
+  xml: string;
+  tagName: string;
+  certificatePem: string;
+  privateKeyPem: string;
+  referenceId?: string;
+}): SignedNfceXml {
+  if (!new RegExp(`<${input.tagName}\\b`).test(input.xml)) throw new Error(`NFCE_ASSINATURA_XML_SEM_${input.tagName.toUpperCase()}`);
   if (!input.privateKeyPem?.includes("PRIVATE KEY")) throw new Error("NFCE_ASSINATURA_CHAVE_PRIVADA_INVALIDA");
   if (!input.certificatePem?.includes("CERTIFICATE")) throw new Error("NFCE_ASSINATURA_CERTIFICADO_INVALIDO");
 
-  const referenceId = input.referenceId ?? extractInfNfceId(input.xml);
+  const referenceId = input.referenceId ?? extractElementId(input.xml, input.tagName);
+  const xpath = `//*[local-name(.)='${input.tagName}']`;
 
   const sig = new SignedXml({
     privateKey: input.privateKeyPem,
@@ -79,18 +87,14 @@ export function signNfceXml(input: SignNfceXmlInput): SignedNfceXml {
   });
 
   sig.addReference({
-    xpath: "//*[local-name(.)='infNFe']",
+    xpath,
     transforms: [ENVELOPED, C14N],
     digestAlgorithm: SHA1,
     uri: `#${referenceId}`,
   });
 
   try {
-    sig.computeSignature(input.xml, {
-      // A Signature deve ser irmã de infNFe (dentro de NFe), logo após infNFe.
-      location: { reference: "//*[local-name(.)='infNFe']", action: "after" },
-      prefix: "",
-    });
+    sig.computeSignature(input.xml, { location: { reference: xpath, action: "after" }, prefix: "" });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "ERRO";
     throw new Error(`NFCE_ASSINATURA_FALHOU:${detail}`);
@@ -102,4 +106,12 @@ export function signNfceXml(input: SignNfceXmlInput): SignedNfceXml {
   const digestValueHex = Buffer.from(digestValue, "base64").toString("hex");
 
   return { signedXml, digestValue, digestValueHex, signatureValue };
+}
+
+/**
+ * Assina o XML da NFC-e (elemento infNFe). Lança erro com prefixo
+ * NFCE_ASSINATURA_ quando o certificado/chave ou a estrutura são inválidos.
+ */
+export function signNfceXml(input: SignNfceXmlInput): SignedNfceXml {
+  return signSefazXml({ xml: input.xml, tagName: "infNFe", certificatePem: input.certificatePem, privateKeyPem: input.privateKeyPem, referenceId: input.referenceId });
 }

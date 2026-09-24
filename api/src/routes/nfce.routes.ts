@@ -5,7 +5,7 @@ import { prisma } from "../infra/prisma.js";
 import { authenticate, requireRecentMfa, requireSystemRoles, requireTenantRoles, tenantContext } from "../security/auth.js";
 import { tenantRolesAtLeast } from "../security/access-control.js";
 import { blockNfceTransmission, nfcePublicDocument, prepareNfceDocument, type NfceValidationIssue } from "../services/nfce.service.js";
-import { authorizeNfceDocument } from "../services/nfce-transmission.service.js";
+import { authorizeNfceDocument, cancelNfceDocument } from "../services/nfce-transmission.service.js";
 import { activateOfficialCatalog, catalogReleaseDiff, importOfficialCatalog, listOfficialCatalogReleases, nfceReadiness, publicNfceConfiguration, saveNfceConfiguration } from "../services/nfce-governance.service.js";
 
 const environmentSchema = z.enum(["HOMOLOGATION", "PRODUCTION"]);
@@ -183,6 +183,23 @@ export async function nfceRoutes(app: FastifyInstance) {
       const message = error instanceof Error ? error.message : "NFCE_TRANSMISSAO_FALHOU";
       if (message === "NFCE_DOCUMENTO_NAO_ENCONTRADO") return reply.status(404).send({ erro: message });
       if (message.startsWith("NFCE_") && /(NAO_CONFIGURAD|NAO_ATIVA|DESABILITADA|CSC_NAO|ENDPOINT_)/.test(message)) return reply.status(503).send({ erro: message });
+      throw error;
+    }
+  });
+
+  app.post<{ Params: { id: string } }>("/documentos/:id/cancelar", { preHandler: write }, async (request, reply) => {
+    const id = z.string().uuid().safeParse(request.params.id);
+    const parsed = z.object({ justificativa: z.string().trim().min(15).max(255) }).safeParse(request.body ?? {});
+    if (!id.success || !parsed.success) return reply.status(400).send({ erro: "NFCE_CANCELAMENTO_INVALIDO", detalhes: parsed.success ? undefined : parsed.error.flatten() });
+    if (!config.NFCE_ENABLE_SEFAZ_TRANSMISSION) return reply.status(503).send({ erro: "NFCE_TRANSMISSAO_SEFAZ_DESABILITADA" });
+    try {
+      const result = await cancelNfceDocument({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id, justification: parsed.data.justificativa });
+      return reply.status(result.cancelled ? 200 : 409).send(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NFCE_CANCELAMENTO_FALHOU";
+      if (message === "NFCE_DOCUMENTO_NAO_ENCONTRADO") return reply.status(404).send({ erro: message });
+      if (message === "NFCE_DOCUMENTO_NAO_AUTORIZADO_PARA_CANCELAMENTO") return reply.status(409).send({ erro: message });
+      if (message.startsWith("NFCE_") && /(NAO_CONFIGURAD|NAO_ATIVA|DESABILITADA|ENDPOINT_)/.test(message)) return reply.status(503).send({ erro: message });
       throw error;
     }
   });

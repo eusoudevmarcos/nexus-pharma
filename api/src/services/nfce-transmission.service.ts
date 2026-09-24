@@ -7,6 +7,8 @@ import { signNfceXml } from "./nfce-signature.service.js";
 import { buildNfceQrCode } from "./nfce-qrcode.service.js";
 import { injectNfceSupl } from "./nfce-layout.service.js";
 import { buildNfceAuthorizationSoap, parseNfceAuthorizationResponse } from "./nfce-sefaz.service.js";
+import { signSefazXml } from "./nfce-signature.service.js";
+import { buildNfceCancelamentoXml, buildEventSoap, parseEventResponse } from "./nfce-events.service.js";
 
 /**
  * Transmissão da NFC-e ao webservice NFeAutorizacao4, orquestrando as peças
@@ -166,4 +168,85 @@ export async function authorizeNfceDocument(input: {
     message: result.protocolMessage,
     protocol: result.protocol,
   };
+}
+
+export type NfceCancellationOutcome = {
+  cancelled: boolean;
+  idempotent: boolean;
+  status: string | null;
+  message: string | null;
+  protocol: string | null;
+};
+
+/**
+ * Cancela uma NFC-e autorizada via evento 110111 (NFeRecepcaoEvento4).
+ * Gated por NFCE_ENABLE_SEFAZ_TRANSMISSION.
+ */
+export async function cancelNfceDocument(input: {
+  companyId: string;
+  documentId: string;
+  userId: string;
+  requestId: string;
+  justification: string;
+  sequence?: number;
+}): Promise<NfceCancellationOutcome> {
+  if (!config.NFCE_ENABLE_SEFAZ_TRANSMISSION) throw new Error("NFCE_TRANSMISSAO_SEFAZ_DESABILITADA");
+
+  const document = await prisma.nfceDocument.findFirst({
+    where: { id: input.documentId, companyId: input.companyId },
+    include: { company: { select: { cnpj: true } } },
+  });
+  if (!document) throw new Error("NFCE_DOCUMENTO_NAO_ENCONTRADO");
+  if (document.status === "CANCELLED") {
+    return { cancelled: true, idempotent: true, status: "135", message: null, protocol: document.protocol };
+  }
+  if (document.status !== "AUTHORIZED" || !document.protocol) throw new Error("NFCE_DOCUMENTO_NAO_AUTORIZADO_PARA_CANCELAMENTO");
+
+  const cfg = await prisma.nfceConfiguration.findUnique({
+    where: { companyId_environment: { companyId: input.companyId, environment: document.environment } },
+  });
+  if (!cfg?.active) throw new Error("NFCE_CONFIGURACAO_NAO_ATIVA");
+  if (!cfg.eventUrl) throw new Error("NFCE_ENDPOINT_EVENTO_NAO_CONFIGURADO");
+
+  const cert = await certificateForCompany(input.companyId, document.environment);
+  const { xml } = buildNfceCancelamentoXml({
+    accessKey: document.accessKey,
+    cnpj: document.company.cnpj ?? "",
+    protocol: document.protocol,
+    justification: input.justification,
+    environment: document.environment,
+    sequence: input.sequence,
+  });
+  const signed = signSefazXml({ xml, tagName: "infEvento", certificatePem: cert.material.certificatePem, privateKeyPem: cert.material.privateKeyPem });
+  const { body, action } = buildEventSoap(signed.signedXml, String(document.number));
+
+  const attempt = await prisma.nfceTransmissionAttempt.create({
+    data: { documentId: document.id, status: "PROCESSING", requestHash: hash(signed.signedXml), startedAt: new Date() },
+  });
+
+  let responseXml: string;
+  try {
+    responseXml = await postSoap({ url: new URL(cfg.eventUrl), action, body, pfx: cert.pfx, passphrase: cert.payload.passphrase });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : "ERRO_DESCONHECIDO";
+    await prisma.nfceTransmissionAttempt.update({ where: { id: attempt.id }, data: { status: "FAILED", responseMessage: message, completedAt: new Date() } });
+    throw new Error(`NFCE_CANCELAMENTO_FALHOU:${message}`);
+  }
+
+  const result = parseEventResponse(responseXml);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.nfceTransmissionAttempt.update({
+      where: { id: attempt.id },
+      data: { status: result.registered ? "ACCEPTED" : "REJECTED", responseCode: result.eventStatus ?? result.batchStatus, responseMessage: (result.eventMessage)?.slice(0, 500) ?? null, protocol: result.protocol, completedAt: new Date() },
+    });
+    if (result.registered) {
+      await tx.nfceDocument.update({ where: { id: document.id }, data: { status: "CANCELLED" } });
+    }
+    await tx.auditLog.create({
+      data: { companyId: input.companyId, userId: input.userId, action: result.registered ? "CANCEL" : "CANCEL_REJECTED", entity: "NFCE_DOCUMENT", entityId: document.id, requestId: input.requestId, after: { cStat: result.eventStatus, motivo: result.eventMessage, protocolo: result.protocol, justificativa: input.justification } },
+    });
+  });
+
+  return { cancelled: result.registered, idempotent: false, status: result.eventStatus, message: result.eventMessage, protocol: result.protocol };
 }

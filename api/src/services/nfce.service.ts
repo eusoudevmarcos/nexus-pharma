@@ -3,6 +3,7 @@ import type { Prisma } from "../generated/prisma/client.js";
 import { config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
 import { buildNfceInfXml, type NfceLayoutInput, type NfceItem } from "./nfce-layout.service.js";
+import { validateNfceXmlStructure } from "./nfce-xsd.service.js";
 
 export type NfcePreparationInput = {
   companyId: string;
@@ -402,6 +403,12 @@ async function prepareOnce(input: NfcePreparationInput) {
       })),
     });
     const xmlDraft = buildNfceInfXml(layoutInput).xml;
+    const structural = validateNfceXmlStructure(xmlDraft);
+    if (!structural.validated) {
+      const error = new Error("NFCE_PREPARACAO_BLOQUEADA") as Error & { issues?: NfceValidationIssue[] };
+      error.issues = structural.errors.map((code) => ({ code, field: "xml", message: `Validação estrutural do XML: ${code}` }));
+      throw error;
+    }
     const document = await tx.nfceDocument.create({ data: {
       companyId: input.companyId, saleId: sale.id, createdById: input.userId,
       environment: input.environment, emissionType: input.emissionType, status: "VALIDATED",
