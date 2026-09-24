@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ContractHistory, StoreManager, type CompanyStore } from "./company-details";
 
 export type CommercialPlan = { code: string; name: string; monthlyPrice: number; setupPrice: number; hasFineTuning: boolean };
+export type CommercialAgent = { id: string; name: string; email: string };
 export type PipelineCompany = {
   id: string;
   tradeName: string;
@@ -18,6 +19,7 @@ export type PipelineCompany = {
   products: number;
   pendingInvitations: number;
   stores: CompanyStore[];
+  commercialOwner: { id: string; name: string } | null;
   subscription: {
     status: string;
     contractStartedAt: string;
@@ -90,7 +92,44 @@ function InviteResponsible({ companyId, pendingInvitations }: { companyId: strin
   );
 }
 
-function CompanyCard({ company, plans }: { company: PipelineCompany; plans: CommercialPlan[] }) {
+function OwnerReassign({ companyId, ownerId, agents }: { companyId: string; ownerId: string | null; agents: CommercialAgent[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  async function reassign(nextOwnerId: string) {
+    setBusy(true);
+    setFeedback(null);
+    const response = await fetch(`/api/portal/internal/companies/${companyId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ responsavel_comercial_id: nextOwnerId || null }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setFeedback(body.message ?? "Não foi possível reatribuir.");
+    } else {
+      router.refresh();
+    }
+    setBusy(false);
+  }
+
+  return (
+    <span className="owner-reassign">
+      <select disabled={busy} value={ownerId ?? ""} onChange={(event) => reassign(event.target.value)} aria-label="Responsável comercial">
+        <option value="">Sem responsável</option>
+        {agents.map((agent) => (
+          <option key={agent.id} value={agent.id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
+      {feedback && <em>{feedback}</em>}
+    </span>
+  );
+}
+
+function CompanyCard({ company, plans, agents, isColaborador }: { company: PipelineCompany; plans: CommercialPlan[]; agents: CommercialAgent[]; isColaborador: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState(company.status);
   const [step, setStep] = useState(company.onboardingStep);
@@ -138,6 +177,11 @@ function CompanyCard({ company, plans }: { company: PipelineCompany; plans: Comm
           <small>
             {company.city && company.state ? `${company.city}/${company.state}` : company.legalName} · {company.members} usuários · {company.products} produtos
           </small>
+          {isColaborador ? (
+            <small>Responsável: você</small>
+          ) : (
+            <OwnerReassign agents={agents} companyId={company.id} ownerId={company.commercialOwner?.id ?? null} />
+          )}
         </div>
         <div>
           <span>Plano</span>
@@ -213,11 +257,11 @@ function CompanyCard({ company, plans }: { company: PipelineCompany; plans: Comm
   );
 }
 
-export function CommercialPipeline({ companies, plans }: { companies: PipelineCompany[]; plans: CommercialPlan[] }) {
+export function CommercialPipeline({ companies, plans, agents, isColaborador }: { companies: PipelineCompany[]; plans: CommercialPlan[]; agents: CommercialAgent[]; isColaborador: boolean }) {
   return (
     <div className="internal-list commercial-contract-list">
       {companies.map((company) => (
-        <CompanyCard company={company} key={company.id} plans={plans} />
+        <CompanyCard agents={agents} company={company} isColaborador={isColaborador} key={company.id} plans={plans} />
       ))}
     </div>
   );

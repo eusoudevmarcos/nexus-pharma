@@ -20,8 +20,32 @@ export const systemRoles = [
   "HELPDESK",
   "FINANCE",
   "COMMERCIAL",
+  "MARKETING",
 ] as const;
 export type SystemRoleCode = (typeof systemRoles)[number];
+
+/**
+ * "Departamento" da equipe Nexus é o próprio systemRole relabeled para o
+ * organograma — não é um campo novo no banco, é vocabulário. INTERNAL_ADMIN é
+ * a Diretoria (CEO/CTO), que enxerga todos os departamentos.
+ */
+export const internalDepartmentLabels: Record<SystemRoleCode, string> = {
+  INTERNAL_ADMIN: "Diretoria",
+  DEVELOPER: "Desenvolvimento",
+  HELPDESK: "Suporte",
+  FINANCE: "Financeiro",
+  COMMERCIAL: "Comercial",
+  MARKETING: "Marketing",
+};
+
+export const seniorityLevels = ["DIRETOR", "GESTOR", "COLABORADOR"] as const;
+export type SeniorityCode = (typeof seniorityLevels)[number];
+
+export const seniorityLabels: Record<SeniorityCode, string> = {
+  DIRETOR: "Diretor (CEO/CTO)",
+  GESTOR: "Gestor — vê todo o departamento",
+  COLABORADOR: "Colaborador — só os próprios registros",
+};
 
 type Profile<Role extends string> = {
   code: Role;
@@ -207,20 +231,26 @@ export const systemProfiles: readonly Profile<SystemRoleCode>[] = [
   {
     code: "COMMERCIAL", name: "Comercial Nexus", shortName: "Comercial", purpose: "Conduz leads, propostas e onboarding sem acessar a operação do cliente.",
     responsibilities: ["pipeline", "propostas", "planos", "onboarding comercial"],
-    boundaries: ["sem acesso direto à empresa", "sem faturamento, catálogo fiscal ou deploy"], defaultArea: "/portal/interno/comercial",
+    boundaries: ["sem acesso direto à empresa", "colaborador vê só os clientes que é responsável; gestor vê a carteira toda", "sem faturamento, catálogo fiscal ou deploy"], defaultArea: "/portal/interno/comercial",
+  },
+  {
+    code: "MARKETING", name: "Marketing Nexus", shortName: "Marketing", purpose: "Aquisição e comunicação — departamento novo, sem funcionalidade dedicada ainda.",
+    responsibilities: ["a definir: campanhas, materiais, métricas do funil comercial"],
+    boundaries: ["sem acesso direto à empresa", "sem faturamento, catálogo fiscal ou deploy", "sem telas próprias até o escopo ser definido"], defaultArea: "/portal/interno/perfis",
   },
 ] as const;
 
 export const systemDomains: readonly AccessDomain<SystemRoleCode>[] = [
-  { code: "OBSERVABILITY", name: "Monitoramento", description: "Saúde, incidentes e desempenho do SaaS.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "OPERATE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE" } },
-  { code: "SECURITY", name: "Segurança", description: "Sessões, eventos, defesa e políticas de acesso.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "VIEW", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE" } },
-  { code: "PRIVACY_DR", name: "Privacidade e DR", description: "LGPD corporativa, retenção, backup e recuperação.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE" } },
-  { code: "GO_LIVE", name: "Go-live", description: "Preflight, prontidão e evidências de publicação.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "OPERATE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE" } },
-  { code: "FISCAL_CATALOGS", name: "Catálogos oficiais", description: "Importação, comparação, homologação e ativação da base legal.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "OPERATE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE" } },
-  { code: "HELPDESK", name: "Helpdesk", description: "Chamados, SLA e comunicação de suporte.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "OPERATE", FINANCE: "NONE", COMMERCIAL: "NONE" } },
-  { code: "SAAS_BILLING", name: "Financeiro e faturamento SaaS", description: "Planos, assinaturas, faturas e success fee.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "NONE", FINANCE: "OPERATE", COMMERCIAL: "NONE" } },
-  { code: "COMMERCIAL", name: "Comercial", description: "Leads, propostas, onboarding e conversão.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "OPERATE" } },
-  { code: "DEVELOPMENT", name: "Desenvolvimento", description: "Releases, flags, integrações e qualidade técnica.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "ADMIN", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE" } },
+  { code: "OBSERVABILITY", name: "Monitoramento", description: "Saúde, incidentes e desempenho do SaaS.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "OPERATE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "SECURITY", name: "Segurança", description: "Sessões, eventos, defesa e políticas de acesso.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "VIEW", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "PRIVACY_DR", name: "Privacidade e DR", description: "LGPD corporativa, retenção, backup e recuperação.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "GO_LIVE", name: "Go-live", description: "Preflight, prontidão e evidências de publicação.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "OPERATE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "FISCAL_CATALOGS", name: "Catálogos oficiais", description: "Importação, comparação, homologação e ativação da base legal.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "OPERATE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "HELPDESK", name: "Helpdesk", description: "Chamados, SLA e comunicação de suporte.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "OPERATE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "SAAS_BILLING", name: "Financeiro e faturamento SaaS", description: "Planos, assinaturas, faturas e success fee.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "NONE", FINANCE: "OPERATE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "COMMERCIAL", name: "Comercial", description: "Leads, propostas, onboarding e conversão.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "OPERATE", MARKETING: "NONE" } },
+  { code: "DEVELOPMENT", name: "Desenvolvimento", description: "Releases, flags, integrações e qualidade técnica.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "ADMIN", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
+  { code: "MARKETING", name: "Marketing", description: "Campanhas, materiais e métricas de aquisição — sem funcionalidade implementada ainda.", access: { INTERNAL_ADMIN: "ADMIN", DEVELOPER: "NONE", HELPDESK: "NONE", FINANCE: "NONE", COMMERCIAL: "NONE", MARKETING: "NONE" } },
 ] as const;
 
 const levelWeight = new Map<AccessLevel, number>(accessLevels.map((level, index) => [level, index]));
@@ -234,7 +264,7 @@ export function tenantRolesAtLeast(domainCode: string, level: Exclude<AccessLeve
 
 export function accessControlCatalog() {
   return {
-    version: "2026.09.02",
+    version: "2026.09.24",
     policy: {
       model: "RBAC_COM_MENOR_PRIVILEGIO",
       levels: accessLevels,
@@ -243,10 +273,13 @@ export function accessControlCatalog() {
         "Perfis Nexus não entram diretamente no ambiente da farmácia.",
         "Consulta não autoriza mutação, transmissão ou aprovação.",
         "Ações críticas exigem segregação e trilha de auditoria.",
+        "Dentro da equipe Nexus, Gestor vê o departamento inteiro; Colaborador só os próprios registros.",
         "Fornecedor futuro terá identidade B2B separada.",
       ],
     },
     tenant: { profiles: tenantProfiles, domains: tenantDomains },
     internal: { profiles: systemProfiles, domains: systemDomains },
+    seniority: { levels: seniorityLevels, labels: seniorityLabels },
+    departments: internalDepartmentLabels,
   };
 }

@@ -14,10 +14,12 @@ export type AuthUser = {
     | "DEVELOPER"
     | "HELPDESK"
     | "FINANCE"
-    | "COMMERCIAL";
+    | "COMMERCIAL"
+    | "MARKETING";
 };
 
 export type TenantContext = { companyId: string; role: string };
+export type StaffSeniority = "DIRETOR" | "GESTOR" | "COLABORADOR";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
@@ -29,6 +31,13 @@ declare module "@fastify/jwt" {
 declare module "fastify" {
   interface FastifyRequest {
     tenant?: TenantContext;
+    /**
+     * Senioridade da equipe interna Nexus (GESTOR vê tudo do departamento,
+     * COLABORADOR só o que é dele). Lida fresca do banco a cada request em
+     * authenticate() — nunca fica gravada no JWT, para uma promoção/rebaixamento
+     * valer imediatamente, sem esperar o token expirar.
+     */
+    staffSeniority?: StaffSeniority;
   }
 }
 
@@ -38,6 +47,7 @@ const internalRoles = new Set([
   "HELPDESK",
   "FINANCE",
   "COMMERCIAL",
+  "MARKETING",
 ]);
 const uuid = z.string().uuid();
 
@@ -54,11 +64,12 @@ export async function authenticate(
   if (!sessionId.success) return reply.status(401).send({ erro: "SESSAO_INVALIDA" });
   const session = await prisma.authSession.findUnique({
     where: { id: sessionId.data },
-    include: { user: { select: { id: true, status: true } } },
+    include: { user: { select: { id: true, status: true, seniority: true } } },
   });
   if (!session || session.userId !== request.user.sub || session.user.status !== "ACTIVE" || session.revokedAt || session.expiresAt <= new Date()) {
     return reply.status(401).send({ erro: "SESSAO_INVALIDA" });
   }
+  request.staffSeniority = session.user.seniority;
   if (session.lastSeenAt.getTime() < Date.now() - 5 * 60 * 1000) {
     await prisma.authSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
   }

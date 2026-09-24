@@ -20,7 +20,7 @@ export type PortalProfile = {
   primeMemberships: Array<{ role: string; organization: { id: string; code: string; tradeName: string; kind: string; status: string } }>;
 };
 
-export const internalRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"];
+export const internalRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL", "MARKETING"];
 
 export const getPortalSession = cache(async () => {
   const store = await cookies();
@@ -60,6 +60,9 @@ export function defaultInternalArea(role: string) {
   if (role === "HELPDESK") return "/portal/interno/suporte";
   if (role === "FINANCE") return "/portal/interno/financeiro";
   if (role === "COMMERCIAL") return "/portal/interno/comercial";
+  // Marketing ainda não tem telas próprias — evita cair na página de
+  // Desenvolvimento (só DEVELOPER/INTERNAL_ADMIN) e gerar loop de redirect.
+  if (role === "MARKETING") return "/portal/interno/perfis";
   return "/portal/interno/desenvolvimento";
 }
 

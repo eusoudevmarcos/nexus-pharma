@@ -9,8 +9,8 @@ import type { PortalProfile } from "@/lib/portal";
 const links = [
   { href: "/portal/interno/monitoramento", label: "Monitoramento", icon: "●", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
   { href: "/portal/interno/seguranca", label: "Segurança", icon: "◆", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
-  { href: "/portal/interno/perfis", label: "Perfis e permissões", icon: "◫", roles: ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"] },
-  { href: "/portal/minha-seguranca", label: "Minha segurança", icon: "◇", roles: ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"] },
+  { href: "/portal/interno/perfis", label: "Perfis e permissões", icon: "◫", roles: ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL", "MARKETING"] },
+  { href: "/portal/minha-seguranca", label: "Minha segurança", icon: "◇", roles: ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL", "MARKETING"] },
   { href: "/portal/interno/privacidade", label: "Privacidade & DR", icon: "◈", roles: ["INTERNAL_ADMIN"] },
   { href: "/portal/interno/go-live", label: "Go-live", icon: "✓", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
   { href: "/portal/interno/catalogos-fiscais", label: "Catálogos fiscais", icon: "§", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
@@ -23,7 +23,7 @@ const links = [
     : []),
   { href: "/portal/interno/desenvolvimento", label: "Desenvolvimento", icon: "⌘", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
 ];
-const roleLabels: Record<string, string> = { INTERNAL_ADMIN: "Administração geral", DEVELOPER: "Desenvolvimento", HELPDESK: "Helpdesk", FINANCE: "Financeiro", COMMERCIAL: "Comercial" };
+const roleLabels: Record<string, string> = { INTERNAL_ADMIN: "Diretoria (CEO/CTO)", DEVELOPER: "Desenvolvimento", HELPDESK: "Suporte", FINANCE: "Financeiro", COMMERCIAL: "Comercial", MARKETING: "Marketing" };
 
 export function InternalShell({ profile, children }: { profile: PortalProfile; children: React.ReactNode }) {
   const pathname = usePathname();

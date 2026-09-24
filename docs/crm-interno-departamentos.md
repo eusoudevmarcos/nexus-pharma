@@ -154,17 +154,48 @@ documento).
 
 ---
 
-## Parte 5 — Próximos passos (aguardando sua decisão, nada implementado)
+## Parte 5 — Implementado (24/09, autorizado "pode ir direto")
 
-- [ ] Confirmar a lista de departamentos (Diretoria, Desenvolvimento,
-      Comercial, Marketing, Financeiro, Suporte — falta algum? Jurídico? RH?)
-- [ ] Confirmar o significado de "Gestor" por departamento (aprovar o que
-      fica de fato liberado pra cada um — ex.: Gestor Financeiro pode fechar
-      fatura de qualquer cliente, Gestor Comercial pode reatribuir um lead de
-      um colaborador pra outro?)
-- [ ] Decidir o campo de "responsável" (`Company.commercialOwnerId` ou
-      equivalente) para o escopo por colaborador funcionar de verdade
-- [ ] Decidir o que o Marketing efetivamente vai fazer no produto antes de
-      desenhar telas para ele
-- [ ] Só depois disso: migration + telas de gestão de departamento/senioridade
-      (hoje o convite de equipe só pergunta o `systemRole`)
+O modelo da Parte 2 foi implementado tal como desenhado, com uma simplificação
+de engenharia: **não existe uma coluna `department` separada** — o
+departamento é o próprio `systemRole` relabeled (`INTERNAL_ADMIN`=Diretoria,
+`DEVELOPER`=Desenvolvimento, `COMMERCIAL`=Comercial, `MARKETING`=Marketing,
+`FINANCE`=Financeiro, `HELPDESK`=Suporte). Só `seniority` é campo novo.
+
+**Schema** (migration `crm_interno_departamentos`):
+- `SystemRole` ganha o valor `MARKETING`.
+- Novo enum `Seniority { DIRETOR, GESTOR, COLABORADOR }` — `User.seniority`,
+  default `GESTOR` (preserva o comportamento de hoje para todo mundo existente).
+- `Company.commercialOwnerId` — responsável comercial; setado automaticamente
+  para quem cadastra o cliente.
+
+**Backend:**
+- `request.staffSeniority` — lido fresco do banco em `authenticate()` a cada
+  request (não fica no JWT: uma promoção/rebaixamento vale imediatamente, sem
+  esperar o token de 15 min expirar).
+- Escopo por colaborador implementado nas duas áreas com campo de dono real:
+  **Comercial** (`commercialOwnerId`) e **Suporte** (`assignedToId`, que já
+  existia). Colaborador só lista/edita os próprios; tentar mexer fora da
+  carteira devolve `403`. Reatribuir responsável exige ser Gestor/Diretoria.
+- `GET /interno/equipe` retorna `seniority`; `PATCH /interno/equipe/:id`
+  (INTERNAL_ADMIN + MFA) promove/rebaixa e suspende/reativa um membro.
+- `GET /interno/comercial` retorna `agents` (para o seletor de reatribuição) e
+  `isColaborador` (para o front adaptar a UI).
+
+**Frontend:**
+- Convite de equipe (`/portal/interno/perfis`) ganhou Marketing na lista e um
+  aviso claro: todo convite entra como Gestor; rebaixar é uma ação separada.
+  Cada linha da equipe tem um seletor de senioridade e suspender/reativar.
+- Comercial: cada card mostra o responsável e, para quem não é colaborador, um
+  seletor pra reatribuir. Colaborador vê "Minha carteira" no lugar de
+  "Pipeline SaaS" e só os próprios clientes.
+- **Bugs pegos no caminho:** `MARKETING` faltava em duas listas do frontend
+  (`internalRoles` e `defaultInternalArea` em `lib/portal.ts`) — sem isso, um
+  usuário Marketing entraria em loop de redirecionamento. Corrigido.
+
+**Financeiro e Desenvolvimento não ganharam escopo por colaborador** — não têm
+um campo de "dono" individual hoje (fatura não é de uma pessoa, release
+também não). Fica registrado como próximo passo se um dia fizer sentido.
+
+**Marketing continua sem telas** — está no organograma, aceita convite, mas
+não tem nenhum domínio funcional ainda (por design, ver 2.3).

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { config } from "../config.js";
@@ -25,6 +25,9 @@ const companyUpdateSchema = z
   .object({
     status: z.enum(["LEAD", "ONBOARDING", "ACTIVE", "SUSPENDED", "CANCELLED"]).optional(),
     etapa_onboarding: z.number().int().min(1).max(10).optional(),
+    // Reatribuição do responsável comercial — só Gestor/Diretoria pode mover
+    // um cliente de um colaborador para outro (guardado no handler).
+    responsavel_comercial_id: z.string().uuid().nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0);
 const incidentUpdateSchema = z.object({
@@ -55,7 +58,31 @@ const ownerInviteSchema = z.object({
 });
 const invitationTokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 const invitationExpiry = () => new Date(Date.now() + 72 * 60 * 60 * 1000);
-const internalSystemRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL"] as const;
+
+/**
+ * Escopo departamental por colaborador: um COMMERCIAL com seniority=COLABORADOR
+ * só enxerga/opera as empresas onde é o responsável comercial. Gestor e
+ * Diretoria (INTERNAL_ADMIN) continuam vendo a carteira inteira — igual hoje.
+ */
+function isCommercialColaborador(request: FastifyRequest): boolean {
+  return request.user.systemRole === "COMMERCIAL" && request.staffSeniority === "COLABORADOR";
+}
+function commercialScopeWhere(request: FastifyRequest): Prisma.CompanyWhereInput {
+  return isCommercialColaborador(request) ? { commercialOwnerId: request.user.sub } : {};
+}
+
+/** Mesmo princípio para o Helpdesk: Colaborador só vê os tickets atribuídos a ele. */
+function isSupportColaborador(request: FastifyRequest): boolean {
+  return request.user.systemRole === "HELPDESK" && request.staffSeniority === "COLABORADOR";
+}
+function supportScopeWhere(request: FastifyRequest): Prisma.SupportTicketWhereInput {
+  return isSupportColaborador(request) ? { assignedToId: request.user.sub } : {};
+}
+const internalSystemRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL", "MARKETING"] as const;
+const staffManageSchema = z.object({
+  senioridade: z.enum(["GESTOR", "COLABORADOR"]).optional(),
+  status: z.enum(["ACTIVE", "SUSPENDED"]).optional(),
+}).refine((value) => value.senioridade !== undefined || value.status !== undefined);
 const staffInviteSchema = z.object({
   email: z.string().email().transform((value) => value.trim().toLowerCase()),
   perfil: z.enum(internalSystemRoles),
@@ -82,7 +109,7 @@ export async function internalRoutes(app: FastifyInstance) {
       const [staff, pendingInvites] = await Promise.all([
         prisma.user.findMany({
           where: { systemRole: { not: "CUSTOMER" } },
-          select: { id: true, name: true, email: true, systemRole: true, status: true, createdAt: true },
+          select: { id: true, name: true, email: true, systemRole: true, seniority: true, status: true, createdAt: true },
           orderBy: { createdAt: "asc" },
         }),
         prisma.invitation.findMany({
@@ -92,6 +119,38 @@ export async function internalRoutes(app: FastifyInstance) {
         }),
       ]);
       return { staff, pendingInvites };
+    },
+  );
+
+  // Gerência de um membro já ativo da equipe: promove/rebaixa senioridade
+  // (Gestor ⇄ Colaborador) e suspende/reativa. INTERNAL_ADMIN não muda por
+  // aqui — ele é a Diretoria, sempre acesso total.
+  app.patch<{ Params: { id: string } }>(
+    "/equipe/:id",
+    { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN"]), requireRecentMfa()] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = staffManageSchema.safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALTERACAO_INVALIDA", detalhes: parsed.success ? undefined : parsed.error.flatten() });
+      const member = await prisma.user.findUnique({ where: { id: id.data }, select: { id: true, systemRole: true, seniority: true, status: true } });
+      if (!member || member.systemRole === "CUSTOMER") return reply.status(404).send({ erro: "MEMBRO_NAO_ENCONTRADO" });
+      if (member.systemRole === "INTERNAL_ADMIN") return reply.status(409).send({ erro: "DIRETORIA_NAO_TEM_SENIORIDADE_AJUSTAVEL" });
+      const updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.user.update({
+          where: { id: member.id },
+          data: { ...(parsed.data.senioridade && { seniority: parsed.data.senioridade }), ...(parsed.data.status && { status: parsed.data.status }) },
+          select: { id: true, name: true, email: true, systemRole: true, seniority: true, status: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: request.user.sub, action: "INTERNAL_STAFF_UPDATED", entity: "User", entityId: member.id,
+            requestId: request.id, ipAddress: request.ip,
+            before: { seniority: member.seniority, status: member.status }, after: { seniority: result.seniority, status: result.status },
+          },
+        });
+        return result;
+      });
+      return reply.send(updated);
     },
   );
 
@@ -295,12 +354,15 @@ export async function internalRoutes(app: FastifyInstance) {
             state: parsed.data.uf?.toUpperCase() ?? null,
             city: parsed.data.cidade ?? null,
             status: "LEAD",
+            // Quem cadastra vira o responsável comercial inicial — um Gestor
+            // pode reatribuir depois (PATCH .../empresas/:id).
+            commercialOwnerId: request.user.sub,
           },
         });
         await tx.auditLog.create({
           data: {
             companyId: created.id, userId: request.user.sub, action: "COMPANY_CREATED", entity: "Company", entityId: created.id,
-            requestId: request.id, ipAddress: request.ip, after: { tradeName: created.tradeName, legalName: created.legalName, cnpj: created.cnpj },
+            requestId: request.id, ipAddress: request.ip, after: { tradeName: created.tradeName, legalName: created.legalName, cnpj: created.cnpj, commercialOwnerId: request.user.sub },
           },
         });
         return created;
@@ -321,8 +383,9 @@ export async function internalRoutes(app: FastifyInstance) {
       const id = z.string().uuid().safeParse(request.params.id);
       const parsed = ownerInviteSchema.safeParse(request.body);
       if (!id.success || !parsed.success) return reply.status(400).send({ erro: "CONVITE_INVALIDO", detalhes: parsed.success ? undefined : parsed.error.flatten() });
-      const company = await prisma.company.findUnique({ where: { id: id.data }, select: { id: true, tradeName: true, status: true } });
+      const company = await prisma.company.findUnique({ where: { id: id.data }, select: { id: true, tradeName: true, status: true, commercialOwnerId: true } });
       if (!company) return reply.status(404).send({ erro: "EMPRESA_NAO_ENCONTRADA" });
+      if (isCommercialColaborador(request) && company.commercialOwnerId !== request.user.sub) return reply.status(403).send({ erro: "EMPRESA_FORA_DA_SUA_CARTEIRA" });
       if (["SUSPENDED", "CANCELLED"].includes(company.status)) return reply.status(409).send({ erro: "EMPRESA_INATIVA" });
       const existingMember = await prisma.membership.findFirst({ where: { companyId: company.id, user: { email: parsed.data.email } } });
       if (existingMember) return reply.status(409).send({ erro: "USUARIO_JA_VINCULADO" });
@@ -364,6 +427,7 @@ export async function internalRoutes(app: FastifyInstance) {
       const plan = await prisma.plan.findUnique({ where: { code: parsed.data.plano } });
       const company = await prisma.company.findUnique({ where: { id: companyId.data } });
       if (!plan?.active || !company) return reply.status(404).send({ erro: "EMPRESA_OU_PLANO_NAO_ENCONTRADO" });
+      if (isCommercialColaborador(request) && company.commercialOwnerId !== request.user.sub) return reply.status(403).send({ erro: "EMPRESA_FORA_DA_SUA_CARTEIRA" });
       const current = await prisma.subscription.findFirst({ where: { companyId: company.id, status: { not: "CANCELLED" } }, include: { onboarding: { select: { id: true } }, _count: { select: { invoices: true } } } });
       if (current && current.planId !== plan.id && current._count.invoices > 0) return reply.status(409).send({ erro: "PLANO_COM_FATURAS_NAO_PODE_SER_SUBSTITUIDO" });
       if (current?.onboarding && (current.planId !== plan.id || current.contractStartedAt.getTime() !== parsed.data.inicio_contrato.getTime())) return reply.status(409).send({ erro: "ONBOARDING_INICIADO_NAO_PODE_SER_RECALCULADO" });
@@ -385,8 +449,9 @@ export async function internalRoutes(app: FastifyInstance) {
       const companyId = z.string().uuid().safeParse(request.params.id);
       const parsed = storeSchema.safeParse(request.body);
       if (!companyId.success || !parsed.success) return reply.status(400).send({ erro: "LOJA_INVALIDA" });
-      const company = await prisma.company.findUnique({ where: { id: companyId.data }, select: { id: true } });
+      const company = await prisma.company.findUnique({ where: { id: companyId.data }, select: { id: true, commercialOwnerId: true } });
       if (!company) return reply.status(404).send({ erro: "EMPRESA_NAO_ENCONTRADA" });
+      if (isCommercialColaborador(request) && company.commercialOwnerId !== request.user.sub) return reply.status(403).send({ erro: "EMPRESA_FORA_DA_SUA_CARTEIRA" });
       const store = await prisma.$transaction(async (tx) => {
         const saved = await tx.store.create({ data: { companyId: company.id, code: parsed.data.codigo, name: parsed.data.nome, type: parsed.data.tipo } });
         await tx.auditLog.create({ data: { companyId: company.id, userId: request.user.sub, action: "STORE_ACTIVATED", entity: "Store", entityId: saved.id, requestId: request.id, ipAddress: request.ip, after: { code: saved.code, name: saved.name, type: saved.type } } });
@@ -403,8 +468,9 @@ export async function internalRoutes(app: FastifyInstance) {
       const storeId = z.string().uuid().safeParse(request.params.id);
       const parsed = pdvSchema.safeParse(request.body);
       if (!storeId.success || !parsed.success) return reply.status(400).send({ erro: "PDV_INVALIDO" });
-      const store = await prisma.store.findUnique({ where: { id: storeId.data }, select: { id: true, companyId: true } });
+      const store = await prisma.store.findUnique({ where: { id: storeId.data }, select: { id: true, companyId: true, company: { select: { commercialOwnerId: true } } } });
       if (!store) return reply.status(404).send({ erro: "LOJA_NAO_ENCONTRADA" });
+      if (isCommercialColaborador(request) && store.company.commercialOwnerId !== request.user.sub) return reply.status(403).send({ erro: "EMPRESA_FORA_DA_SUA_CARTEIRA" });
       const pdv = await prisma.$transaction(async (tx) => {
         const saved = await tx.pointOfSale.create({ data: { storeId: store.id, code: parsed.data.codigo, name: parsed.data.nome } });
         await tx.auditLog.create({ data: { companyId: store.companyId, userId: request.user.sub, action: "POINT_OF_SALE_ACTIVATED", entity: "PointOfSale", entityId: saved.id, requestId: request.id, ipAddress: request.ip, after: { storeId: store.id, code: saved.code, name: saved.name } } });
@@ -515,14 +581,17 @@ export async function internalRoutes(app: FastifyInstance) {
   app.get(
     "/suporte",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "HELPDESK"])] },
-    async () => {
+    async (request) => {
       const now = new Date();
+      const scope = supportScopeWhere(request);
+      const activeStatuses: Prisma.SupportTicketWhereInput = { status: { in: ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER"] } };
       const [open, urgent, overdue, resolvedToday, tickets, agents] = await Promise.all([
-        prisma.supportTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER"] } } }),
-        prisma.supportTicket.count({ where: { priority: "URGENT", status: { in: ["OPEN", "IN_PROGRESS"] } } }),
-        prisma.supportTicket.count({ where: { slaDueAt: { lt: now }, status: { in: ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER"] } } }),
-        prisma.supportTicket.count({ where: { resolvedAt: { gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } } }),
+        prisma.supportTicket.count({ where: { ...scope, ...activeStatuses } }),
+        prisma.supportTicket.count({ where: { ...scope, priority: "URGENT", status: { in: ["OPEN", "IN_PROGRESS"] } } }),
+        prisma.supportTicket.count({ where: { ...scope, slaDueAt: { lt: now }, ...activeStatuses } }),
+        prisma.supportTicket.count({ where: { ...scope, resolvedAt: { gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } } }),
         prisma.supportTicket.findMany({
+          where: scope,
           include: {
             company: { select: { id: true, tradeName: true } },
             createdBy: { select: { name: true, email: true } },
@@ -538,7 +607,7 @@ export async function internalRoutes(app: FastifyInstance) {
           orderBy: { name: "asc" },
         }),
       ]);
-      return { indicators: { open, urgent, overdue, resolvedToday }, tickets, agents };
+      return { indicators: { open, urgent, overdue, resolvedToday }, tickets, agents, isColaborador: isSupportColaborador(request) };
     },
   );
 
@@ -549,7 +618,9 @@ export async function internalRoutes(app: FastifyInstance) {
       const id = z.string().uuid().safeParse(request.params.id);
       if (!id.success) return reply.status(400).send({ erro: "TICKET_INVALIDO" });
       const ticket = await prisma.supportTicket.findUnique({ where: { id: id.data }, include: { company: { select: { id: true, tradeName: true, status: true } }, createdBy: { select: { name: true, email: true } }, assignedTo: { select: { id: true, name: true } }, messages: { include: { author: { select: { id: true, name: true, systemRole: true } } }, orderBy: { createdAt: "asc" } }, supportAccessSessions: { include: { requestedBy: { select: { name: true, email: true } }, approvedBy: { select: { name: true } }, revokedBy: { select: { name: true } } }, orderBy: { requestedAt: "desc" } } } });
-      return ticket ? reply.send(ticket) : reply.status(404).send({ erro: "TICKET_NAO_ENCONTRADO" });
+      if (!ticket) return reply.status(404).send({ erro: "TICKET_NAO_ENCONTRADO" });
+      if (isSupportColaborador(request) && ticket.assignedToId !== request.user.sub) return reply.status(403).send({ erro: "TICKET_FORA_DA_SUA_FILA" });
+      return reply.send(ticket);
     },
   );
 
@@ -562,6 +633,7 @@ export async function internalRoutes(app: FastifyInstance) {
       if (!id.success || !parsed.success) return reply.status(400).send({ erro: "MENSAGEM_INVALIDA" });
       const ticket = await prisma.supportTicket.findUnique({ where: { id: id.data } });
       if (!ticket) return reply.status(404).send({ erro: "TICKET_NAO_ENCONTRADO" });
+      if (isSupportColaborador(request) && ticket.assignedToId !== request.user.sub) return reply.status(403).send({ erro: "TICKET_FORA_DA_SUA_FILA" });
       const created = await prisma.$transaction(async (tx) => {
         const message = await tx.ticketMessage.create({ data: { ticketId: ticket.id, authorId: request.user.sub, body: parsed.data.mensagem, internalOnly: parsed.data.somente_interno } });
         await tx.supportTicket.update({ where: { id: ticket.id }, data: { status: parsed.data.somente_interno ? ticket.status : "WAITING_CUSTOMER" } });
@@ -650,6 +722,10 @@ export async function internalRoutes(app: FastifyInstance) {
       if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALTERACAO_INVALIDA" });
       const ticket = await prisma.supportTicket.findUnique({ where: { id: id.data } });
       if (!ticket) return reply.status(404).send({ erro: "TICKET_NAO_ENCONTRADO" });
+      if (isSupportColaborador(request)) {
+        if (ticket.assignedToId !== request.user.sub) return reply.status(403).send({ erro: "TICKET_FORA_DA_SUA_FILA" });
+        if (parsed.data.responsavel_id !== undefined && parsed.data.responsavel_id !== request.user.sub) return reply.status(403).send({ erro: "SOMENTE_GESTOR_REATRIBUI_TICKET" });
+      }
       if (parsed.data.responsavel_id) {
         const agent = await prisma.user.findFirst({
           where: { id: parsed.data.responsavel_id, systemRole: { in: ["INTERNAL_ADMIN", "HELPDESK"] }, status: "ACTIVE" },
@@ -745,10 +821,12 @@ export async function internalRoutes(app: FastifyInstance) {
   app.get(
     "/comercial",
     { preHandler: [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"])] },
-    async () => {
-      const [companies, pipeline, plans] = await Promise.all([
-        prisma.company.groupBy({ by: ["status"], _count: true }),
+    async (request) => {
+      const scope = commercialScopeWhere(request);
+      const [companies, pipeline, plans, agents] = await Promise.all([
+        prisma.company.groupBy({ by: ["status"], _count: true, where: scope }),
         prisma.company.findMany({
+          where: scope,
           include: {
             subscriptions: {
               select: { status: true, contractStartedAt: true, billingType: true, complimentaryUntil: true, plan: { select: { code: true, name: true, monthlyPrice: true } } },
@@ -760,6 +838,7 @@ export async function internalRoutes(app: FastifyInstance) {
               select: { id: true, code: true, name: true, type: true, pointsOfSale: { where: { active: true }, select: { id: true, code: true, name: true } } },
               orderBy: { createdAt: "asc" },
             },
+            commercialOwner: { select: { id: true, name: true } },
             _count: {
               select: {
                 memberships: true,
@@ -772,10 +851,17 @@ export async function internalRoutes(app: FastifyInstance) {
           take: 30,
         }),
         prisma.plan.findMany({ where: { active: true }, select: { code: true, name: true, monthlyPrice: true, setupPrice: true, hasFineTuning: true }, orderBy: { position: "asc" } }),
+        prisma.user.findMany({
+          where: { systemRole: { in: ["INTERNAL_ADMIN", "COMMERCIAL"] }, status: "ACTIVE" },
+          select: { id: true, name: true, email: true },
+          orderBy: { name: "asc" },
+        }),
       ]);
       return {
         indicators: Object.fromEntries(companies.map((item) => [item.status, item._count])),
         plans: plans.map((plan) => ({ ...plan, monthlyPrice: money(plan.monthlyPrice), setupPrice: money(plan.setupPrice) })),
+        agents,
+        isColaborador: isCommercialColaborador(request),
         pipeline: pipeline.map((company) => ({
           id: company.id,
           tradeName: company.tradeName,
@@ -789,6 +875,7 @@ export async function internalRoutes(app: FastifyInstance) {
           products: company._count.products,
           pendingInvitations: company._count.invitations,
           stores: company.stores,
+          commercialOwner: company.commercialOwner,
           subscription: company.subscriptions[0]
             ? { ...company.subscriptions[0], plan: { ...company.subscriptions[0].plan, monthlyPrice: money(company.subscriptions[0].plan.monthlyPrice) } }
             : null,
@@ -806,12 +893,16 @@ export async function internalRoutes(app: FastifyInstance) {
       if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALTERACAO_INVALIDA" });
       const company = await prisma.company.findUnique({ where: { id: id.data } });
       if (!company) return reply.status(404).send({ erro: "EMPRESA_NAO_ENCONTRADA" });
+      const colaborador = isCommercialColaborador(request);
+      if (colaborador && company.commercialOwnerId !== request.user.sub) return reply.status(403).send({ erro: "EMPRESA_FORA_DA_SUA_CARTEIRA" });
+      if (colaborador && parsed.data.responsavel_comercial_id !== undefined) return reply.status(403).send({ erro: "SOMENTE_GESTOR_REATRIBUI_RESPONSAVEL" });
       const updated = await prisma.$transaction(async (tx) => {
         const result = await tx.company.update({
           where: { id: company.id },
           data: {
             ...(parsed.data.status && { status: parsed.data.status }),
             ...(parsed.data.etapa_onboarding && { onboardingStep: parsed.data.etapa_onboarding }),
+            ...(parsed.data.responsavel_comercial_id !== undefined && { commercialOwnerId: parsed.data.responsavel_comercial_id }),
           },
         });
         await tx.auditLog.create({
@@ -823,8 +914,8 @@ export async function internalRoutes(app: FastifyInstance) {
             entityId: company.id,
             requestId: request.id,
             ipAddress: request.ip,
-            before: { status: company.status, onboardingStep: company.onboardingStep },
-            after: { status: result.status, onboardingStep: result.onboardingStep },
+            before: { status: company.status, onboardingStep: company.onboardingStep, commercialOwnerId: company.commercialOwnerId },
+            after: { status: result.status, onboardingStep: result.onboardingStep, commercialOwnerId: result.commercialOwnerId },
           },
         });
         return result;

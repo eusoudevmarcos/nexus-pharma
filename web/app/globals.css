@@ -1187,11 +1187,20 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
 .team-invite-row { background: #f2f7f8; border-radius: 15px; }
 .team-list, .team-pending { display: grid; gap: 8px; }
 .team-pending h3 { margin: 6px 0 0; color: #708087; font-size: .62rem; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
-.team-row { grid-template-columns: minmax(220px, 1fr) 170px 150px; }
+.team-row { grid-template-columns: minmax(220px, 1fr) 150px 150px 130px 100px; }
 .team-row small { color: #7a878e; font-size: .58rem; }
+.team-hint { margin: -6px 0 2px; color: #708087; font-size: .6rem; }
+.team-hint b { color: var(--navy); }
+.team-seniority-select { height: 34px; padding: 0 8px; border: 1px solid #cad8dd; border-radius: 8px; font-size: .6rem; background: white; color: var(--ink); }
+.team-suspend-btn { min-height: 34px; padding-inline: 10px; border: 1px solid #cad8dd; border-radius: 8px; background: white; color: #8b2929; cursor: pointer; font-size: .58rem; font-weight: 800; }
+.team-suspend-btn:disabled { cursor: default; opacity: .5; }
+.status-pill.diretoria { color: var(--navy); background: var(--yellow-soft); }
 .status-pill.pending { color: #a86b17; background: #fdf1de; }
 .status-pill.invited { color: #a86b17; background: #fdf1de; }
 .status-pill.disabled { color: #8b2929; background: #ffeded; }
+.owner-reassign { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
+.owner-reassign select { height: 28px; padding: 0 6px; border: 1px solid #cad8dd; border-radius: 7px; font-size: .56rem; background: white; color: var(--ink); }
+.owner-reassign em { color: #b3402f; font-style: normal; font-size: .56rem; }
 .store-manager { padding: 12px 15px; margin-bottom: 4px; }
 .store-manager-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .store-manager-head span { font-family: inherit; font-size: .58rem; font-weight: 850; letter-spacing: .04em; color: #708087; text-transform: uppercase; }

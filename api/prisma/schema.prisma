@@ -16,6 +16,18 @@ enum SystemRole {
   HELPDESK
   FINANCE
   COMMERCIAL
+  MARKETING
+}
+
+// Nível dentro do departamento (irrelevante para CUSTOMER e para
+// INTERNAL_ADMIN, que já tem acesso total independente de senioridade):
+//  DIRETOR      CEO/CTO — não é atribuído por convite, é o próprio INTERNAL_ADMIN
+//  GESTOR       vê e opera tudo do departamento (comportamento de hoje, default)
+//  COLABORADOR  vê e opera só os próprios registros (cliente/ticket atribuído)
+enum Seniority {
+  DIRETOR
+  GESTOR
+  COLABORADOR
 }
 
 enum AccountStatus {
@@ -770,6 +782,7 @@ model User {
   passwordHash               String?                     @map("password_hash") @db.VarChar(255)
   name                       String                      @db.VarChar(160)
   systemRole                 SystemRole                  @default(CUSTOMER) @map("system_role")
+  seniority                  Seniority                   @default(GESTOR)
   status                     AccountStatus               @default(INVITED)
   lastLoginAt                DateTime?                   @map("last_login_at") @db.Timestamptz(3)
   createdAt                  DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -778,6 +791,7 @@ model User {
   authSessions               AuthSession[]
   oneTimeTokens              OneTimeToken[]
   invitationsSent            Invitation[]                @relation("InvitationCreator")
+  companiesAsCommercialOwner Company[]                   @relation("CompanyCommercialOwner")
   ticketsCreated             SupportTicket[]             @relation("TicketCreator")
   ticketsAssigned            SupportTicket[]             @relation("TicketAssignee")
   ticketMessages             TicketMessage[]
@@ -945,8 +959,12 @@ model Company {
   status                     CompanyStatus               @default(ONBOARDING)
   onboardingStep             Int                         @default(1) @map("onboarding_step")
   settings                   Json                        @default("{}")
+  /// Colaborador comercial responsável por este cliente (escopo de dados: um
+  /// COMMERCIAL com seniority=COLABORADOR só vê as empresas onde é o dono).
+  commercialOwnerId          String?                     @map("commercial_owner_id") @db.Uuid
   createdAt                  DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                  DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  commercialOwner            User?                       @relation("CompanyCommercialOwner", fields: [commercialOwnerId], references: [id], onDelete: SetNull)
   memberships                Membership[]
   invitations                Invitation[]
   subscriptions              Subscription[]
