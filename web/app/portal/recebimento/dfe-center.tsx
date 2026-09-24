@@ -27,11 +27,33 @@ async function api(path: string, method = "GET", body?: unknown) {
   return payload;
 }
 
+type ScanResolved = {
+  gs1: boolean;
+  produto: { id: string; ean: string; name: string; active: boolean } | null;
+  lote: string | null;
+  validade: string | null;
+  fabricacao: string | null;
+  serial: string | null;
+  lote_existente: { id: string; code: string; expiresAt: string; quantity: string } | null;
+};
+
+async function resolveScannedCode(codigo: string): Promise<ScanResolved> {
+  const response = await fetch("/api/portal/estoque/codigo/resolver", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codigo }),
+  });
+  const payload = await response.json().catch(() => ({})) as ScanResolved & { message?: string };
+  if (!response.ok) throw new Error((payload as { message?: string }).message ?? "Não foi possível ler o código.");
+  return payload;
+}
+
 function ReceivingItem({ receivingId, item, source, products, onSaved }: { receivingId: string; item: NonNullable<Detail["receiving"]>["items"][number]; source: Detail["items"][number]; products: ProductOption[]; onSaved: () => void }) {
   const [productId, setProductId] = useState(item.productId ?? source.productId ?? products.find((product) => product.ean === source.ean)?.id ?? "");
   const [quantity, setQuantity] = useState(String(Number(item.receivedQuantity) || Number(item.expectedQuantity)));
   const [lot, setLot] = useState(item.lotCode ?? ""); const [manufactured, setManufactured] = useState(item.manufacturedAt?.slice(0, 10) ?? ""); const [expires, setExpires] = useState(item.expiresAt?.slice(0, 10) ?? "");
   const [cost, setCost] = useState(String(Number(item.unitCost))); const [acceptDifference, setAcceptDifference] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const [scanCode, setScanCode] = useState(""); const [scanning, setScanning] = useState(false); const [scanFeedback, setScanFeedback] = useState("");
   async function submit() {
     setBusy(true); setError("");
     try {
@@ -39,8 +61,37 @@ function ReceivingItem({ receivingId, item, source, products, onSaved }: { recei
       onSaved();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao salvar item."); } finally { setBusy(false); }
   }
+  async function scan() {
+    const codigo = scanCode.trim();
+    if (!codigo) return;
+    setScanCode(""); setScanning(true); setScanFeedback("");
+    try {
+      const result = await resolveScannedCode(codigo);
+      if (result.produto && result.produto.id !== productId) setProductId(result.produto.id);
+      if (result.lote) setLot(result.lote);
+      if (result.fabricacao) setManufactured(result.fabricacao.slice(0, 10));
+      if (result.validade) setExpires(result.validade.slice(0, 10));
+      setScanFeedback(
+        result.gs1
+          ? `Lido: ${result.produto?.name ?? "produto não cadastrado"}${result.lote ? ` · lote ${result.lote}` : ""}${result.validade ? ` · validade ${date(result.validade)}` : ""}`
+          : result.produto
+            ? `Produto identificado: ${result.produto.name} (código sem validade — confira lote/validade na caixa).`
+            : "Código lido, mas nenhum produto correspondente foi encontrado.",
+      );
+    } catch (cause) { setScanFeedback(cause instanceof Error ? cause.message : "Falha ao ler o código."); } finally { setScanning(false); }
+  }
   return <div className="dfe-conference-item">
     <div><strong>{source.itemNumber}. {source.description}</strong><small>NCM {source.ncm} · XML {Number(item.expectedQuantity)} un. · {brl.format(Number(source.unitPrice))}</small></div>
+    <label className="dfe-scan">Bipar código (DataMatrix ou EAN)
+      <input
+        value={scanCode}
+        onChange={(event) => setScanCode(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void scan(); } }}
+        placeholder="Aponte o leitor e bipe…"
+        disabled={scanning}
+      />
+    </label>
+    {scanFeedback && <small className="dfe-scan-feedback">{scanning ? "Lendo…" : scanFeedback}</small>}
     <label>Produto<select value={productId} onChange={(event) => setProductId(event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.ean}</option>)}</select></label>
     <label>Recebido<input min="0.001" step="0.001" type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)}/></label>
     <label>Lote<input value={lot} onChange={(event) => setLot(event.target.value)}/></label>

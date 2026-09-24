@@ -649,6 +649,9 @@ body:has(.portal-app) > main { overflow: visible; }
 .dfe-section-title h3 { margin: 2px 0 0; }
 .dfe-conference-item { padding: 15px 0; display: grid; grid-template-columns: 1.7fr 1.2fr .62fr; gap: 9px; align-items: end; border-top: 1px solid #e5ebed; }
 .dfe-conference-item > div { grid-column: 1 / -1; display: grid; }
+.dfe-scan { grid-column: 1 / -1; background: #eef4f1; border-radius: 10px; padding: 8px 12px; }
+.dfe-scan input { border-color: var(--navy); font-family: ui-monospace, Consolas, monospace; }
+.dfe-scan-feedback { grid-column: 1 / -1; color: #356b58; font-size: .58rem; margin-top: -4px; }
 .dfe-conference-item strong { color: var(--ink); font-size: .7rem; }
 .dfe-conference-item small { color: #7a878e; font-size: .56rem; }
 .dfe-conference-item label { display: grid; gap: 4px; color: #596970; font-size: .58rem; font-weight: 800; }
