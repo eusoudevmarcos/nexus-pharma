@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "../generated/prisma/client.js";
 import { config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
+import { buildNfceInfXml, type NfceLayoutInput, type NfceItem } from "./nfce-layout.service.js";
 
 export type NfcePreparationInput = {
   companyId: string;
@@ -15,12 +16,33 @@ export type NfcePreparationInput = {
   customerTaxId?: string | null;
 };
 
+type CompanyFiscalAddress = {
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  cityName?: string;
+  zipCode?: string;
+  phone?: string;
+};
+
 type CompanyFiscalSettings = {
   stateRegistration?: string;
   inscricaoEstadual?: string;
   municipalityCode?: string;
   codigoMunicipio?: string;
+  fiscalAddress?: CompanyFiscalAddress;
 };
+
+const taxRegimeToCrt: Record<string, "1" | "2" | "3"> = {
+  SIMPLES_NACIONAL: "1",
+  LUCRO_PRESUMIDO: "3",
+  LUCRO_REAL: "3",
+};
+
+function fiscalSettings(value: unknown): CompanyFiscalSettings {
+  return value && typeof value === "object" ? (value as CompanyFiscalSettings) : {};
+}
 
 export type NfceValidationIssue = {
   code: string;
@@ -123,6 +145,11 @@ export function validateNfcePreparation(input: {
   if (!input.company.state || !stateCodes[input.company.state]) issues.push({ code: "STATE_REQUIRED", field: "empresa.uf", message: "Informe uma UF brasileira válida." });
   if (!stateRegistration || !/^[0-9A-Z]{2,14}$/i.test(stateRegistration)) issues.push({ code: "STATE_REGISTRATION_REQUIRED", field: "empresa.settings.stateRegistration", message: "Informe a inscrição estadual no cadastro fiscal da empresa." });
   if (!municipalityCode || !/^\d{7}$/.test(municipalityCode)) issues.push({ code: "MUNICIPALITY_CODE_REQUIRED", field: "empresa.settings.municipalityCode", message: "Informe o código IBGE de 7 posições do município." });
+  const address = settings.fiscalAddress ?? {};
+  if (!address.street?.trim()) issues.push({ code: "ADDRESS_STREET_REQUIRED", field: "empresa.settings.fiscalAddress.street", message: "Informe o logradouro do emitente." });
+  if (!address.number?.trim()) issues.push({ code: "ADDRESS_NUMBER_REQUIRED", field: "empresa.settings.fiscalAddress.number", message: "Informe o número do endereço do emitente." });
+  if (!address.district?.trim()) issues.push({ code: "ADDRESS_DISTRICT_REQUIRED", field: "empresa.settings.fiscalAddress.district", message: "Informe o bairro do emitente." });
+  if (!address.zipCode || !/^\d{8}$/.test((address.zipCode ?? "").replace(/\D/g, ""))) issues.push({ code: "ADDRESS_ZIP_REQUIRED", field: "empresa.settings.fiscalAddress.zipCode", message: "Informe o CEP de 8 dígitos do emitente." });
   if (input.environment === "PRODUCTION" && !config.NFCE_ALLOW_PRODUCTION_PREPARATION) issues.push({ code: "PRODUCTION_LOCKED", field: "ambiente", message: "A preparação em produção está bloqueada até a homologação operacional." });
   if (input.sale.status !== "COMPLETED") issues.push({ code: "SALE_NOT_COMPLETED", field: "venda.status", message: "A venda precisa estar concluída." });
   if (input.sale.invoiceModel !== "NFC65") issues.push({ code: "WRONG_INVOICE_MODEL", field: "venda.modelo", message: "A venda não foi registrada como modelo 65." });
@@ -136,6 +163,115 @@ export function validateNfcePreparation(input: {
     if (Number(item.quantity) <= 0 || Number(item.unitPrice) < 0) issues.push({ code: "ITEM_VALUE_INVALID", field, message: "Quantidade ou valor unitário inválido." });
   });
   return issues;
+}
+
+export type NfceSaleItemSnapshot = {
+  ean?: string | null;
+  productName: string;
+  ncm: string;
+  cest?: string | null;
+  cfop: string;
+  unit?: string | null;
+  quantity: number;
+  unitPrice: number;
+  grossAmount: number;
+  discount?: number | null;
+  origin?: string | null;
+  cstIcms?: string | null;
+  csosn?: string | null;
+  cstPis: string;
+  cstCofins: string;
+  icmsBase?: number | null;
+  icmsRate?: number | null;
+  icmsAmount?: number | null;
+  icmsStBaseRetained?: number | null;
+  icmsStRetained?: number | null;
+  pisAmount?: number | null;
+  cofinsAmount?: number | null;
+};
+
+/**
+ * Mapeia uma venda + cadastro fiscal da empresa para a entrada do builder do
+ * leiaute oficial 4.00 (NfceLayoutInput). Função pura e testável: recebe dados
+ * simples (endereço fiscal vem de company.settings.fiscalAddress, CRT de
+ * taxRegime, unidade padrão "UN").
+ */
+export function nfceLayoutFromSale(params: {
+  accessKey: string;
+  environment: "HOMOLOGATION" | "PRODUCTION";
+  emissionType: "NORMAL" | "OFFLINE_CONTINGENCY";
+  series: number;
+  number: number;
+  numericCode: string;
+  issuedAt: Date;
+  paymentMethod: string;
+  company: { cnpj: string | null; legalName: string; tradeName?: string | null; state: string | null; city?: string | null; taxRegime: string; settings: unknown };
+  customer?: { taxId?: string | null; name?: string | null } | null;
+  items: NfceSaleItemSnapshot[];
+  additionalInfo?: string | null;
+}): NfceLayoutInput {
+  const settings = fiscalSettings(params.company.settings);
+  const addr = settings.fiscalAddress ?? {};
+  const totalGross = params.items.reduce((total, item) => total + Number(item.grossAmount), 0);
+  const totalDiscount = params.items.reduce((total, item) => total + Number(item.discount ?? 0), 0);
+  const items: NfceItem[] = params.items.map((item) => ({
+    code: item.ean || item.productName.slice(0, 30),
+    ean: item.ean,
+    description: item.productName,
+    ncm: item.ncm,
+    cest: item.cest,
+    cfop: item.cfop,
+    unit: item.unit ?? "UN",
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unitPrice),
+    grossAmount: Number(item.grossAmount),
+    discount: item.discount != null ? Number(item.discount) : null,
+    taxes: {
+      origin: item.origin ?? "0",
+      cstIcms: item.cstIcms,
+      csosn: item.csosn,
+      icmsBase: item.icmsBase,
+      icmsRate: item.icmsRate,
+      icmsAmount: item.icmsAmount,
+      icmsStBaseRetained: item.icmsStBaseRetained,
+      icmsStRetained: item.icmsStRetained,
+      cstPis: item.cstPis,
+      pisAmount: item.pisAmount,
+      cstCofins: item.cstCofins,
+      cofinsAmount: item.cofinsAmount,
+    },
+  }));
+  return {
+    accessKey: params.accessKey,
+    environment: params.environment,
+    emissionType: params.emissionType,
+    series: params.series,
+    number: params.number,
+    numericCode: params.numericCode,
+    issuedAt: params.issuedAt,
+    issuer: {
+      cnpj: params.company.cnpj ?? "",
+      legalName: params.company.legalName,
+      tradeName: params.company.tradeName,
+      stateRegistration: settings.stateRegistration ?? settings.inscricaoEstadual ?? "",
+      taxRegimeCode: taxRegimeToCrt[params.company.taxRegime] ?? "3",
+      address: {
+        street: addr.street ?? "",
+        number: addr.number ?? "",
+        complement: addr.complement,
+        district: addr.district ?? "",
+        cityCode: settings.municipalityCode ?? settings.codigoMunicipio ?? "",
+        cityName: addr.cityName ?? params.company.city ?? "",
+        state: params.company.state ?? "",
+        zipCode: (addr.zipCode ?? "").replace(/\D/g, ""),
+        phone: addr.phone,
+      },
+    },
+    customer: params.customer ?? null,
+    items,
+    payments: [{ method: params.paymentMethod, amount: Number((totalGross - totalDiscount).toFixed(2)) }],
+    additionalInfo: params.additionalInfo,
+  };
 }
 
 export function buildNfceXmlDraft(payload: Record<string, unknown>) {
@@ -231,10 +367,41 @@ async function prepareOnce(input: NfcePreparationInput) {
         ibs: money(Number(sale.ibsAmount)), tax: money(Number(sale.taxAmount)), netProfit: money(Number(sale.netProfit)),
       },
       payment: { method: input.paymentMethod, amount: money(Number(sale.grossAmount)) },
-      metadata: { generatedBy: "nexus-pharma", format: "local-draft", officialXsdValidated: false, signed: false },
+      metadata: { generatedBy: "nexus-pharma", format: "official-4.00", layoutVersion: "4.00", officialXsdValidated: false, signed: false },
     };
     const serialized = stable(payload);
-    const xmlDraft = buildNfceXmlDraft(payload);
+    const layoutInput = nfceLayoutFromSale({
+      accessKey,
+      environment: input.environment,
+      emissionType: input.emissionType,
+      series: input.series,
+      number: sequence.lastNumber,
+      numericCode: code,
+      issuedAt,
+      paymentMethod: input.paymentMethod,
+      company: { cnpj: company.cnpj, legalName: company.legalName, tradeName: company.tradeName, state: company.state, city: company.city, taxRegime: company.taxRegime, settings: company.settings },
+      customer: customerTaxId ? { taxId: customerTaxId, name: sale.customerName } : null,
+      items: sale.items.map((item) => ({
+        ean: item.ean,
+        productName: item.productName,
+        ncm: item.ncm,
+        cfop: item.cfop,
+        unit: "UN",
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.originalUnitPrice),
+        grossAmount: Number(item.quantity) * Number(item.originalUnitPrice),
+        discount: Number(item.discountAmount),
+        origin: "0",
+        cstIcms: item.cstIcms,
+        csosn: item.csosn,
+        cstPis: item.cstPis,
+        cstCofins: item.cstCofins,
+        icmsAmount: Number(item.icmsAmount),
+        pisAmount: Number(item.pisAmount),
+        cofinsAmount: Number(item.cofinsAmount),
+      })),
+    });
+    const xmlDraft = buildNfceInfXml(layoutInput).xml;
     const document = await tx.nfceDocument.create({ data: {
       companyId: input.companyId, saleId: sale.id, createdById: input.userId,
       environment: input.environment, emissionType: input.emissionType, status: "VALIDATED",

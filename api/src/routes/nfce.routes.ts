@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { config } from "../config.js";
 import { prisma } from "../infra/prisma.js";
 import { authenticate, requireRecentMfa, requireSystemRoles, requireTenantRoles, tenantContext } from "../security/auth.js";
 import { tenantRolesAtLeast } from "../security/access-control.js";
 import { blockNfceTransmission, nfcePublicDocument, prepareNfceDocument, type NfceValidationIssue } from "../services/nfce.service.js";
+import { authorizeNfceDocument } from "../services/nfce-transmission.service.js";
 import { activateOfficialCatalog, catalogReleaseDiff, importOfficialCatalog, listOfficialCatalogReleases, nfceReadiness, publicNfceConfiguration, saveNfceConfiguration } from "../services/nfce-governance.service.js";
 
 const environmentSchema = z.enum(["HOMOLOGATION", "PRODUCTION"]);
@@ -170,7 +172,18 @@ export async function nfceRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>("/documentos/:id/transmitir", { preHandler: write }, async (request, reply) => {
     const id = z.string().uuid().safeParse(request.params.id);
     if (!id.success) return reply.status(400).send({ erro: "NFCE_ID_INVALIDO" });
-    await blockNfceTransmission({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id });
-    return reply.status(503).send({ erro: "NFCE_TRANSMISSAO_SEFAZ_DESABILITADA" });
+    if (!config.NFCE_ENABLE_SEFAZ_TRANSMISSION) {
+      await blockNfceTransmission({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id });
+      return reply.status(503).send({ erro: "NFCE_TRANSMISSAO_SEFAZ_DESABILITADA" });
+    }
+    try {
+      const result = await authorizeNfceDocument({ companyId: request.tenant!.companyId, documentId: id.data, userId: request.user.sub, requestId: request.id });
+      return reply.status(result.authorized ? (result.idempotent ? 200 : 201) : 409).send(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NFCE_TRANSMISSAO_FALHOU";
+      if (message === "NFCE_DOCUMENTO_NAO_ENCONTRADO") return reply.status(404).send({ erro: message });
+      if (message.startsWith("NFCE_") && /(NAO_CONFIGURAD|NAO_ATIVA|DESABILITADA|CSC_NAO|ENDPOINT_)/.test(message)) return reply.status(503).send({ erro: message });
+      throw error;
+    }
   });
 }

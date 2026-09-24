@@ -55,7 +55,7 @@ export async function getProductionReadiness() {
   const dfeReady = Boolean(config.DFE_ENABLE_SEFAZ_TRANSMISSION && config.DFE_DISTRIBUTION_URL_PRODUCTION && config.DFE_EVENT_URL_PRODUCTION);
   checks.push(check("dfe-sefaz", "FISCAL", dfeReady ? "PASS" : "BLOCKED", "Distribuição e manifestação DF-e", dfeReady ? "Transmissão e endpoints de produção habilitados." : "Distribuição ou manifestação SEFAZ ainda está bloqueada.", dfeReady ? null : "Homologue certificado e endpoints; só depois habilite DFE_ENABLE_SEFAZ_TRANSMISSION."));
   const nfceConfigured = config.NFCE_ENABLE_SEFAZ_TRANSMISSION && config.NFCE_ALLOW_PRODUCTION_PREPARATION && !config.NFCE_SCHEMA_VERSION.startsWith("local-");
-  checks.push(check("nfce-sefaz", "FISCAL", "BLOCKED", "Emissão NFC-e", nfceConfigured ? "Variáveis externas foram habilitadas, mas o adaptador do código ainda bloqueia a transmissão." : "O emissor permanece local, sem assinatura/XSD/autorização SEFAZ.", "Implemente assinatura, XSD, QR Code/DANFE e autorização em homologação; depois substitua o bloqueio explícito do adaptador."));
+  checks.push(check("nfce-sefaz", "FISCAL", "BLOCKED", "Emissão NFC-e", nfceConfigured ? "Emissor oficial 4.00 (XML/assinatura/QR/DANFE/autorização) habilitado por flag; falta validação XSD e homologação SEFAZ comprovada." : "Emissor oficial 4.00 implementado (assinatura/QR/DANFE/autorização), porém desligado por flag e sem validação XSD nem homologação.", "Carregue os XSDs oficiais, valide o XML, homologue certificado A1 + CSC na SEFAZ e comprove cStat 100 antes de liberar em produção."));
 
   try {
     const started = performance.now();
