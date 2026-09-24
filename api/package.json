@@ -8,6 +8,7 @@
     "build": "prisma generate && tsc -p tsconfig.json",
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:e2e:crm": "npm run build && node --env-file=.env tests/e2e/crm-interno.e2e.mjs",
+    "test:e2e:prime": "npm run build && node --env-file=.env tests/e2e/prime.e2e.mjs",
     "start": "node dist/server.js",
     "jobs:daily": "node dist/jobs/run-daily.js",
     "preflight:production": "node dist/commands/production-preflight.js",

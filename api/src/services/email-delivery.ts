@@ -11,6 +11,8 @@ type InvitationMessage = {
   recipient: string;
   role: string;
   token: string;
+  /** Quem recebe: farmácia (padrão com companyId), equipe Nexus (padrão sem companyId) ou indústria/distribuição. */
+  audience?: "TENANT" | "STAFF" | "PRIME";
 };
 
 type PasswordResetMessage = { recipient: string; token: string };
@@ -26,8 +28,13 @@ const escapeHtml = (value: string) =>
 
 export async function deliverInvitationEmail(message: InvitationMessage) {
   const inviteUrl = `${config.WEB_APP_URL.replace(/\/$/, "")}/convite?token=${encodeURIComponent(message.token)}`;
-  const isInternal = message.companyId === null;
-  const subject = isInternal ? "Convite para a equipe Nexus Pharma" : `Convite para acessar ${message.companyName} no Nexus Pharma`;
+  const audience = message.audience ?? (message.companyId === null ? "STAFF" : "TENANT");
+  const isInternal = audience === "STAFF";
+  const subject = audience === "STAFF"
+    ? "Convite para a equipe Nexus Pharma"
+    : audience === "PRIME"
+      ? `Convite para o painel de ${message.companyName} no Nexus Pharma`
+      : `Convite para acessar ${message.companyName} no Nexus Pharma`;
   const delivery = await prisma.emailDelivery.create({
     data: {
       companyId: message.companyId,
@@ -49,9 +56,11 @@ export async function deliverInvitationEmail(message: InvitationMessage) {
   const role = escapeHtml(message.role);
   const intro = isInternal
     ? `Você foi convidado para o perfil ${role} da equipe interna Nexus Pharma.`
-    : `${companyName} liberou o perfil ${role} para você no Nexus Pharma.`;
+    : audience === "PRIME"
+      ? `Você foi convidado como ${role} do painel de ${companyName} no Nexus Pharma: estoque e vendas dos produtos nas farmácias parceiras, em tempo real e só para consulta.`
+      : `${companyName} liberou o perfil ${role} para você no Nexus Pharma.`;
   const html = `<div style="font-family:Arial,sans-serif;color:#102331;max-width:560px;margin:auto"><div style="border-radius:18px;background:#063a5c;padding:28px;color:white"><h1 style="margin:0;font-size:24px">Você foi convidado</h1><p style="color:#d7e7ef">${intro}</p><a href="${inviteUrl}" style="display:inline-block;margin-top:12px;border-radius:12px;background:#ffca05;color:#03283f;padding:14px 22px;text-decoration:none;font-weight:bold">Aceitar convite</a></div><p style="font-size:12px;color:#64717b">Este link expira em 72 horas e funciona uma única vez. Se você não esperava este convite, ignore esta mensagem.</p></div>`;
-  const text = `${isInternal ? `Você foi convidado para o perfil ${message.role} da equipe interna Nexus Pharma.` : `Você foi convidado para acessar ${message.companyName} no Nexus Pharma com o perfil ${message.role}.`} Aceite em: ${inviteUrl}. O link expira em 72 horas e funciona uma única vez.`;
+  const text = `${isInternal ? `Você foi convidado para o perfil ${message.role} da equipe interna Nexus Pharma.` : audience === "PRIME" ? `Você foi convidado como ${message.role} do painel de ${message.companyName} no Nexus Pharma.` : `Você foi convidado para acessar ${message.companyName} no Nexus Pharma com o perfil ${message.role}.`} Aceite em: ${inviteUrl}. O link expira em 72 horas e funciona uma única vez.`;
 
   try {
     const response = await fetch(config.EMAIL_RELAY_URL, {

@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../infra/prisma.js";
 import { deliverInvitationEmail } from "../services/email-delivery.js";
+import { PrimeError, setPrimeConnection } from "../services/prime.service.js";
 import {
   authenticate,
   requireRecentMfa,
@@ -329,6 +330,52 @@ export async function usersRoutes(app: FastifyInstance) {
     },
   );
 
+  // Compartilhamento com indústria e distribuição: a farmácia vê quem recebe
+  // os dados dela (estoque e vendas em quantidade, nunca preço nem consumidor)
+  // e pode suspender a qualquer momento.
+  app.get(
+    "/compartilhamentos",
+    { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])] },
+    async (request) => {
+      const connections = await prisma.primeConnection.findMany({
+        where: { companyId: request.tenant!.companyId, organization: { kind: { not: "PLATFORM" } } },
+        select: { id: true, status: true, settings: true, startsAt: true, endsAt: true, organization: { select: { tradeName: true, kind: true, status: true } } },
+        orderBy: { startsAt: "asc" },
+      });
+      return connections.map(({ settings, ...connection }) => ({
+        ...connection,
+        suspendedBy: settings && typeof settings === "object" && !Array.isArray(settings) ? ((settings as Record<string, unknown>).suspendedBy ?? null) : null,
+      }));
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/compartilhamentos/:id",
+    { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN"])] },
+    async (request, reply) => {
+      const id = z.string().uuid().safeParse(request.params.id);
+      const parsed = z.object({ status: z.enum(["ACTIVE", "SUSPENDED"]) }).safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALTERACAO_INVALIDA" });
+      const connection = await prisma.primeConnection.findFirst({ where: { id: id.data, companyId: request.tenant!.companyId } });
+      if (!connection) return reply.status(404).send({ erro: "COMPARTILHAMENTO_NAO_ENCONTRADO" });
+      // Suspender protege e é imediato; religar reabre os dados a um terceiro
+      // e exige identidade confirmada.
+      if (parsed.data.status === "ACTIVE") {
+        await requireRecentMfa()(request, reply);
+        if (reply.sent) return reply;
+      }
+      try {
+        return await setPrimeConnection({
+          organizationId: connection.organizationId, companyId: connection.companyId, status: parsed.data.status, by: "PHARMACY",
+          actor: { userId: request.user.sub, requestId: request.id, ipAddress: request.ip },
+        });
+      } catch (error) {
+        if (error instanceof PrimeError) return reply.status(error.statusCode).send({ erro: error.message });
+        throw error;
+      }
+    },
+  );
+
   app.post("/convites/aceitar", async (request, reply) => {
     const parsed = acceptanceSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -338,13 +385,22 @@ export async function usersRoutes(app: FastifyInstance) {
     }
     const invitation = await prisma.invitation.findUnique({
       where: { tokenHash: tokenHash(parsed.data.token) },
-      include: { company: { select: { id: true, tradeName: true, status: true } } },
+      include: {
+        company: { select: { id: true, tradeName: true, status: true } },
+        primeOrganization: { select: { id: true, tradeName: true, status: true } },
+      },
     });
     if (!invitation || invitation.acceptedAt || invitation.expiresAt <= new Date()) {
       return reply.status(410).send({ erro: "CONVITE_EXPIRADO_OU_UTILIZADO" });
     }
     const isStaffInvite = invitation.systemRole !== null;
-    if (!isStaffInvite && invitation.company && ["SUSPENDED", "CANCELLED"].includes(invitation.company.status)) {
+    // Usuário da indústria/distribuição: entra só no Painel Prime da
+    // organização, nunca como membro de farmácia nem da equipe Nexus.
+    const isPrimeInvite = invitation.primeOrganizationId !== null;
+    if (isPrimeInvite && invitation.primeOrganization?.status !== "ACTIVE") {
+      return reply.status(403).send({ erro: "ORGANIZACAO_PRIME_INATIVA" });
+    }
+    if (!isStaffInvite && !isPrimeInvite && invitation.company && ["SUSPENDED", "CANCELLED"].includes(invitation.company.status)) {
       return reply.status(403).send({ erro: "EMPRESA_INATIVA" });
     }
     const existing = await prisma.user.findUnique({ where: { email: invitation.email } });
@@ -372,7 +428,20 @@ export async function usersRoutes(app: FastifyInstance) {
               ...(isStaffInvite && { systemRole: invitation.systemRole! }),
             },
           });
-      if (!isStaffInvite) {
+      if (isPrimeInvite) {
+        await tx.primeMembership.upsert({
+          where: {
+            organizationId_userId: { organizationId: invitation.primeOrganizationId!, userId: user.id },
+          },
+          create: {
+            organizationId: invitation.primeOrganizationId!,
+            userId: user.id,
+            role: invitation.primeRole!,
+            active: true,
+          },
+          update: { role: invitation.primeRole!, active: true },
+        });
+      } else if (!isStaffInvite) {
         await tx.membership.upsert({
           where: {
             companyId_userId: { companyId: invitation.companyId!, userId: user.id },
@@ -394,12 +463,12 @@ export async function usersRoutes(app: FastifyInstance) {
         data: {
           companyId: invitation.companyId,
           userId: user.id,
-          action: isStaffInvite ? "INTERNAL_STAFF_INVITATION_ACCEPTED" : "INVITATION_ACCEPTED",
+          action: isStaffInvite ? "INTERNAL_STAFF_INVITATION_ACCEPTED" : isPrimeInvite ? "PRIME_INVITATION_ACCEPTED" : "INVITATION_ACCEPTED",
           entity: "Invitation",
           entityId: invitation.id,
           requestId: request.id,
           ipAddress: request.ip,
-          after: { role: invitation.role, systemRole: invitation.systemRole },
+          after: { role: invitation.role, systemRole: invitation.systemRole, primeRole: invitation.primeRole, primeOrganizationId: invitation.primeOrganizationId },
         },
       });
       return user;
@@ -407,7 +476,7 @@ export async function usersRoutes(app: FastifyInstance) {
     return reply.send({
       accepted: true,
       requiresLogin,
-      company: invitation.company?.tradeName ?? "Nexus Pharma",
+      company: invitation.company?.tradeName ?? invitation.primeOrganization?.tradeName ?? "Nexus Pharma",
       user: { id: result.id, email: result.email, name: result.name },
     });
   });

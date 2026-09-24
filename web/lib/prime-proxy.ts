@@ -16,7 +16,14 @@ export async function proxyPrime(path: string, init: RequestInit) {
   const body = await upstream.json().catch(() => ({})) as { erro?: string; message?: string };
   const messages: Record<string, string> = {
     MFA_CONFIGURACAO_OBRIGATORIA: "Ative a autenticação em duas etapas antes de acessar o Painel Prime.",
-    MFA_CONFIRMACAO_RECENTE_OBRIGATORIA: "Confirme sua identidade em Minha segurança para alterar as configurações Prime.",
+    MFA_CONFIRMACAO_RECENTE_OBRIGATORIA: "Confirme sua identidade em Minha segurança para convidar, suspender ou alterar preferências.",
+    CONVITE_JA_ENVIADO: "Já existe um convite pendente para este e-mail.",
+    USUARIO_JA_VINCULADO: "Este e-mail já tem acesso ao painel.",
+    CONVITE_INVALIDO: "Informe um e-mail válido e o perfil.",
+    AUTO_ALTERACAO_NAO_PERMITIDA: "Você não pode suspender o próprio acesso.",
+    RESPONSAVEL_SO_PELA_NEXUS: "O Responsável é definido pela Nexus.",
+    ORGANIZACAO_PRIME_INATIVA: "Sua organização está suspensa; fale com a Nexus.",
+    MEMBRO_PRIME_NAO_ENCONTRADO: "Este usuário não faz parte da sua equipe.",
     SEM_ACESSO_AO_PAINEL_PRIME: "Sua conta ainda não está vinculada a uma operação Prime.",
     PERFIL_PRIME_NAO_AUTORIZADO: "Seu perfil Prime não permite esta operação.",
   };

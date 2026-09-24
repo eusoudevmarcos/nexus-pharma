@@ -43,6 +43,25 @@ geram fatura.
 
 ---
 
+## Indústria e distribuição (`/portal/interno/industria`)
+
+**Quem:** Diretoria e Gestor do Comercial (Colaborador não acessa).
+
+Clientes B2B do Painel da indústria (Prime): laboratórios, distribuidoras e
+atacadistas que acompanham, só para consulta e em tempo real, estoque e vendas
+dos próprios produtos nas farmácias vinculadas. Detalhes completos em
+[PORTAL-B2B-FORNECEDORES.md](PORTAL-B2B-FORNECEDORES.md).
+
+| Ação | Regra | Rota |
+|---|---|---|
+| Cadastrar organização (tipo, código, CNPJ, prefixos GS1) | Laboratório nasce vendo só os próprios produtos | `POST /interno/industria/organizacoes` |
+| Mudar situação / escopo / prefixos | "Todos os produtos" para laboratório: só Diretoria + MFA | `PATCH /interno/industria/organizacoes/:id` |
+| Vincular, suspender ou encerrar farmácia | MFA recente; não religa o que a farmácia suspendeu | `PUT .../:id/conexoes` |
+| Convidar Responsável / Administrador / Visualizador | MFA recente; link manual se não houver e-mail automático | `POST .../:id/convites` |
+| Suspender / reativar usuário da organização | MFA recente | `PATCH .../:id/membros/:userId` |
+
+---
+
 ## Perfis e permissões (`/portal/interno/perfis`)
 
 **Quem acessa:** qualquer perfil interno (leitura da matriz).

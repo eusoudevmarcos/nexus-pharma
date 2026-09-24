@@ -27,6 +27,17 @@ const internalMessages: Record<string, string> = {
   ONBOARDING_INICIADO_NAO_PODE_SER_RECALCULADO: "O onboarding já começou — plano e início do contrato não podem mais ser alterados.",
   TICKET_FORA_DA_SUA_FILA: "Este ticket não está atribuído a você.",
   SOMENTE_GESTOR_REATRIBUI_TICKET: "Só Gestor ou Diretoria pode reatribuir o ticket.",
+  SOMENTE_GESTOR_GERENCIA_INDUSTRIA: "Só a Diretoria ou um Gestor do Comercial gerencia indústria e distribuição.",
+  ORGANIZACAO_PRIME_INVALIDA: "Revise os dados. O prefixo GS1 deve ter de 7 a 12 dígitos.",
+  ORGANIZACAO_PRIME_JA_EXISTE: "Já existe uma organização com este código ou CNPJ.",
+  ORGANIZACAO_PRIME_NAO_ENCONTRADA: "Organização não encontrada.",
+  ORGANIZACAO_PRIME_INATIVA: "Organização suspensa ou cancelada não recebe convites.",
+  SOMENTE_DIRETORIA_LIBERA_TODOS_OS_PRODUTOS: "Liberar todos os produtos a um laboratório expõe dados de concorrentes: só a Diretoria pode fazer isso.",
+  COMPARTILHAMENTO_SUSPENSO_PELA_FARMACIA: "A própria farmácia suspendeu este compartilhamento; só ela pode religar.",
+  CONEXAO_PRIME_INVALIDA: "Escolha a farmácia e a situação do vínculo.",
+  MEMBRO_PRIME_NAO_ENCONTRADO: "Este usuário não faz parte da organização.",
+  EMPRESA_NAO_ENCONTRADA: "Farmácia não encontrada.",
+  CONVITE_INVALIDO: "Informe um e-mail válido e o perfil.",
 };
 
 export async function proxyInternal(path: string, init: RequestInit) {

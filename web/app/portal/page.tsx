@@ -11,13 +11,14 @@ export default async function PortalPage() {
   if (!token) redirect("/entrar");
   if (profile && internalRoles.includes(profile.systemRole)) redirect(defaultInternalArea(profile.systemRole));
   if (membership) redirect(defaultArea(membership.role));
-  if (profile?.primeMemberships?.length) redirect("/prime");
+  const primeEnabled = process.env.NEXT_PUBLIC_PRIME_ENABLED === "true";
+  if (profile?.primeMemberships?.length && primeEnabled) redirect("/prime");
 
   return <section className="portal-section shell">
     <div className="portal-heading"><div><span className="eyebrow">PORTAL NEXUS</span><h1>{profile ? `Olá, ${profile.name.split(" ")[0]}.` : "Ambiente reservado."}</h1><p>{profile ? "Escolha a empresa que deseja administrar." : "Seu acesso foi reconhecido, mas a conexão com a API ainda não está disponível neste ambiente."}</p></div><LogoutButton /></div>
     {profile ? <>
       <div className="portal-context"><span>Conta</span><strong>{profile.email}</strong><span>Perfil</span><strong>{profile.systemRole}</strong></div>
-      {profile.memberships.length ? <CompanySelector memberships={profile.memberships} /> : <div className="connection-panel"><strong>Nenhuma empresa vinculada</strong><p>Solicite ao administrador um convite para acessar uma operação.</p></div>}
+      {profile.memberships.length ? <CompanySelector memberships={profile.memberships} /> : profile.primeMemberships?.length ? <div className="connection-panel"><strong>Acesso ao painel da indústria confirmado</strong><p>O painel de {profile.primeMemberships[0]!.organization.tradeName} ainda não foi liberado neste ambiente. Assim que a Nexus liberar, você entra direto por aqui.</p></div> : <div className="connection-panel"><strong>Nenhuma empresa vinculada</strong><p>Solicite ao administrador um convite para acessar uma operação.</p></div>}
     </> : <div className="connection-panel"><strong>Falta conectar a API do Render</strong><p>Defina <code>NEXUS_API_URL</code> no ambiente da Vercel. Assim o portal poderá validar a sessão e carregar as permissões da conta.</p></div>}
   </section>;
 }

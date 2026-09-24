@@ -18,8 +18,9 @@ const links = [
   { href: "/portal/interno/financeiro", label: "Financeiro", icon: "$", roles: ["INTERNAL_ADMIN", "FINANCE"] },
   { href: "/portal/interno/faturamento", label: "Faturamento SaaS", icon: "R$", roles: ["INTERNAL_ADMIN", "FINANCE"] },
   { href: "/portal/interno/comercial", label: "Comercial", icon: "↗", roles: ["INTERNAL_ADMIN", "COMMERCIAL"] },
+  { href: "/portal/interno/industria", label: "Indústria e distribuição", icon: "◈", roles: ["INTERNAL_ADMIN", "COMMERCIAL"] },
   ...(process.env.NEXT_PUBLIC_PRIME_ENABLED === "true"
-    ? [{ href: "/prime", label: "Painel Prime", icon: "P", roles: ["INTERNAL_ADMIN", "COMMERCIAL"] }]
+    ? [{ href: "/prime", label: "Painel da indústria (visão)", icon: "P", roles: ["INTERNAL_ADMIN", "COMMERCIAL"] }]
     : []),
   { href: "/portal/interno/desenvolvimento", label: "Desenvolvimento", icon: "⌘", roles: ["INTERNAL_ADMIN", "DEVELOPER"] },
 ];

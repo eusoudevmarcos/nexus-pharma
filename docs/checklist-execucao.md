@@ -114,10 +114,26 @@ completo, página a página e por perfil, em
 
 ---
 
+## Frente 4.6 — Indústria e distribuição (Painel Prime) ✅ pronto, desligado em produção
+
+Doc: [PORTAL-B2B-FORNECEDORES.md](PORTAL-B2B-FORNECEDORES.md)
+
+- [x] Painel só de consulta, ao vivo (vendas hoje/7/30 dias, estoque, ruptura, tendência)
+- [x] Laboratório vê só os próprios produtos (prefixo GS1); distribuidora vê todos
+- [x] Gestão na Central: organização, escopo, vínculos, convites, time
+- [x] Farmácia vê quem acessa os dados dela e suspende quando quiser
+- [x] Teste de isolamento com duas organizações (e2e, 53 verificações)
+- [ ] **Ligar em produção:** `PRIME_ENABLED=true` no Render e
+      `NEXT_PUBLIC_PRIME_ENABLED=true` na Vercel (+ novo deploy do site)
+- [ ] Cadastrar o primeiro laboratório com os prefixos GS1 reais e fazer o piloto
+
+---
+
 ## Frente 5 — Do diagnóstico original (produção plena, mais longo prazo)
 
-- [ ] Testes de **isolamento multiempresa** e concorrência (maior risco silencioso
-      hoje — nenhum teste automatizado prova isso)
+- [ ] Testes de **isolamento multiempresa** e concorrência. Já cobertos: equipe
+      interna (e2e CRM) e indústria ⇄ farmácia (e2e Prime). Falta: farmácia ⇄
+      farmácia nas rotas de tenant e concorrência
 - [ ] **RLS** no Postgres ou middleware Prisma que injeta `companyId` (rede de
       proteção além da disciplina manual nas queries)
 - [ ] **Backup/PITR** gerenciado + teste de restauração comprovado

@@ -1102,22 +1102,27 @@ model AccessReviewItem {
 //  - convite de EQUIPE INTERNA NEXUS: systemRole preenchido, companyId/role
 //    nulos (Helpdesk, Financeiro, Comercial, Developer, Admin interno)
 model Invitation {
-  id          String          @id @default(uuid()) @db.Uuid
-  companyId   String?         @map("company_id") @db.Uuid
-  email       String          @db.VarChar(254)
-  role        TenantRole?
-  systemRole  SystemRole?     @map("system_role")
-  tokenHash   String          @unique @map("token_hash") @db.VarChar(255)
-  invitedById String          @map("invited_by_id") @db.Uuid
-  expiresAt   DateTime        @map("expires_at") @db.Timestamptz(3)
-  acceptedAt  DateTime?       @map("accepted_at") @db.Timestamptz(3)
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  company     Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invitedBy   User            @relation("InvitationCreator", fields: [invitedById], references: [id])
-  deliveries  EmailDelivery[]
+  id                  String             @id @default(uuid()) @db.Uuid
+  companyId           String?            @map("company_id") @db.Uuid
+  email               String             @db.VarChar(254)
+  role                TenantRole?
+  systemRole          SystemRole?        @map("system_role")
+  /// Convite de usuário da indústria/distribuição (Painel Prime): organização + perfil.
+  primeOrganizationId String?            @map("prime_organization_id") @db.Uuid
+  primeRole           PrimeRole?         @map("prime_role")
+  tokenHash           String             @unique @map("token_hash") @db.VarChar(255)
+  invitedById         String             @map("invited_by_id") @db.Uuid
+  expiresAt           DateTime           @map("expires_at") @db.Timestamptz(3)
+  acceptedAt          DateTime?          @map("accepted_at") @db.Timestamptz(3)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  company             Company?           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedBy           User               @relation("InvitationCreator", fields: [invitedById], references: [id])
+  primeOrganization   PrimeOrganization? @relation(fields: [primeOrganizationId], references: [id], onDelete: Cascade)
+  deliveries          EmailDelivery[]
 
   @@index([companyId, email])
   @@index([systemRole, email])
+  @@index([primeOrganizationId, email])
   @@map("invitations")
 }
 
@@ -1148,25 +1153,25 @@ model Plan {
 }
 
 model Subscription {
-  id                 String                @id @default(uuid()) @db.Uuid
-  companyId          String                @map("company_id") @db.Uuid
-  planId             String                @map("plan_id") @db.Uuid
-  status             SubscriptionStatus    @default(TRIALING)
+  id                 String                  @id @default(uuid()) @db.Uuid
+  companyId          String                  @map("company_id") @db.Uuid
+  planId             String                  @map("plan_id") @db.Uuid
+  status             SubscriptionStatus      @default(TRIALING)
   billingType        SubscriptionBillingType @default(PAYING) @map("billing_type")
-  complimentaryUntil DateTime?             @map("complimentary_until") @db.Timestamptz(3)
-  interval           BillingInterval       @default(MONTHLY)
-  provider           String?               @db.VarChar(40)
-  providerCustomerId String?               @map("provider_customer_id") @db.VarChar(120)
-  providerContractId String?               @unique @map("provider_contract_id") @db.VarChar(120)
-  trialEndsAt        DateTime?             @map("trial_ends_at") @db.Timestamptz(3)
-  currentPeriodStart DateTime?             @map("current_period_start") @db.Timestamptz(3)
-  currentPeriodEnd   DateTime?             @map("current_period_end") @db.Timestamptz(3)
-  contractStartedAt  DateTime              @default(now()) @map("contract_started_at") @db.Timestamptz(3)
-  cancelledAt        DateTime?             @map("cancelled_at") @db.Timestamptz(3)
-  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
-  company            Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  plan               Plan                  @relation(fields: [planId], references: [id])
+  complimentaryUntil DateTime?               @map("complimentary_until") @db.Timestamptz(3)
+  interval           BillingInterval         @default(MONTHLY)
+  provider           String?                 @db.VarChar(40)
+  providerCustomerId String?                 @map("provider_customer_id") @db.VarChar(120)
+  providerContractId String?                 @unique @map("provider_contract_id") @db.VarChar(120)
+  trialEndsAt        DateTime?               @map("trial_ends_at") @db.Timestamptz(3)
+  currentPeriodStart DateTime?               @map("current_period_start") @db.Timestamptz(3)
+  currentPeriodEnd   DateTime?               @map("current_period_end") @db.Timestamptz(3)
+  contractStartedAt  DateTime                @default(now()) @map("contract_started_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?               @map("cancelled_at") @db.Timestamptz(3)
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan               Plan                    @relation(fields: [planId], references: [id])
   invoices           Invoice[]
   billingEvents      BillingWebhookEvent[]
   onboarding         CustomerOnboarding?
@@ -2788,6 +2793,7 @@ model PrimeOrganization {
   memberships             PrimeMembership[]
   connections             PrimeConnection[]
   opportunities           PrimeOpportunity[]
+  invitations             Invitation[]
 
   @@index([status, kind, tradeName])
   @@map("prime_organizations")

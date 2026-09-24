@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { config } from "../config.js";
@@ -11,6 +11,8 @@ import { closeMonthlyInvoice, ensureCustomerBillingStructure, normalizeBillingPe
 import { securityActions } from "../services/security-events.js";
 import { getProductionReadiness } from "../services/production-readiness.js";
 import { deliverInvitationEmail } from "../services/email-delivery.js";
+import { PrimeError, createPrimeInvitation, primeRoleLabels, setPrimeConnection, synchronizePrimeOpportunities, updatePrimeMember } from "../services/prime.service.js";
+import { defaultProductScopeMode, isValidGs1Prefix, normalizeGs1Prefixes, resolvePrimeProductScope } from "../services/prime-scope.js";
 
 const money = (value: unknown) => Number(value ?? 0);
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -78,6 +80,38 @@ function isSupportColaborador(request: FastifyRequest): boolean {
 function supportScopeWhere(request: FastifyRequest): Prisma.SupportTicketWhereInput {
   return isSupportColaborador(request) ? { assignedToId: request.user.sub } : {};
 }
+
+/**
+ * Indústria e distribuição (Painel Prime): quem cadastra organização, vincula
+ * farmácias e convida o responsável é a Diretoria ou um Gestor do Comercial.
+ * Colaborador não, porque o vínculo abre dados de farmácia para um terceiro.
+ */
+async function requireIndustryManager(request: FastifyRequest, reply: FastifyReply) {
+  const manager = request.user.systemRole === "INTERNAL_ADMIN" || (request.user.systemRole === "COMMERCIAL" && request.staffSeniority !== "COLABORADOR");
+  if (!manager) return reply.status(403).send({ erro: "SOMENTE_GESTOR_GERENCIA_INDUSTRIA" });
+}
+function sendPrimeError(reply: FastifyReply, error: unknown) {
+  if (error instanceof PrimeError) return reply.status(error.statusCode).send({ erro: error.message });
+  throw error;
+}
+const industryKinds = ["LABORATORY", "DISTRIBUTOR", "WHOLESALER"] as const;
+const industryInviteRoles = ["OWNER", "ADMIN", "ANALYST"] as const;
+const gs1PrefixesSchema = z.array(z.string().trim()).max(50).refine((items) => items.every((item) => isValidGs1Prefix(item.replace(/\D/g, ""))), "Prefixo GS1 deve ter de 7 a 12 dígitos.");
+const industryCreateSchema = z.object({
+  codigo: z.string().trim().min(2).max(50).transform((item) => item.toUpperCase().replace(/\s+/g, "_")),
+  razao_social: z.string().trim().min(2).max(180),
+  nome_fantasia: z.string().trim().min(2).max(180),
+  cnpj: z.string().regex(/^\d{14}$/).optional(),
+  tipo: z.enum(industryKinds),
+  prefixos_gs1: gs1PrefixesSchema.optional(),
+});
+const industryUpdateSchema = z.object({
+  nome_fantasia: z.string().trim().min(2).max(180).optional(),
+  status: z.enum(["ACTIVE", "SUSPENDED", "CANCELLED"]).optional(),
+  escopo_produtos: z.enum(["OWN", "ALL"]).optional(),
+  prefixos_gs1: gs1PrefixesSchema.optional(),
+}).refine((value) => Object.keys(value).length > 0);
+const settingsObject = (value: unknown) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const internalSystemRoles = ["INTERNAL_ADMIN", "DEVELOPER", "HELPDESK", "FINANCE", "COMMERCIAL", "MARKETING"] as const;
 const staffManageSchema = z.object({
   senioridade: z.enum(["GESTOR", "COLABORADOR"]).optional(),
@@ -979,4 +1013,107 @@ export async function internalRoutes(app: FastifyInstance) {
       };
     },
   );
+
+  // -------------------------------------------------------------------------
+  // Indústria e distribuição (Painel Prime): gestão pela Nexus
+  // -------------------------------------------------------------------------
+  const industryGuard = [authenticate, requireSystemRoles(["INTERNAL_ADMIN", "COMMERCIAL"]), requireIndustryManager];
+  const actorOf = (request: FastifyRequest) => ({ userId: request.user.sub, requestId: request.id, ipAddress: request.ip });
+
+  app.get("/industria", { preHandler: industryGuard }, async () => {
+    const now = new Date();
+    const [organizations, companies] = await Promise.all([
+      prisma.primeOrganization.findMany({
+        where: { kind: { not: "PLATFORM" } },
+        select: {
+          id: true, code: true, legalName: true, tradeName: true, taxId: true, kind: true, status: true, settings: true, createdAt: true,
+          connections: { select: { id: true, companyId: true, status: true, settings: true, startsAt: true, endsAt: true, company: { select: { tradeName: true, city: true, state: true, status: true } } }, orderBy: { createdAt: "asc" } },
+          memberships: { select: { role: true, active: true, createdAt: true, user: { select: { id: true, name: true, email: true, status: true } } }, orderBy: { createdAt: "asc" } },
+          invitations: { where: { acceptedAt: null, expiresAt: { gt: now } }, select: { id: true, email: true, primeRole: true, expiresAt: true }, orderBy: { createdAt: "desc" } },
+        },
+        orderBy: [{ status: "asc" }, { tradeName: "asc" }],
+      }),
+      prisma.company.findMany({ where: { status: { in: ["ACTIVE", "ONBOARDING"] } }, select: { id: true, tradeName: true, city: true, state: true, status: true }, orderBy: { tradeName: "asc" } }),
+    ]);
+    return {
+      primeEnabled: config.PRIME_ENABLED,
+      companies,
+      organizations: organizations.map(({ settings, connections, memberships, invitations, ...organization }) => ({
+        ...organization,
+        scope: resolvePrimeProductScope(organization.kind, settings),
+        connections: connections.map(({ settings: connectionSettings, ...connection }) => ({ ...connection, suspendedBy: settingsObject(connectionSettings).suspendedBy ?? null })),
+        members: memberships.map((member) => ({ userId: member.user.id, name: member.user.name, email: member.user.email, role: member.role, roleLabel: primeRoleLabels[member.role], active: member.active && member.user.status === "ACTIVE", since: member.createdAt })),
+        invites: invitations.map((invite) => ({ ...invite, roleLabel: invite.primeRole ? primeRoleLabels[invite.primeRole] : null })),
+      })),
+    };
+  });
+
+  app.post("/industria/organizacoes", { preHandler: industryGuard }, async (request, reply) => {
+    const parsed = industryCreateSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ erro: "ORGANIZACAO_PRIME_INVALIDA", detalhes: parsed.error.flatten() });
+    const duplicate = await prisma.primeOrganization.findFirst({ where: { OR: [{ code: parsed.data.codigo }, ...(parsed.data.cnpj ? [{ taxId: parsed.data.cnpj }] : [])] }, select: { id: true } });
+    if (duplicate) return reply.status(409).send({ erro: "ORGANIZACAO_PRIME_JA_EXISTE" });
+    const settings = { productScope: defaultProductScopeMode(parsed.data.tipo), gs1Prefixes: normalizeGs1Prefixes(parsed.data.prefixos_gs1 ?? []) };
+    const created = await prisma.$transaction(async (tx) => {
+      const organization = await tx.primeOrganization.create({ data: { code: parsed.data.codigo, legalName: parsed.data.razao_social, tradeName: parsed.data.nome_fantasia, taxId: parsed.data.cnpj, kind: parsed.data.tipo, settings } });
+      await tx.auditLog.create({ data: { userId: request.user.sub, action: "PRIME_ORGANIZATION_CREATED", entity: "PrimeOrganization", entityId: organization.id, requestId: request.id, ipAddress: request.ip, after: { code: organization.code, tradeName: organization.tradeName, kind: organization.kind, ...settings } } });
+      return organization;
+    });
+    return reply.status(201).send({ id: created.id, code: created.code, tradeName: created.tradeName, kind: created.kind, scope: resolvePrimeProductScope(created.kind, created.settings) });
+  });
+
+  app.patch<{ Params: { id: string } }>("/industria/organizacoes/:id", { preHandler: industryGuard }, async (request, reply) => {
+    const id = z.string().uuid().safeParse(request.params.id);
+    const parsed = industryUpdateSchema.safeParse(request.body);
+    if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALTERACAO_INVALIDA" });
+    const organization = await prisma.primeOrganization.findUnique({ where: { id: id.data } });
+    if (!organization || organization.kind === "PLATFORM") return reply.status(404).send({ erro: "ORGANIZACAO_PRIME_NAO_ENCONTRADA" });
+    const current = settingsObject(organization.settings);
+    const before = resolvePrimeProductScope(organization.kind, organization.settings);
+    const nextSettings = {
+      ...current,
+      ...(parsed.data.escopo_produtos && { productScope: parsed.data.escopo_produtos }),
+      ...(parsed.data.prefixos_gs1 && { gs1Prefixes: normalizeGs1Prefixes(parsed.data.prefixos_gs1) }),
+    };
+    const after = resolvePrimeProductScope(organization.kind, nextSettings);
+    // Abrir TODOS os produtos para um laboratório expõe venda e estoque de
+    // concorrentes: só a Diretoria, com identidade confirmada.
+    if (organization.kind === "LABORATORY" && before.mode === "OWN" && after.mode === "ALL") {
+      if (request.user.systemRole !== "INTERNAL_ADMIN") return reply.status(403).send({ erro: "SOMENTE_DIRETORIA_LIBERA_TODOS_OS_PRODUTOS" });
+      await requireRecentMfa()(request, reply);
+      if (reply.sent) return reply;
+    }
+    const saved = await prisma.$transaction(async (tx) => {
+      const result = await tx.primeOrganization.update({ where: { id: organization.id }, data: { ...(parsed.data.nome_fantasia && { tradeName: parsed.data.nome_fantasia }), ...(parsed.data.status && { status: parsed.data.status }), settings: nextSettings as Prisma.InputJsonValue } });
+      await tx.auditLog.create({ data: { userId: request.user.sub, action: "PRIME_ORGANIZATION_UPDATED", entity: "PrimeOrganization", entityId: organization.id, requestId: request.id, ipAddress: request.ip, before: { tradeName: organization.tradeName, status: organization.status, scope: before }, after: { tradeName: result.tradeName, status: result.status, scope: after } } });
+      return result;
+    });
+    // Escopo mudou: o que deixou de ser permitido sai do painel agora.
+    if (JSON.stringify(before) !== JSON.stringify(after)) await synchronizePrimeOpportunities(organization.id, { force: true });
+    return { id: saved.id, tradeName: saved.tradeName, status: saved.status, scope: after };
+  });
+
+  app.put<{ Params: { id: string } }>("/industria/organizacoes/:id/conexoes", { preHandler: [...industryGuard, requireRecentMfa()] }, async (request, reply) => {
+    const id = z.string().uuid().safeParse(request.params.id);
+    const parsed = z.object({ empresa_id: z.string().uuid(), status: z.enum(["ACTIVE", "SUSPENDED", "TERMINATED"]) }).safeParse(request.body);
+    if (!id.success || !parsed.success) return reply.status(400).send({ erro: "CONEXAO_PRIME_INVALIDA" });
+    try { return await setPrimeConnection({ organizationId: id.data, companyId: parsed.data.empresa_id, status: parsed.data.status, by: "NEXUS", actor: actorOf(request) }); }
+    catch (error) { return sendPrimeError(reply, error); }
+  });
+
+  app.post<{ Params: { id: string } }>("/industria/organizacoes/:id/convites", { preHandler: [...industryGuard, requireRecentMfa()] }, async (request, reply) => {
+    const id = z.string().uuid().safeParse(request.params.id);
+    const parsed = z.object({ email: z.string().email().transform((item) => item.trim().toLowerCase()), perfil: z.enum(industryInviteRoles) }).safeParse(request.body);
+    if (!id.success || !parsed.success) return reply.status(400).send({ erro: "CONVITE_INVALIDO" });
+    try { return reply.status(201).send(await createPrimeInvitation({ organizationId: id.data, email: parsed.data.email, role: parsed.data.perfil, actor: actorOf(request) })); }
+    catch (error) { return sendPrimeError(reply, error); }
+  });
+
+  app.patch<{ Params: { id: string; userId: string } }>("/industria/organizacoes/:id/membros/:userId", { preHandler: [...industryGuard, requireRecentMfa()] }, async (request, reply) => {
+    const ids = z.object({ id: z.string().uuid(), userId: z.string().uuid() }).safeParse(request.params);
+    const parsed = z.object({ ativo: z.boolean().optional(), perfil: z.enum(industryInviteRoles).optional() }).refine((value) => value.ativo !== undefined || value.perfil !== undefined).safeParse(request.body);
+    if (!ids.success || !parsed.success) return reply.status(400).send({ erro: "ALTERACAO_INVALIDA" });
+    try { return await updatePrimeMember({ organizationId: ids.data.id, userId: ids.data.userId, active: parsed.data.ativo, role: parsed.data.perfil, by: "NEXUS", actor: actorOf(request) }); }
+    catch (error) { return sendPrimeError(reply, error); }
+  });
 }
