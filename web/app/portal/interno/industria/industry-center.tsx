@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type Scope = { mode: "ALL" } | { mode: "OWN"; gs1Prefixes: string[] };
-type Connection = { id: string; companyId: string; status: "ACTIVE" | "SUSPENDED" | "TERMINATED"; suspendedBy: "PHARMACY" | "NEXUS" | null; startsAt: string; company: { tradeName: string; city: string | null; state: string | null; status: string } };
+type Connection = { id: string; companyId: string; status: "ACTIVE" | "SUSPENDED" | "TERMINATED"; startsAt: string; company: { tradeName: string; city: string | null; state: string | null; status: string } };
 type Member = { userId: string; name: string; email: string; role: string; roleLabel: string; active: boolean };
 type Invite = { id: string; email: string; roleLabel: string | null; expiresAt: string };
 export type IndustryOrganization = { id: string; code: string; legalName: string; tradeName: string; taxId: string | null; kind: "LABORATORY" | "DISTRIBUTOR" | "WHOLESALER"; status: "ACTIVE" | "SUSPENDED" | "CANCELLED"; scope: Scope; connections: Connection[]; members: Member[]; invites: Invite[] };
@@ -54,12 +54,11 @@ function NewOrganizationForm() {
         <label>Nome fantasia<input value={form.nome_fantasia} onChange={set("nome_fantasia")} /></label>
         <label>Razão social<input value={form.razao_social} onChange={set("razao_social")} /></label>
         <label>CNPJ (opcional)<input inputMode="numeric" value={form.cnpj} onChange={set("cnpj")} /></label>
-        <label>Prefixos GS1 {form.tipo === "LABORATORY" ? "(obrigatório para ver produtos)" : "(opcional)"}<input placeholder="7891234, 7895678" value={form.prefixos} onChange={set("prefixos")} /></label>
+        <label>Prefixos GS1 (opcional)<input placeholder="7891234, 7895678" value={form.prefixos} onChange={set("prefixos")} /></label>
       </div>
       <p className="team-hint">
-        {form.tipo === "LABORATORY"
-          ? <>Laboratório vê <b>só os próprios produtos</b>: os códigos de barras que começam com os prefixos GS1 da empresa (7 a 12 dígitos). Sem prefixo, não vê nenhum produto.</>
-          : <>Distribuidora e atacadista veem <b>todas as marcas</b> nas farmácias vinculadas, porque abastecem todas.</>}
+        Toda organização vê <b>todas as marcas</b> nas farmácias vinculadas: estoque baixo, vendas e validade, e decide o que oferecer.
+        Os prefixos GS1 (7 a 12 dígitos) só servem se um dia a Nexus quiser restringir a organização aos próprios produtos.
       </p>
       <div className="new-client-actions">
         <button disabled={busy || !form.codigo || !form.razao_social || !form.nome_fantasia} onClick={create} type="button">{busy ? "Cadastrando…" : "Cadastrar organização"}</button>
@@ -93,14 +92,13 @@ function ScopeEditor({ organization }: { organization: IndustryOrganization }) {
       <div className="store-add-form">
         <select aria-label="Situação" value={status} onChange={(event) => setStatus(event.target.value as typeof status)}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
         <select aria-label="Produtos visíveis" value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
-          <option value="OWN">Só os próprios produtos (prefixo GS1)</option>
-          <option value="ALL">Todos os produtos das farmácias</option>
+          <option value="ALL">Todas as marcas (padrão)</option>
+          <option value="OWN">Restringir aos próprios produtos (prefixo GS1)</option>
         </select>
         {mode === "OWN" && <input aria-label="Prefixos GS1" placeholder="7891234, 7895678" value={prefixes} onChange={(event) => setPrefixes(event.target.value)} />}
         <button disabled={busy} onClick={save} type="button">{busy ? "…" : "Salvar"}</button>
       </div>
-      {organization.kind === "LABORATORY" && mode === "ALL" && <p className="industry-warning">Com "todos os produtos", este laboratório passa a ver estoque e vendas de concorrentes. Só a Diretoria pode liberar, com identidade confirmada.</p>}
-      {mode === "OWN" && !parsePrefixes(prefixes).length && <p className="industry-warning">Sem prefixo GS1 a organização não vê nenhum produto.</p>}
+      {mode === "OWN" && !parsePrefixes(prefixes).length && <p className="industry-warning">Restrição ligada sem prefixo GS1: a organização não verá nenhum produto.</p>}
       {feedback && <span className={feedback.tone === "ok" ? "invite-status" : "invite-status error"}>{feedback.text}</span>}
     </div>
   );
@@ -117,14 +115,14 @@ function ConnectionRow({ organization, connection }: { organization: IndustryOrg
     setBusy(false);
     if (result.ok) router.refresh(); else setFeedback(result.error);
   }
-  const label = connection.status === "ACTIVE" ? "Compartilhando" : connection.status === "TERMINATED" ? "Encerrado" : connection.suspendedBy === "PHARMACY" ? "Suspenso pela farmácia" : "Suspenso pela Nexus";
+  const label = connection.status === "ACTIVE" ? "Compartilhando" : connection.status === "TERMINATED" ? "Encerrado" : "Suspenso";
   return (
     <div className="store-item">
       <div><strong>{connection.company.tradeName}</strong><small>{place(connection.company.city, connection.company.state)}{connection.company.status !== "ACTIVE" ? " · farmácia ainda não ativa" : ""}</small></div>
       <span className={`status-pill ${connection.status === "ACTIVE" ? "" : connection.status === "SUSPENDED" ? "pending" : "disabled"}`}>{label}</span>
       <div className="industry-actions">
         {connection.status === "ACTIVE" && <button className="team-suspend-btn" disabled={busy} onClick={() => change("SUSPENDED")} type="button">Suspender</button>}
-        {connection.status !== "ACTIVE" && connection.suspendedBy !== "PHARMACY" && <button className="team-suspend-btn resume" disabled={busy} onClick={() => change("ACTIVE")} type="button">Religar</button>}
+        {connection.status !== "ACTIVE" && <button className="team-suspend-btn resume" disabled={busy} onClick={() => change("ACTIVE")} type="button">Religar</button>}
         {connection.status !== "TERMINATED" && <button className="team-suspend-btn" disabled={busy} onClick={() => change("TERMINATED")} type="button">Encerrar</button>}
       </div>
       {feedback && <em className="industry-error">{feedback}</em>}

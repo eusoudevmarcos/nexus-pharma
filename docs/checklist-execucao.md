@@ -119,13 +119,13 @@ completo, página a página e por perfil, em
 Doc: [PORTAL-B2B-FORNECEDORES.md](PORTAL-B2B-FORNECEDORES.md)
 
 - [x] Painel só de consulta, ao vivo (vendas hoje/7/30 dias, estoque, ruptura, tendência)
-- [x] Laboratório vê só os próprios produtos (prefixo GS1); distribuidora vê todos
+- [x] Toda organização vê todas as marcas (política de 25/09); restrição por prefixo GS1 é opcional
 - [x] Gestão na Central: organização, escopo, vínculos, convites, time
-- [x] Farmácia vê quem acessa os dados dela e suspende quando quiser
-- [x] Teste de isolamento com duas organizações (e2e, 53 verificações)
+- [x] Farmácia consulta quem acompanha os dados dela (contratual: só a Nexus suspende)
+- [x] Teste de isolamento com duas organizações (e2e, 54 verificações)
 - [ ] **Ligar em produção:** `PRIME_ENABLED=true` no Render e
       `NEXT_PUBLIC_PRIME_ENABLED=true` na Vercel (+ novo deploy do site)
-- [ ] Cadastrar o primeiro laboratório com os prefixos GS1 reais e fazer o piloto
+- [ ] Cadastrar o primeiro laboratório, vincular as farmácias do piloto e convidar o Responsável
 
 ---
 

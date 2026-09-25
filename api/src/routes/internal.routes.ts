@@ -1041,7 +1041,7 @@ export async function internalRoutes(app: FastifyInstance) {
       organizations: organizations.map(({ settings, connections, memberships, invitations, ...organization }) => ({
         ...organization,
         scope: resolvePrimeProductScope(organization.kind, settings),
-        connections: connections.map(({ settings: connectionSettings, ...connection }) => ({ ...connection, suspendedBy: settingsObject(connectionSettings).suspendedBy ?? null })),
+        connections: connections.map(({ settings: _connectionSettings, ...connection }) => connection),
         members: memberships.map((member) => ({ userId: member.user.id, name: member.user.name, email: member.user.email, role: member.role, roleLabel: primeRoleLabels[member.role], active: member.active && member.user.status === "ACTIVE", since: member.createdAt })),
         invites: invitations.map((invite) => ({ ...invite, roleLabel: invite.primeRole ? primeRoleLabels[invite.primeRole] : null })),
       })),
@@ -1076,13 +1076,6 @@ export async function internalRoutes(app: FastifyInstance) {
       ...(parsed.data.prefixos_gs1 && { gs1Prefixes: normalizeGs1Prefixes(parsed.data.prefixos_gs1) }),
     };
     const after = resolvePrimeProductScope(organization.kind, nextSettings);
-    // Abrir TODOS os produtos para um laboratório expõe venda e estoque de
-    // concorrentes: só a Diretoria, com identidade confirmada.
-    if (organization.kind === "LABORATORY" && before.mode === "OWN" && after.mode === "ALL") {
-      if (request.user.systemRole !== "INTERNAL_ADMIN") return reply.status(403).send({ erro: "SOMENTE_DIRETORIA_LIBERA_TODOS_OS_PRODUTOS" });
-      await requireRecentMfa()(request, reply);
-      if (reply.sent) return reply;
-    }
     const saved = await prisma.$transaction(async (tx) => {
       const result = await tx.primeOrganization.update({ where: { id: organization.id }, data: { ...(parsed.data.nome_fantasia && { tradeName: parsed.data.nome_fantasia }), ...(parsed.data.status && { status: parsed.data.status }), settings: nextSettings as Prisma.InputJsonValue } });
       await tx.auditLog.create({ data: { userId: request.user.sub, action: "PRIME_ORGANIZATION_UPDATED", entity: "PrimeOrganization", entityId: organization.id, requestId: request.id, ipAddress: request.ip, before: { tradeName: organization.tradeName, status: organization.status, scope: before }, after: { tradeName: result.tradeName, status: result.status, scope: after } } });
@@ -1097,7 +1090,7 @@ export async function internalRoutes(app: FastifyInstance) {
     const id = z.string().uuid().safeParse(request.params.id);
     const parsed = z.object({ empresa_id: z.string().uuid(), status: z.enum(["ACTIVE", "SUSPENDED", "TERMINATED"]) }).safeParse(request.body);
     if (!id.success || !parsed.success) return reply.status(400).send({ erro: "CONEXAO_PRIME_INVALIDA" });
-    try { return await setPrimeConnection({ organizationId: id.data, companyId: parsed.data.empresa_id, status: parsed.data.status, by: "NEXUS", actor: actorOf(request) }); }
+    try { return await setPrimeConnection({ organizationId: id.data, companyId: parsed.data.empresa_id, status: parsed.data.status, actor: actorOf(request) }); }
     catch (error) { return sendPrimeError(reply, error); }
   });
 

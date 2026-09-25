@@ -35,7 +35,7 @@ export default async function UsersPage() {
       </div>
       {accessCatalog && <><AccessPrinciples catalog={accessCatalog} /><AccessGovernance catalog={accessCatalog} scope="tenant" compact /></>}
       <AccessReviewCenter campaigns={accessReviews ?? []} currentRole={session.membership.role} review={accessReview} />
-      {sharing && <SharingPanel connections={sharing} currentRole={session.membership.role} />}
+      {sharing && <SharingPanel connections={sharing} />}
       {report.users.length ? <UserAdministration currentRole={session.membership.role} invitations={invitations ?? []} users={report.users} /> : <EmptyReport />}
     </>}
   </section>;

@@ -49,14 +49,14 @@ geram fatura.
 
 Clientes B2B do Painel da indústria (Prime): laboratórios, distribuidoras e
 atacadistas que acompanham, só para consulta e em tempo real, estoque e vendas
-dos próprios produtos nas farmácias vinculadas. Detalhes completos em
+de todas as marcas nas farmácias vinculadas (política de 25/09). Detalhes completos em
 [PORTAL-B2B-FORNECEDORES.md](PORTAL-B2B-FORNECEDORES.md).
 
 | Ação | Regra | Rota |
 |---|---|---|
-| Cadastrar organização (tipo, código, CNPJ, prefixos GS1) | Laboratório nasce vendo só os próprios produtos | `POST /interno/industria/organizacoes` |
-| Mudar situação / escopo / prefixos | "Todos os produtos" para laboratório: só Diretoria + MFA | `PATCH /interno/industria/organizacoes/:id` |
-| Vincular, suspender ou encerrar farmácia | MFA recente; não religa o que a farmácia suspendeu | `PUT .../:id/conexoes` |
+| Cadastrar organização (tipo, código, CNPJ, prefixos GS1 opcionais) | Nasce vendo todas as marcas | `POST /interno/industria/organizacoes` |
+| Mudar situação / restrição GS1 opcional | Reflete no painel na hora | `PATCH /interno/industria/organizacoes/:id` |
+| Vincular, suspender, religar ou encerrar farmácia | MFA recente; só a Nexus faz (é contratual, a farmácia só consulta) | `PUT .../:id/conexoes` |
 | Convidar Responsável / Administrador / Visualizador | MFA recente; link manual se não houver e-mail automático | `POST .../:id/convites` |
 | Suspender / reativar usuário da organização | MFA recente | `PATCH .../:id/membros/:userId` |
 

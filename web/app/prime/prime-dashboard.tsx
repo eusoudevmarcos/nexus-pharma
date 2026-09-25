@@ -64,7 +64,7 @@ export function PrimeDashboard({ initial, team, currentUserId }: { initial: Prim
   const sell = initial.live.sellOut;
   return <div className="prime-dashboard">
     <section className="prime-hero">
-      <div><span>{kindLabels[initial.organization.kind] ?? "Organização"} · {initial.organization.tradeName.toUpperCase()}</span><h1>Seus produtos nas farmácias, ao vivo</h1><p>Estoque, vendas, ruptura e validade em tempo real. Só consulta: nada aqui altera a operação da farmácia.</p></div>
+      <div><span>{kindLabels[initial.organization.kind] ?? "Organização"} · {initial.organization.tradeName.toUpperCase()}</span><h1>{initial.scope.mode === "OWN" ? "Seus produtos nas farmácias, ao vivo" : "Estoque e vendas nas farmácias, ao vivo"}</h1><p>Estoque, vendas, ruptura e validade em tempo real. Só consulta: nada aqui altera a operação da farmácia.</p></div>
       <div className="prime-hero-actions">
         <span className="prime-updated"><i className={live ? "on" : ""} />Atualizado às {clock(initial.generatedAt)}</span>
         <button className="ghost" onClick={() => setLive((value) => !value)} type="button">{live ? "Pausar atualização" : "Retomar ao vivo"}</button>

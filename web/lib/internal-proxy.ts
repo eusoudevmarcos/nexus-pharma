@@ -32,8 +32,6 @@ const internalMessages: Record<string, string> = {
   ORGANIZACAO_PRIME_JA_EXISTE: "Já existe uma organização com este código ou CNPJ.",
   ORGANIZACAO_PRIME_NAO_ENCONTRADA: "Organização não encontrada.",
   ORGANIZACAO_PRIME_INATIVA: "Organização suspensa ou cancelada não recebe convites.",
-  SOMENTE_DIRETORIA_LIBERA_TODOS_OS_PRODUTOS: "Liberar todos os produtos a um laboratório expõe dados de concorrentes: só a Diretoria pode fazer isso.",
-  COMPARTILHAMENTO_SUSPENSO_PELA_FARMACIA: "A própria farmácia suspendeu este compartilhamento; só ela pode religar.",
   CONEXAO_PRIME_INVALIDA: "Escolha a farmácia e a situação do vínculo.",
   MEMBRO_PRIME_NAO_ENCONTRADO: "Este usuário não faz parte da organização.",
   EMPRESA_NAO_ENCONTRADA: "Farmácia não encontrada.",

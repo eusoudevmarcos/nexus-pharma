@@ -1,7 +1,8 @@
 // E2E do painel da indústria/distribuição (Prime) contra um Postgres REAL.
-// Prova isolamento: organização só vê farmácias vinculadas; laboratório só vê
-// os próprios produtos (prefixo GS1); farmácia suspende e o dado some na hora;
-// painel é só leitura; equipe gerenciada por Responsável/Administrador.
+// Política de 25/09: toda organização vê todas as marcas nas farmácias
+// vinculadas (restrição por prefixo GS1 é opcional); só a Nexus suspende o
+// compartilhamento (a farmácia só consulta). Prova isolamento entre
+// organizações e farmácias, painel só leitura e equipe gerenciada.
 // Fica fora de tests/*.test.mjs (não roda no CI). Uso (em api/): npm run test:e2e:prime
 import Fastify from "fastify";
 import jwt from "@fastify/jwt";
@@ -128,7 +129,7 @@ try {
   r = await call(tGestor, "POST", "/api/v1/interno/industria/organizacoes", { codigo: `${tag}-X`, razao_social: "Lab X", nome_fantasia: "Lab X", tipo: "LABORATORY", prefixos_gs1: ["789"] });
   check("prefixo GS1 curto demais é recusado (400)", r.status === 400, JSON.stringify(r.body?.erro));
   r = await call(tGestor, "POST", "/api/v1/interno/industria/organizacoes", { codigo: `${tag}-LAB`, razao_social: `${tag} Laboratorio`, nome_fantasia: `${tag} Laboratorio`, tipo: "LABORATORY", prefixos_gs1: ["7891234"] });
-  check("gestor comercial cadastra laboratório (201, escopo OWN)", r.status === 201 && r.body?.scope?.mode === "OWN" && r.body.scope.gs1Prefixes?.[0] === "7891234", JSON.stringify(r.body));
+  check("gestor comercial cadastra laboratório (201, padrão: todas as marcas)", r.status === 201 && r.body?.scope?.mode === "ALL", JSON.stringify(r.body));
   const lab = r.body; orgIds.push(lab?.id);
   r = await call(tGestor, "POST", "/api/v1/interno/industria/organizacoes", { codigo: `${tag}-DIST`, razao_social: `${tag} Distribuidora`, nome_fantasia: `${tag} Distribuidora`, tipo: "DISTRIBUTOR" });
   check("gestor comercial cadastra distribuidora (201, escopo ALL)", r.status === 201 && r.body?.scope?.mode === "ALL", JSON.stringify(r.body));
@@ -176,13 +177,13 @@ try {
   const tDist = await tokenFor(distOwner, { mfaVerified: true });
 
   r = await call(tLab, "GET", "/api/v1/prime/dashboard");
-  check("laboratório vê só os próprios produtos (sem o concorrente)", r.status === 200 && eans(r).has(OWN_1) && eans(r).has(OWN_2) && !eans(r).has(RIVAL), JSON.stringify([...eans(r)]));
+  check("laboratório vê todo o estoque, de todas as marcas (padrão)", r.status === 200 && eans(r).has(OWN_1) && eans(r).has(OWN_2) && eans(r).has(RIVAL), JSON.stringify([...eans(r)]));
   check("laboratório vê só as farmácias vinculadas (A e B, não C)", pharmacyNames(r).has(`${tag} A`) && pharmacyNames(r).has(`${tag} B`) && !pharmacyNames(r).has(`${tag} C`), JSON.stringify([...pharmacyNames(r)]));
-  check("sell-out de hoje soma só produto próprio em farmácia vinculada (3+2)", r.body?.live?.sellOut?.today === 5, JSON.stringify(r.body?.live?.sellOut));
-  check("estoque na rede soma só o escopo (20+0+8)", r.body?.live?.stockUnits === 28, String(r.body?.live?.stockUnits));
+  check("sell-out de hoje soma as farmácias vinculadas (3+7+2+1)", r.body?.live?.sellOut?.today === 13, JSON.stringify(r.body?.live?.sellOut));
+  check("estoque na rede soma as farmácias vinculadas (20+0+50+8+5)", r.body?.live?.stockUnits === 83, String(r.body?.live?.stockUnits));
   check("ruptura detectada (produto 2 zerado na farmácia A)", r.body?.live?.ruptures === 1, String(r.body?.live?.ruptures));
-  check("sinais do radar também respeitam o escopo", (r.body?.opportunities ?? []).length > 0 && r.body.opportunities.every((item) => item.product.ean.startsWith("7891234")), JSON.stringify((r.body?.opportunities ?? []).map((o) => o.product.ean)));
-  check("painel informa escopo e perfil do usuário", r.body?.scope?.mode === "OWN" && r.body?.viewer?.canManage === true, JSON.stringify([r.body?.scope, r.body?.viewer]));
+  check("radar mostra estoque baixo de outras marcas também", (r.body?.opportunities ?? []).some((item) => item.product.ean === RIVAL), JSON.stringify((r.body?.opportunities ?? []).map((o) => o.product.ean)));
+  check("painel informa escopo e perfil do usuário", r.body?.scope?.mode === "ALL" && r.body?.viewer?.canManage === true, JSON.stringify([r.body?.scope, r.body?.viewer]));
   check("nada de preço ou custo no painel", !JSON.stringify(r.body).match(/unitPrice|unitCost|grossAmount|costAmount|margin/i));
 
   r = await call(tDist, "GET", "/api/v1/prime/dashboard");
@@ -203,38 +204,39 @@ try {
   r = await call(tLab, "POST", "/api/v1/prime/sincronizar", {});
   check("sincronização manual removida (404)", r.status === 404);
 
-  // ---------- farmácia no controle ----------
-  console.log("Farmácia no controle do compartilhamento");
+  // ---------- compartilhamento: farmácia consulta, Nexus gerencia ----------
+  console.log("Compartilhamento (contrato)");
+  r = await call(tAdmin, "GET", "/api/v1/interno/industria");
+  check("Diretoria acessa a gestão da indústria (200)", r.status === 200 && Array.isArray(r.body?.organizations), JSON.stringify(r.body?.erro));
   r = await call(tPharmacy, "GET", "/api/v1/usuarios/compartilhamentos", undefined, pharmacyHeaders);
   const labConnection = (r.body ?? []).find((item) => item.organization?.tradeName === `${tag} Laboratorio`);
-  check("farmácia vê quem acessa os dados dela (2 organizações)", r.status === 200 && r.body.length === 2 && !!labConnection, JSON.stringify(r));
-  r = await call(tPharmacy, "PATCH", `/api/v1/usuarios/compartilhamentos/${labConnection.id}`, { status: "SUSPENDED" }, pharmacyHeaders);
-  check("farmácia suspende o laboratório (200, sem exigir MFA)", r.status === 200 && r.body?.status === "SUSPENDED" && r.body?.suspendedBy === "PHARMACY", JSON.stringify(r));
-  r = await call(tLab, "GET", "/api/v1/prime/dashboard");
-  check("dados da farmácia A somem na hora do painel do laboratório", r.status === 200 && !pharmacyNames(r).has(`${tag} A`) && r.body?.live?.sellOut?.today === 2, JSON.stringify([[...pharmacyNames(r)], r.body?.live?.sellOut]));
-  check("sinais da farmácia A também somem", (r.body?.opportunities ?? []).every((item) => item.company.id !== A.company.id));
-  r = await call(tGestor, "PUT", `/api/v1/interno/industria/organizacoes/${lab.id}/conexoes`, { empresa_id: A.company.id, status: "ACTIVE" });
-  check("Nexus não religa o que a farmácia suspendeu (409)", r.status === 409 && r.body?.erro === "COMPARTILHAMENTO_SUSPENSO_PELA_FARMACIA", JSON.stringify(r));
-  r = await call(tPharmacy, "PATCH", `/api/v1/usuarios/compartilhamentos/${labConnection.id}`, { status: "ACTIVE" }, pharmacyHeaders);
-  check("religar exige identidade confirmada (MFA)", r.status === 403 && String(r.body?.erro).startsWith("MFA_"), JSON.stringify(r));
+  check("farmácia vê quem acompanha os dados dela (2 organizações)", r.status === 200 && r.body.length === 2 && !!labConnection, JSON.stringify(r));
   const tPharmacyMfa = await tokenFor(pharmacyOwner, { mfaVerified: true });
-  r = await call(tPharmacyMfa, "PATCH", `/api/v1/usuarios/compartilhamentos/${labConnection.id}`, { status: "ACTIVE" }, pharmacyHeaders);
-  check("farmácia religa com MFA (200)", r.status === 200 && r.body?.status === "ACTIVE", JSON.stringify(r));
+  r = await call(tPharmacyMfa, "PATCH", `/api/v1/usuarios/compartilhamentos/${labConnection?.id}`, { status: "SUSPENDED" }, pharmacyHeaders);
+  check("farmácia NÃO suspende (faz parte do contrato): rota não existe (404)", r.status === 404, JSON.stringify(r));
+  r = await call(tGestor, "PUT", `/api/v1/interno/industria/organizacoes/${lab.id}/conexoes`, { empresa_id: A.company.id, status: "SUSPENDED" });
+  check("Nexus suspende o vínculo (200)", r.status === 200 && r.body?.status === "SUSPENDED", JSON.stringify(r));
   r = await call(tLab, "GET", "/api/v1/prime/dashboard");
-  check("farmácia A volta ao painel do laboratório", pharmacyNames(r).has(`${tag} A`));
+  check("dados da farmácia A somem na hora do painel do laboratório", r.status === 200 && !pharmacyNames(r).has(`${tag} A`) && r.body?.live?.sellOut?.today === 3, JSON.stringify([[...pharmacyNames(r)], r.body?.live?.sellOut]));
+  check("sinais da farmácia A também somem", (r.body?.opportunities ?? []).length > 0 && r.body.opportunities.every((item) => item.company.id !== A.company.id));
+  r = await call(tPharmacy, "GET", "/api/v1/usuarios/compartilhamentos", undefined, pharmacyHeaders);
+  check("farmácia enxerga a suspensão feita pela Nexus", (r.body ?? []).find((item) => item.id === labConnection?.id)?.status === "SUSPENDED", JSON.stringify(r.body));
+  r = await call(tGestor, "PUT", `/api/v1/interno/industria/organizacoes/${lab.id}/conexoes`, { empresa_id: A.company.id, status: "ACTIVE" });
+  check("Nexus religa o vínculo (200)", r.status === 200 && r.body?.status === "ACTIVE", JSON.stringify(r));
+  r = await call(tLab, "GET", "/api/v1/prime/dashboard");
+  check("farmácia A volta ao painel do laboratório", pharmacyNames(r).has(`${tag} A`) && r.body?.live?.sellOut?.today === 13, JSON.stringify(r.body?.live?.sellOut));
 
-  // ---------- escopo total para laboratório ----------
-  console.log("Escopo de produtos");
-  r = await call(tGestor, "PATCH", `/api/v1/interno/industria/organizacoes/${lab.id}`, { escopo_produtos: "ALL" });
-  check("gestor comercial NÃO libera todos os produtos a um laboratório (403)", r.status === 403 && r.body?.erro === "SOMENTE_DIRETORIA_LIBERA_TODOS_OS_PRODUTOS", JSON.stringify(r));
-  r = await call(tAdmin, "PATCH", `/api/v1/interno/industria/organizacoes/${lab.id}`, { escopo_produtos: "ALL" });
-  check("Diretoria com MFA libera (200)", r.status === 200 && r.body?.scope?.mode === "ALL", JSON.stringify(r));
-  r = await call(tLab, "GET", "/api/v1/prime/dashboard");
-  check("laboratório passa a ver o concorrente", eans(r).has(RIVAL));
+  // ---------- restrição opcional por prefixo GS1 ----------
+  console.log("Restrição opcional por prefixo GS1");
   r = await call(tGestor, "PATCH", `/api/v1/interno/industria/organizacoes/${lab.id}`, { escopo_produtos: "OWN" });
-  check("gestor pode restringir de volta (200)", r.status === 200 && r.body?.scope?.mode === "OWN", JSON.stringify(r));
+  check("gestor restringe o laboratório aos próprios produtos (200)", r.status === 200 && r.body?.scope?.mode === "OWN" && r.body.scope.gs1Prefixes?.[0] === "7891234", JSON.stringify(r));
   r = await call(tLab, "GET", "/api/v1/prime/dashboard");
-  check("concorrente some na hora após restringir", !eans(r).has(RIVAL) && (r.body?.opportunities ?? []).every((item) => item.product.ean !== RIVAL));
+  check("com a restrição, o concorrente some na hora", !eans(r).has(RIVAL) && eans(r).has(OWN_1) && (r.body?.opportunities ?? []).every((item) => item.product.ean !== RIVAL), JSON.stringify([...eans(r)]));
+  check("sell-out restrito soma só o produto próprio (3+2)", r.body?.live?.sellOut?.today === 5, JSON.stringify(r.body?.live?.sellOut));
+  r = await call(tGestor, "PATCH", `/api/v1/interno/industria/organizacoes/${lab.id}`, { escopo_produtos: "ALL" });
+  check("gestor volta para todas as marcas, sem trava de Diretoria (200)", r.status === 200 && r.body?.scope?.mode === "ALL", JSON.stringify(r));
+  r = await call(tLab, "GET", "/api/v1/prime/dashboard");
+  check("concorrente volta ao painel", eans(r).has(RIVAL));
 
   // ---------- equipe da indústria ----------
   console.log("Equipe da indústria");
@@ -247,7 +249,7 @@ try {
   await enableMfa(analyst);
   const tAnalyst = await tokenFor(analyst, { mfaVerified: true });
   r = await call(tAnalyst, "GET", "/api/v1/prime/dashboard");
-  check("Visualizador vê o painel com o mesmo escopo", r.status === 200 && !eans(r).has(RIVAL) && r.body?.viewer?.canManage === false, JSON.stringify(r.body?.viewer));
+  check("Visualizador vê os mesmos dados do Responsável", r.status === 200 && eans(r).has(RIVAL) && eans(r).has(OWN_1) && r.body?.viewer?.canManage === false, JSON.stringify(r.body?.viewer));
   r = await call(tAnalyst, "GET", "/api/v1/prime/equipe");
   check("Visualizador não gerencia equipe (403)", r.status === 403 && r.body?.erro === "PERFIL_PRIME_NAO_AUTORIZADO", JSON.stringify(r));
   r = await call(tLab, "GET", "/api/v1/prime/equipe");

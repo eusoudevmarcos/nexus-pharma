@@ -2,14 +2,13 @@
  * Escopo de produtos que uma organização Prime (indústria/distribuição) enxerga
  * nas farmácias vinculadas.
  *
- * - Laboratório: por padrão só os PRÓPRIOS produtos, identificados pelo prefixo
- *   de empresa GS1 do código de barras. Assim um fabricante nunca recebe o
- *   sell-out ou o estoque de um concorrente.
- * - Distribuidor, atacadista e a plataforma Nexus: todos os produtos, porque
- *   abastecem todas as marcas.
+ * Padrão (política de 25/09): TODAS as marcas, para qualquer tipo de
+ * organização. O laboratório vê todo o estoque baixo do cliente e decide por si
+ * mesmo o que oferecer; o compartilhamento faz parte do contrato da farmácia.
  *
- * A Nexus pode sobrescrever por organização em `settings.productScope`
- * ("OWN" | "ALL"); os prefixos ficam em `settings.gs1Prefixes`.
+ * Restrição opcional, por organização: `settings.productScope = "OWN"` limita
+ * aos produtos cujo código de barras começa com um dos `settings.gs1Prefixes`
+ * (prefixo de empresa GS1).
  */
 
 export type PrimeOrganizationKindCode = "PLATFORM" | "LABORATORY" | "DISTRIBUTOR" | "WHOLESALER";
@@ -36,8 +35,8 @@ export function normalizeGs1Prefixes(input: unknown): string[] {
   return [...new Set(prefixes)].sort();
 }
 
-export function defaultProductScopeMode(kind: PrimeOrganizationKindCode): "OWN" | "ALL" {
-  return kind === "LABORATORY" ? "OWN" : "ALL";
+export function defaultProductScopeMode(_kind: PrimeOrganizationKindCode): "OWN" | "ALL" {
+  return "ALL";
 }
 
 export function resolvePrimeProductScope(kind: PrimeOrganizationKindCode, settings: unknown): PrimeProductScope {

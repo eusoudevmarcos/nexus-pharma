@@ -24,20 +24,21 @@ test("normaliza prefixos: só dígitos, válidos, sem duplicata, ordenados", () 
   assert.deepEqual(normalizeGs1Prefixes(undefined), []);
 });
 
-test("padrão por tipo: laboratório só os seus; distribuição, atacado e plataforma veem tudo", () => {
-  assert.equal(defaultProductScopeMode("LABORATORY"), "OWN");
+test("padrão (política de 25/09): todo tipo vê todas as marcas, inclusive laboratório", () => {
+  assert.equal(defaultProductScopeMode("LABORATORY"), "ALL");
   assert.equal(defaultProductScopeMode("DISTRIBUTOR"), "ALL");
   assert.equal(defaultProductScopeMode("WHOLESALER"), "ALL");
   assert.equal(defaultProductScopeMode("PLATFORM"), "ALL");
 });
 
-test("escopo vem do cadastro e pode ser sobrescrito pela Nexus", () => {
-  assert.deepEqual(resolvePrimeProductScope("LABORATORY", { gs1Prefixes: ["7891234"] }), { mode: "OWN", gs1Prefixes: ["7891234"] });
-  assert.deepEqual(resolvePrimeProductScope("LABORATORY", {}), { mode: "OWN", gs1Prefixes: [] });
+test("restrição por prefixo GS1 é opcional e só vale quando a Nexus liga", () => {
+  assert.deepEqual(resolvePrimeProductScope("LABORATORY", { gs1Prefixes: ["7891234"] }), { mode: "ALL" }, "prefixo cadastrado sozinho não restringe");
+  assert.deepEqual(resolvePrimeProductScope("LABORATORY", {}), { mode: "ALL" });
+  assert.deepEqual(resolvePrimeProductScope("LABORATORY", { productScope: "OWN", gs1Prefixes: ["7891234"] }), { mode: "OWN", gs1Prefixes: ["7891234"] });
   assert.deepEqual(resolvePrimeProductScope("LABORATORY", { productScope: "ALL", gs1Prefixes: ["7891234"] }), { mode: "ALL" });
   assert.deepEqual(resolvePrimeProductScope("DISTRIBUTOR", { productScope: "OWN", gs1Prefixes: ["7891234"] }), { mode: "OWN", gs1Prefixes: ["7891234"] });
   assert.deepEqual(resolvePrimeProductScope("DISTRIBUTOR", null), { mode: "ALL" });
-  assert.deepEqual(resolvePrimeProductScope("LABORATORY", { productScope: "QUALQUER" }), { mode: "OWN", gs1Prefixes: [] });
+  assert.deepEqual(resolvePrimeProductScope("LABORATORY", { productScope: "QUALQUER" }), { mode: "ALL" });
 });
 
 test("código de barras vai para GTIN-13 antes de comparar o prefixo", () => {
@@ -48,7 +49,7 @@ test("código de barras vai para GTIN-13 antes de comparar o prefixo", () => {
   assert.equal(toGtin13("78912340"), "78912340");
 });
 
-test("laboratório vê o próprio produto e nunca o do concorrente", () => {
+test("com a restrição ligada: vê o próprio produto e não o do concorrente", () => {
   const scope = { mode: "OWN", gs1Prefixes: ["7891234"] };
   assert.equal(productInScope(scope, "7891234000017"), true);
   assert.equal(productInScope(scope, "17891234000014"), true, "caixa de embarque (GTIN-14) do próprio produto");
@@ -56,7 +57,7 @@ test("laboratório vê o próprio produto e nunca o do concorrente", () => {
   assert.equal(productInScope(scope, "7891235000016"), false, "prefixo vizinho não casa");
 });
 
-test("sem prefixo cadastrado o laboratório não vê nada (falha fechado)", () => {
+test("restrição ligada sem prefixo cadastrado não mostra nada (falha fechado)", () => {
   assert.equal(productInScope({ mode: "OWN", gs1Prefixes: [] }, "7891234000017"), false);
 });
 

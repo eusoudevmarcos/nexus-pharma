@@ -4,7 +4,6 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../infra/prisma.js";
 import { deliverInvitationEmail } from "../services/email-delivery.js";
-import { PrimeError, setPrimeConnection } from "../services/prime.service.js";
 import {
   authenticate,
   requireRecentMfa,
@@ -330,49 +329,20 @@ export async function usersRoutes(app: FastifyInstance) {
     },
   );
 
-  // Compartilhamento com indústria e distribuição: a farmácia vê quem recebe
-  // os dados dela (estoque e vendas em quantidade, nunca preço nem consumidor)
-  // e pode suspender a qualquer momento.
+  // Compartilhamento com indústria e distribuição: faz parte do contrato da
+  // farmácia (política de 25/09). Ela só CONSULTA quem acompanha os dados
+  // (estoque e vendas em quantidade, nunca preço nem consumidor); suspender ou
+  // encerrar é exclusivo da Nexus, na Central.
   app.get(
     "/compartilhamentos",
     { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN", "MANAGER"])] },
     async (request) => {
       const connections = await prisma.primeConnection.findMany({
         where: { companyId: request.tenant!.companyId, organization: { kind: { not: "PLATFORM" } } },
-        select: { id: true, status: true, settings: true, startsAt: true, endsAt: true, organization: { select: { tradeName: true, kind: true, status: true } } },
+        select: { id: true, status: true, startsAt: true, endsAt: true, organization: { select: { tradeName: true, kind: true, status: true } } },
         orderBy: { startsAt: "asc" },
       });
-      return connections.map(({ settings, ...connection }) => ({
-        ...connection,
-        suspendedBy: settings && typeof settings === "object" && !Array.isArray(settings) ? ((settings as Record<string, unknown>).suspendedBy ?? null) : null,
-      }));
-    },
-  );
-
-  app.patch<{ Params: { id: string } }>(
-    "/compartilhamentos/:id",
-    { preHandler: [authenticate, tenantContext, requireTenantRoles(["OWNER", "ADMIN"])] },
-    async (request, reply) => {
-      const id = z.string().uuid().safeParse(request.params.id);
-      const parsed = z.object({ status: z.enum(["ACTIVE", "SUSPENDED"]) }).safeParse(request.body);
-      if (!id.success || !parsed.success) return reply.status(400).send({ erro: "ALTERACAO_INVALIDA" });
-      const connection = await prisma.primeConnection.findFirst({ where: { id: id.data, companyId: request.tenant!.companyId } });
-      if (!connection) return reply.status(404).send({ erro: "COMPARTILHAMENTO_NAO_ENCONTRADO" });
-      // Suspender protege e é imediato; religar reabre os dados a um terceiro
-      // e exige identidade confirmada.
-      if (parsed.data.status === "ACTIVE") {
-        await requireRecentMfa()(request, reply);
-        if (reply.sent) return reply;
-      }
-      try {
-        return await setPrimeConnection({
-          organizationId: connection.organizationId, companyId: connection.companyId, status: parsed.data.status, by: "PHARMACY",
-          actor: { userId: request.user.sub, requestId: request.id, ipAddress: request.ip },
-        });
-      } catch (error) {
-        if (error instanceof PrimeError) return reply.status(error.statusCode).send({ erro: error.message });
-        throw error;
-      }
+      return connections;
     },
   );
 

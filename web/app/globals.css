@@ -2156,7 +2156,7 @@ body:has(.offline-cash-app) .site-header, body:has(.offline-cash-app) .site-foot
 
 /* ---- Farmácia: compartilhamento com indústria e distribuição ---- */
 .sharing-panel { display: grid; gap: 12px; }
-.sharing-row { grid-template-columns: minmax(200px, 1fr) 170px 110px; }
+.sharing-row { grid-template-columns: minmax(200px, 1fr) 170px; }
 .sharing-empty { margin: 0; color: #94a1a7; font-size: .62rem; }
 
 /* ---- Painel da indústria (só leitura, ao vivo) ---- */

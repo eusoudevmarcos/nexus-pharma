@@ -378,47 +378,31 @@ export async function updatePrimeMember(input: { organizationId: string; userId:
 }
 
 // ---------------------------------------------------------------------------
-// Vínculo farmácia ⇄ organização (quem vê os dados de quem)
+// Vínculo farmácia ⇄ organização (quem vê os dados de quem) — gerido pela Nexus
 // ---------------------------------------------------------------------------
-
-const suspendedByOf = (settings: unknown) => (settings && typeof settings === "object" && !Array.isArray(settings) ? (settings as Record<string, unknown>).suspendedBy : undefined);
 
 /**
  * Liga, suspende ou encerra o compartilhamento dos dados de uma farmácia com uma
- * organização. Quem suspendeu é quem reativa: a Nexus não religa o que a
- * farmácia desligou, e vice-versa. Encerrado não volta por aqui.
+ * organização. Só a Nexus faz isso: o compartilhamento está no contrato da
+ * farmácia e faz parte do todo (política de 25/09) — a farmácia só consulta.
  */
-export async function setPrimeConnection(input: { organizationId: string; companyId: string; status: PrimeConnectionStatus; by: "NEXUS" | "PHARMACY"; actor: Actor }) {
-  const existing = await prisma.primeConnection.findUnique({ where: { organizationId_companyId: { organizationId: input.organizationId, companyId: input.companyId } } });
-  if (input.by === "PHARMACY" && !existing) throw new PrimeError(404, "COMPARTILHAMENTO_NAO_ENCONTRADO");
-  if (existing?.status === "TERMINATED" && input.status !== "TERMINATED" && input.by === "PHARMACY") throw new PrimeError(409, "COMPARTILHAMENTO_ENCERRADO");
-  if (input.by === "PHARMACY" && input.status === "TERMINATED") throw new PrimeError(403, "ENCERRAMENTO_SO_PELA_NEXUS");
-  const suspendedBy = suspendedByOf(existing?.settings);
-  if (input.status === "ACTIVE" && existing?.status === "SUSPENDED") {
-    if (input.by === "NEXUS" && suspendedBy === "PHARMACY") throw new PrimeError(409, "COMPARTILHAMENTO_SUSPENSO_PELA_FARMACIA");
-    if (input.by === "PHARMACY" && suspendedBy !== "PHARMACY") throw new PrimeError(409, "COMPARTILHAMENTO_SUSPENSO_PELA_NEXUS");
-  }
-  if (input.by === "NEXUS") {
-    const [organization, company] = await Promise.all([
-      prisma.primeOrganization.findUnique({ where: { id: input.organizationId }, select: { kind: true } }),
-      prisma.company.findUnique({ where: { id: input.companyId }, select: { id: true } }),
-    ]);
-    if (!organization || organization.kind === "PLATFORM") throw new PrimeError(404, "ORGANIZACAO_PRIME_NAO_ENCONTRADA");
-    if (!company) throw new PrimeError(404, "EMPRESA_NAO_ENCONTRADA");
-  }
-  const baseSettings = existing?.settings && typeof existing.settings === "object" && !Array.isArray(existing.settings) ? (existing.settings as Record<string, unknown>) : {};
-  const { suspendedBy: _previousSuspendedBy, ...otherSettings } = baseSettings;
-  void _previousSuspendedBy;
-  const settings = (input.status === "SUSPENDED" ? { ...otherSettings, suspendedBy: input.by } : otherSettings) as Prisma.InputJsonValue;
-  const data = { status: input.status, settings, endsAt: input.status === "TERMINATED" ? new Date() : null };
+export async function setPrimeConnection(input: { organizationId: string; companyId: string; status: PrimeConnectionStatus; actor: Actor }) {
+  const [organization, company, existing] = await Promise.all([
+    prisma.primeOrganization.findUnique({ where: { id: input.organizationId }, select: { kind: true } }),
+    prisma.company.findUnique({ where: { id: input.companyId }, select: { id: true } }),
+    prisma.primeConnection.findUnique({ where: { organizationId_companyId: { organizationId: input.organizationId, companyId: input.companyId } } }),
+  ]);
+  if (!organization || organization.kind === "PLATFORM") throw new PrimeError(404, "ORGANIZACAO_PRIME_NAO_ENCONTRADA");
+  if (!company) throw new PrimeError(404, "EMPRESA_NAO_ENCONTRADA");
+  const data = { status: input.status, endsAt: input.status === "TERMINATED" ? new Date() : null };
   const saved = await prisma.$transaction(async (tx) => {
     const result = existing
       ? await tx.primeConnection.update({ where: { id: existing.id }, data })
       : await tx.primeConnection.create({ data: { organizationId: input.organizationId, companyId: input.companyId, ...data } });
-    await tx.auditLog.create({ data: { companyId: input.companyId, userId: input.actor.userId, action: "PRIME_CONNECTION_UPDATED", entity: "PrimeConnection", entityId: result.id, requestId: input.actor.requestId, ipAddress: input.actor.ipAddress, ...(existing && { before: { status: existing.status, suspendedBy: typeof suspendedBy === "string" ? suspendedBy : null } }), after: { organizationId: input.organizationId, status: result.status, by: input.by } } });
+    await tx.auditLog.create({ data: { companyId: input.companyId, userId: input.actor.userId, action: "PRIME_CONNECTION_UPDATED", entity: "PrimeConnection", entityId: result.id, requestId: input.actor.requestId, ipAddress: input.actor.ipAddress, ...(existing && { before: { status: existing.status } }), after: { organizationId: input.organizationId, status: result.status } } });
     return result;
   });
   // Tira (ou põe) os dados da farmácia no painel na hora, sem esperar a próxima rodada.
   await synchronizePrimeOpportunities(input.organizationId, { force: true });
-  return { id: saved.id, organizationId: saved.organizationId, companyId: saved.companyId, status: saved.status, suspendedBy: suspendedByOf(saved.settings) ?? null };
+  return { id: saved.id, organizationId: saved.organizationId, companyId: saved.companyId, status: saved.status };
 }

@@ -1,11 +1,11 @@
 # Painel da indústria e distribuição (Painel Prime)
 
 > Laboratórios, distribuidoras e atacadistas acompanham **em tempo real e só
-> para consulta** o estoque e as vendas dos próprios produtos nas farmácias
-> parceiras. Em produção o painel fica desligado até
-> `PRIME_ENABLED=true` (API, Render) e `NEXT_PUBLIC_PRIME_ENABLED=true`
-> (site, Vercel — exige um novo deploy, porque variável `NEXT_PUBLIC_` entra no
-> build). A gestão na Central Nexus funciona mesmo com o painel desligado.
+> para consulta** o estoque e as vendas nas farmácias parceiras. Em produção o
+> painel fica desligado até `PRIME_ENABLED=true` (API, Render) e
+> `NEXT_PUBLIC_PRIME_ENABLED=true` (site, Vercel — exige um novo deploy, porque
+> variável `NEXT_PUBLIC_` entra no build). A gestão na Central Nexus funciona
+> mesmo com o painel desligado.
 
 ## Os três lados
 
@@ -13,20 +13,31 @@
  Nexus (Central)                      Indústria/distribuição             Farmácia
  ───────────────                      ──────────────────────             ────────
  cadastra a organização  ──convite──▶ Responsável aceita, ativa MFA
- vincula farmácias ─────────────────▶ vê estoque/vendas AO VIVO  ◀────── compartilha
- define escopo (GS1)                  convida o próprio time             vê quem acessa
- audita tudo                          (só consulta)                      suspende quando quiser
+ vincula farmácias ─────────────────▶ vê estoque/vendas AO VIVO  ◀────── compartilha (contrato)
+ suspende/encerra vínculo             convida o próprio time             consulta quem acompanha
+ audita tudo                          (só consulta)
 ```
+
+## Política de 25/09 (decisões do negócio)
+
+1. **Toda organização vê todas as marcas** nas farmácias vinculadas — inclusive
+   laboratório. O laboratório vê todo o estoque baixo do cliente e decide por
+   si mesmo o que oferecer.
+2. **O compartilhamento faz parte do contrato da farmácia.** A farmácia não
+   suspende; ela consulta quem acompanha os dados dela. Suspender ou encerrar é
+   exclusivo da Nexus.
+3. **A Nexus cria a indústria e convida o Responsável; o Responsável cuida do
+   time.**
 
 ## O que a indústria vê — e o que nunca vê
 
 | Vê (quantidades, em tempo real) | Nunca vê |
 |---|---|
-| Vendas hoje / 7 / 30 dias por produto e por farmácia | Preço de venda, custo, margem |
+| Vendas hoje / 7 / 30 dias por produto e por farmácia, de todas as marcas | Preço de venda, custo, margem |
 | Estoque disponível na rede e por farmácia | Financeiro, caixa, contas a pagar |
 | Ruptura (produto × farmácia zerados), cobertura em dias | Dados de consumidores |
 | Lotes perto do vencimento; tendência de 14 dias | Motor fiscal, usuários da farmácia |
-| Sinais de abastecimento com reposição sugerida | Produtos de concorrentes (laboratório) |
+| Sinais de abastecimento com reposição sugerida | Farmácias fora do vínculo |
 
 **Tempo real:** a visão ao vivo (vendas e estoque) é calculada a cada leitura e o
 painel se relê sozinho a cada 30 s com a aba aberta (dá para pausar). Os sinais
@@ -39,43 +50,39 @@ convertida) e o botão de sincronizar foram removidos da API e da tela. A
 indústria configura apenas a própria visão (preferências do radar) e o próprio
 time.
 
-## Escopo de produtos (decisão padrão, configurável por organização)
+## Restrição opcional por prefixo GS1
 
-- **Laboratório: só os próprios produtos**, identificados pelo **prefixo GS1**
-  do código de barras (7 a 12 dígitos — "789" sozinho é recusado, porque casaria
-  com todo produto brasileiro). Sem prefixo cadastrado, não vê nenhum produto
-  (falha fechado). GTIN-14 e UPC-A são normalizados antes de comparar.
-- **Distribuidora e atacadista: todas as marcas**, porque abastecem todas.
-- Liberar **todos os produtos para um laboratório** (o que expõe concorrentes) é
-  ação exclusiva da **Diretoria, com MFA recente**. Restringir de volta, qualquer
-  gestor pode — e o dado sai do painel na hora.
-- O filtro é aplicado duas vezes: na sincronização (produto fora do escopo nem é
-  carregado) e de novo na leitura (defesa em profundidade).
+O padrão é **todas as marcas**. Se um contrato específico exigir, a Nexus pode
+restringir uma organização aos **próprios produtos**, pelo prefixo GS1 do código
+de barras (7 a 12 dígitos — "789" sozinho é recusado, porque casaria com todo
+produto brasileiro). Restrição ligada sem prefixo não mostra nada (falha
+fechado); GTIN-14 e UPC-A são normalizados antes de comparar. Qualquer gestor da
+indústria na Central liga ou desliga, e o painel reflete **na hora**. O filtro
+vale na sincronização e de novo na leitura.
 
-## Consentimento da farmácia (decisão padrão)
+A migration `prime_laboratorio_ve_todas_as_marcas` levou para "todas as marcas"
+os laboratórios cadastrados com a restrição antiga gravada como padrão.
 
-O vínculo é criado pela Nexus, com a autorização prevista no contrato. A
-farmácia vê em **Usuários → "Quem acompanha seu estoque e suas vendas"** cada
-organização que recebe seus dados e pode:
+## Compartilhamento é contratual
 
-- **Suspender** a qualquer momento (sem MFA — proteger é imediato);
-- **Religar** o que ela mesma suspendeu (com MFA — reabrir dado a terceiro).
+A farmácia vê em **Usuários → "Quem acompanha seu estoque e suas vendas"** cada
+organização que acompanha os dados dela, com a situação (acompanhando, suspenso
+pela Nexus, encerrado) — **só consulta**, sem botões e sem rota de alteração.
 
-Quem suspendeu é quem religa: a Nexus não religa o que a farmácia desligou
-(`COMPARTILHAMENTO_SUSPENSO_PELA_FARMACIA`) e vice-versa. Encerrar de vez é
-só pela Nexus. Suspensão/encerramento tiram os dados do painel **no mesmo
-instante** (ressincronização forçada + filtro de leitura por vínculo ativo).
+A Nexus liga, suspende, religa ou encerra o vínculo na Central (com MFA
+recente). Suspender ou encerrar tira os dados do painel **no mesmo instante**
+(ressincronização forçada + leitura só de vínculos ativos).
 
-## Gestão (decisão padrão: Nexus cria, indústria cuida do time)
+## Gestão (Nexus cria, indústria cuida do time)
 
 **Central Nexus → Indústria e distribuição** (Diretoria e Gestor do Comercial;
 Colaborador do Comercial não acessa):
 
-- Cadastrar organização (tipo, código, CNPJ, prefixos GS1) e mudar situação.
-- Vincular/suspender/encerrar farmácias — **exige MFA recente**.
+- Cadastrar organização (tipo, código, CNPJ, prefixos GS1 opcionais) e mudar situação.
+- Vincular, suspender, religar ou encerrar farmácias — **exige MFA recente**.
 - Convidar o **Responsável** e demais usuários — **exige MFA recente**. Sem
   e-mail automático configurado, a tela mostra o link para enviar manualmente.
-- Suspender/reativar usuários da organização.
+- Suspender/reativar usuários da organização; ligar/desligar a restrição GS1.
 
 **No próprio painel** (Responsável e Administrador): convidar Administrador ou
 Visualizador e suspender/reativar — nunca o Responsável (definido pela Nexus)
@@ -93,20 +100,19 @@ suspenso perde o acesso no request seguinte.
 ## Auditoria
 
 `PRIME_ORGANIZATION_CREATED`, `PRIME_ORGANIZATION_UPDATED` (escopo antes/depois),
-`PRIME_CONNECTION_UPDATED` (quem: NEXUS ou PHARMACY), `PRIME_INVITATION_CREATED`,
+`PRIME_CONNECTION_UPDATED`, `PRIME_INVITATION_CREATED`,
 `PRIME_INVITATION_ACCEPTED`, `PRIME_MEMBER_UPDATED`, `PRIME_PREFERENCES_UPDATED`.
 
 ## Testes
 
-- `api/tests/prime-scope.test.mjs` (CI): regra de escopo GS1, normalização,
-  falha fechada.
-- `api/tests/e2e/prime.e2e.mjs` (`npm run test:e2e:prime`, Postgres local): 53
-  verificações com **duas organizações e três farmácias** — laboratório não vê
-  concorrente nem farmácia sem vínculo, distribuidora não abre painel do
-  laboratório, farmácia suspende e o dado some na hora, Nexus não religa o que a
-  farmácia suspendeu, escopo total só pela Diretoria, time gerenciado, auditoria.
-  Com o filtro de escopo sabotado de propósito, 7 verificações falham apontando o
-  vazamento.
+- `api/tests/prime-scope.test.mjs` (CI): padrão "todas as marcas", restrição GS1
+  opcional, normalização, falha fechada.
+- `api/tests/e2e/prime.e2e.mjs` (`npm run test:e2e:prime`, Postgres local): 54
+  verificações com **duas organizações e três farmácias** — laboratório vê todas
+  as marcas só nas farmácias vinculadas, distribuidora não abre painel do
+  laboratório, farmácia não tem rota para suspender (404), suspensão da Nexus
+  tira o dado na hora, restrição GS1 liga/desliga na hora, time gerenciado,
+  auditoria.
 
 ## Roadmap
 
@@ -118,7 +124,7 @@ suspenso perde o acesso no request seguinte.
 6. [x] Sincronização automática (rotina diária + a cada 60 s com painel aberto).
 7. [x] **Gestão visual na Central** (organizações, escopo, vínculos, convites, time).
 8. [x] **Visão ao vivo** de sell-out e estoque, tendência de 14 dias, tabelas por produto e farmácia.
-9. [x] **Transparência e controle da farmácia** (ver e suspender quem acessa).
+9. [x] **Transparência para a farmácia** (consulta de quem acompanha — contrato).
 10. [x] **Teste de isolamento** com duas organizações (e2e).
 11. [ ] Ligar em produção (flags) e fazer o piloto com um laboratório real.
 12. [ ] Métricas históricas (ruptura evitada, sell-in × sell-out) e exportação.
